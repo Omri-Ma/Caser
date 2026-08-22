@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
-app = FastAPI(title="MultiVendor Hub API")
+app = FastAPI(title="CaseHub API")
 
 cors_origins = [
     origin.strip()

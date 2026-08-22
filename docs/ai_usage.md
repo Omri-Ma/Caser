@@ -82,3 +82,20 @@ skeleton with `/health`.
 - Seed data (`db/seed.sql`, the two required demo users) is deliberately deferred to
   Phase 1 step 4 (auth) — a real seed needs bcrypt/argon2-hashed passwords, which
   don't exist yet; seeding now would mean fake/wrong password hashes.
+
+**Also 2026-08-22 — renamed the project.**
+
+**Asked**: Rename the project away from "MultiVendor Hub" (the leftover name from the
+original e-commerce assignment template CLAUDE.md was adapted from) to something
+that actually fits a law-firm SaaS product.
+
+**Changed**:
+- Renamed to **CaseHub** everywhere: `CLAUDE.md` and `README.md` titles, the FastAPI
+  app title in `server/main.py`, the MySQL database name (`multivendor_hub` →
+  `casehub`) in `.env`/`.env.example`, and `db/schema.sql`'s header comment.
+- Since the database name is baked into the MySQL container's data volume at first
+  boot, renaming it meant `docker compose down -v` (safe — no real data existed yet,
+  just empty tables from the schema step) followed by `docker compose up -d --build`
+  to reinitialize under the new name, then re-running the existing Alembic migration
+  against the fresh `casehub` database.
+- Verified: all 9 tables exist under `casehub`, `/health` still responds correctly.

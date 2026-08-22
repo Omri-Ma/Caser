@@ -1,4 +1,4 @@
-# MultiVendor Hub — Law Firm Multi-Tenant SaaS
+# CaseHub — Law Firm Multi-Tenant SaaS
 
 A multi-tenant SaaS platform for law firms. Each law firm is a tenant with its own
 subdomain, branding, and subscription plan.
