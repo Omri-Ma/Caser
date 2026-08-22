@@ -50,3 +50,35 @@ skeleton with `/health`.
 - Docker Desktop on this Windows 11 machine needed WSL2 prerequisites enabled
   manually via Settings > "Turn Windows features on or off" before the engine
   would start, even though BIOS-level virtualization was already on.
+
+**Also 2026-08-22 — Phase 1 step 3**: full schema as SQLAlchemy models + Alembic migration.
+
+**Changed**:
+- Added `server/core/database.py` (engine/session/`Base`, reads `DATABASE_URL`) and
+  `server/models/` — one file per table: `tenant.py`, `user.py`, `case.py`,
+  `document.py`, `subscription.py`, `setting.py`, `work_log.py`, `narrative.py`,
+  `audit_log.py`, plus shared `enums.py` (UserRole, Plan, DocumentFolderType,
+  WorkLogSource). Every tenant-scoped table has an indexed `tenant_id` FK.
+- Added `sqlalchemy`, `alembic`, `pymysql`, `cryptography` to `server/requirements.txt`.
+- Created a local venv (`.venv/`, gitignored) and installed backend deps into it —
+  needed to run Alembic directly from Windows against the MySQL container.
+- Scaffolded Alembic (`alembic.ini` at repo root, `db/migrations/` for env.py +
+  versioned scripts, per CLAUDE.md's folder layout). Edited `env.py` to add
+  `server/` to `sys.path` (so it imports models the same way the app does) and to
+  use `DATABASE_URL_LOCAL` instead of `DATABASE_URL`.
+- Added `DATABASE_URL_LOCAL` to `.env`/`.env.example` — same DB, but with hostname
+  `localhost` instead of `db`, since Alembic runs on the host, not inside Docker.
+- Generated and applied the initial migration (`db/migrations/versions/58ccfaf49fbc_create_initial_schema.py`).
+- Added `db/schema.sql` as a readable snapshot of the live schema.
+- Verified: `SHOW TABLES` inside the `db` container lists all 9 tables plus
+  Alembic's own `alembic_version` bookkeeping table.
+
+**Learned / decided**:
+- Alembic runs from the host (via the new local venv) rather than inside the `app`
+  container — avoids needing to mount `db/` into the container or restructure the
+  Docker build, and reuses the Python install already set up. This is why two
+  separate DB URLs exist (`DATABASE_URL` for the app container, `DATABASE_URL_LOCAL`
+  for host-run tools) — `db` as a hostname only resolves inside Docker's network.
+- Seed data (`db/seed.sql`, the two required demo users) is deliberately deferred to
+  Phase 1 step 4 (auth) — a real seed needs bcrypt/argon2-hashed passwords, which
+  don't exist yet; seeding now would mean fake/wrong password hashes.
