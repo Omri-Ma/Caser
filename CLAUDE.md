@@ -24,6 +24,10 @@ apply in full.
 - Logging: structured logging (e.g. `structlog`) instead of `print()` — always
   include `tenant_id` on request-scoped logs, it's essential for tracing isolation bugs
 - Docs: FastAPI auto OpenAPI at `/docs`, exported Postman Collection in `docs/`
+- Supporting libraries (anything not named above, e.g. small utility packages for
+  either backend or frontend): free choice, per tutor guidance — just check the
+  package has a reasonable download count and star count first, to avoid pulling
+  in something unmaintained or with known security vulnerabilities.
 
 ## Multi-tenancy architecture (core requirement — this is the graded core, do not deviate)
 - Strategy: **shared database, row-level isolation**. Every tenant-scoped table has a
@@ -138,6 +142,13 @@ Do not start any add-on feature until the core below is fully working and tested
 **Phase 2 — Core features** (one vertical slice at a time: DB model → API route →
 frontend form → verified working, before starting the next)
 - Office manager: manage lawyers/clients, branding settings, subscription/plan view
+- Public firm homepage: each tenant subdomain (e.g. `office1.lvh.me`) has a public,
+  unauthenticated landing page showing only non-sensitive firm profile info (name,
+  logo, an "about" blurb stored via the existing `Settings` table) with a sign-in
+  link into the real portal — mirrors the original store assignment's public
+  storefront vs. gated purchase/admin actions split. Reuses the existing subdomain
+  tenant-resolution dependency, just without the auth requirement other routes have.
+  Never exposes actual tenant data (cases/documents/users) — only firm profile info.
 - Lawyer: case list, document upload/download (client + internal folders), manual work log entry
 - Client: view/upload/download own documents only
 - Super admin: cross-tenant firm list and stats
