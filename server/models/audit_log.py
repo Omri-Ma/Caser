@@ -10,9 +10,9 @@ class AuditLog(Base):
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("memberships.id"), nullable=False)
     action = Column(String(100), nullable=False)
     target = Column(String(255), nullable=False)
     timestamp = Column(DateTime, nullable=False, server_default=func.now())
 
-    user = relationship("User")
+    user = relationship("Membership")

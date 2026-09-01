@@ -16,4 +16,4 @@ class Tenant(Base):
     primary_color = Column(String(7), nullable=True)
     active = Column(Boolean, nullable=False, default=True)
 
-    users = relationship("User", back_populates="tenant")
+    memberships = relationship("Membership", back_populates="tenant")

@@ -22,3 +22,10 @@ class DocumentFolderType(str, enum.Enum):
 class WorkLogSource(str, enum.Enum):
     MANUAL = "manual"
     EXCEL_IMPORT = "excel_import"
+
+
+class CaseStatus(str, enum.Enum):
+    OPEN = "open"
+    IN_PROGRESS = "in_progress"
+    ON_HOLD = "on_hold"
+    CLOSED = "closed"

@@ -1,7 +1,8 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, func
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from core.database import Base
+from models.enums import CaseStatus
 
 
 class Case(Base):
@@ -13,11 +14,8 @@ class Case(Base):
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    client_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     title = Column(String(255), nullable=False)
-    status = Column(String(50), nullable=False)
+    status = Column(Enum(CaseStatus), nullable=False, default=CaseStatus.OPEN)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
-    client = relationship("User", foreign_keys=[client_id])
-    lawyer = relationship("User", foreign_keys=[lawyer_id])
+    assignments = relationship("CaseAssignment", back_populates="case")

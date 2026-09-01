@@ -15,7 +15,7 @@ class Document(Base):
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    uploaded_by = Column(Integer, ForeignKey("memberships.id"), nullable=False)
     file_url = Column(String(500), nullable=False)
     folder_type = Column(Enum(DocumentFolderType), nullable=False)
     # Optional extra restriction beyond folder_type, e.g. a specific role or
@@ -24,4 +24,4 @@ class Document(Base):
     visible_to = Column(String(255), nullable=True)
 
     case = relationship("Case")
-    uploader = relationship("User")
+    uploader = relationship("Membership")

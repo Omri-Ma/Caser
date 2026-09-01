@@ -14,12 +14,12 @@ class WorkLog(Base):
 
     id = Column(Integer, primary_key=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
-    lawyer_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    lawyer_id = Column(Integer, ForeignKey("memberships.id"), nullable=False)
     case_id = Column(Integer, ForeignKey("cases.id"), nullable=False)
     date = Column(Date, nullable=False)
     hours = Column(Numeric(6, 2), nullable=False)
     description = Column(String(1000), nullable=True)
     source = Column(Enum(WorkLogSource), nullable=False, default=WorkLogSource.MANUAL)
 
-    lawyer = relationship("User")
+    lawyer = relationship("Membership")
     case = relationship("Case")
