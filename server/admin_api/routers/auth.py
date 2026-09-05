@@ -1,3 +1,5 @@
+from datetime import date
+
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
@@ -13,7 +15,7 @@ from admin_api.schemas.auth import (
 )
 from shared.database import get_db
 from shared.identity import get_current_identity
-from shared.models import Identity, Membership, Tenant
+from shared.models import Identity, Membership, Subscription, Tenant
 from shared.models.enums import Plan, UserRole
 from shared.security import (
     REFRESH_COOKIE_NAME,
@@ -60,7 +62,7 @@ def signup(payload: SignupRequest, response: Response, db: Session = Depends(get
                 detail="An account with this email already exists — log in with its existing password to found a firm",
             )
 
-    tenant = Tenant(name=payload.firm_name, subdomain=subdomain, plan=Plan.FREE, active=True)
+    tenant = Tenant(name=payload.firm_name, subdomain=subdomain, active=True)
     db.add(tenant)
 
     if existing_identity is not None:
@@ -74,9 +76,14 @@ def signup(payload: SignupRequest, response: Response, db: Session = Depends(get
         db.add(identity)
 
     try:
-        db.flush()  # assigns tenant.id/identity.id before the row that references them
+        db.flush()  # assigns tenant.id/identity.id before the rows that reference them
         membership = Membership(identity_id=identity.id, tenant_id=tenant.id, role=UserRole.OFFICE_MANAGER)
         db.add(membership)
+        # Tenants has no plan column — a firm's plan is whichever
+        # Subscriptions row is active, so founding a firm means creating its
+        # first (Free) Subscription row, not setting a field on Tenant.
+        subscription = Subscription(tenant_id=tenant.id, plan=Plan.FREE, start_date=date.today(), active=True)
+        db.add(subscription)
         db.commit()
     except IntegrityError as exc:
         db.rollback()

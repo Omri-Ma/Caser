@@ -26,6 +26,14 @@ class Membership(Base):
     # profile (bio/photo, from Identity) appears on *this* firm's public
     # page. Only meaningful for lawyer memberships in practice.
     show_on_public_page = Column(Boolean, nullable=False, default=True)
+    # Removing someone from a firm is a soft delete (flip to false), never a
+    # real delete — Documents/WorkLogs/AuditLogs/CaseAssignments all
+    # reference memberships.id with no cascade rule, so a real delete would
+    # fail once the person has any history. "Who currently works here"
+    # queries filter to active = true; historical records keep resolving
+    # regardless. Not yet wired into any route — no member-removal route
+    # exists yet (see docs/ai_usage.md).
+    active = Column(Boolean, nullable=False, default=True)
 
     identity = relationship("Identity", back_populates="memberships")
     tenant = relationship("Tenant", back_populates="memberships")

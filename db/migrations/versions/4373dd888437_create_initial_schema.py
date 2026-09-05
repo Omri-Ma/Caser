@@ -1,8 +1,8 @@
 """create initial schema
 
-Revision ID: afbd32b58e03
+Revision ID: 4373dd888437
 Revises: 
-Create Date: 2026-09-03 00:50:45.783445
+Create Date: 2026-09-05 16:24:29.732276
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'afbd32b58e03'
+revision: str = '4373dd888437'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,7 +36,6 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('subdomain', sa.String(length=63), nullable=False),
-    sa.Column('plan', sa.Enum('FREE', 'PRO', 'ENTERPRISE', name='plan'), nullable=False),
     sa.Column('logo_url', sa.String(length=500), nullable=True),
     sa.Column('primary_color', sa.String(length=7), nullable=True),
     sa.Column('active', sa.Boolean(), nullable=False),
@@ -60,6 +59,7 @@ def upgrade() -> None:
     sa.Column('tenant_id', sa.Integer(), nullable=False),
     sa.Column('role', sa.Enum('SUPER_ADMIN', 'OFFICE_MANAGER', 'LAWYER', 'CLIENT', name='userrole'), nullable=False),
     sa.Column('show_on_public_page', sa.Boolean(), nullable=False),
+    sa.Column('active', sa.Boolean(), nullable=False),
     sa.ForeignKeyConstraint(['identity_id'], ['identities.id'], ),
     sa.ForeignKeyConstraint(['tenant_id'], ['tenants.id'], ),
     sa.PrimaryKeyConstraint('id'),

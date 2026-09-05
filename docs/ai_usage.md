@@ -570,3 +570,61 @@ Phase 1 tenant-isolation pytest test, written against real endpoints.
   `WatchFiles`) — pytest alone exercises the same route code but through an
   ASGI transport rather than a live uvicorn process, so this was a useful
   independent check.
+
+## 2026-09-05
+
+**Asked**: Close two remaining schema mismatches between CLAUDE.md's Data
+model (already fully specified, just not yet built) and the actual code:
+add `Memberships.active`, and drop `Tenants.plan` in favor of
+`Subscriptions` being the sole source of truth for a firm's plan. Work
+directly on `master` (Phase 1 foundational correction, not a new feature).
+
+**Changed**:
+- Found `feature/cases` had never actually been merged — it was identical
+  to `master` (zero commits on the branch), with the entire Cases vertical
+  slice (routers, schemas, pagination, and the required
+  `test_tenant_isolation.py`) sitting uncommitted in the working tree.
+  Flagged this to the user rather than assuming the merge already happened
+  elsewhere; independently re-ran the test suite myself (26 passed) before
+  trusting the existing session's "26 passed" claim in this file, then
+  committed to `feature/cases` and merged it into `master` before starting
+  today's actual task.
+- `shared/models/tenant.py`: removed the `plan` column (and the now-unused
+  `Plan` import).
+- `shared/models/membership.py`: added `active` (bool, default `True`). Not
+  wired into any query or route yet — no member-removal route exists yet,
+  so there's nothing to filter `active = true` in and no reactivate-on-re-add
+  logic to write. Left as a bare column, per the instruction, until whichever
+  future session builds member removal.
+- `admin_api/routers/auth.py`'s `signup` was the one place that read/wrote
+  `Tenants.plan` (`plan=Plan.FREE` on the new `Tenant`) — changed to create
+  the new firm's first `Subscription` row instead (`plan=Plan.FREE,
+  start_date=today, active=True`), inside the same try/except-guarded
+  transaction as the `Tenant`/`Identity`/`Membership` rows. `db/seed.sql`
+  and `server/tests/conftest.py` were already `Plan`-free, so nothing else
+  needed touching.
+- Regenerated the Alembic migration from scratch for both changes together
+  (`docker compose down -v`, fresh `alembic revision --autogenerate`,
+  applied), regenerated `db/schema.sql`, re-applied `db/seed.sql` and
+  recreated the `casehub_test` database (both live on the same MySQL volume
+  `down -v` wipes).
+
+**Learned / decided**:
+- The existing pytest suite creates its test tenants directly via the
+  `Tenant(...)` fixture in `conftest.py`, never through `POST /auth/signup`
+  — so it gave no coverage at all of the signup-route change (the
+  `Tenants.plan` → `Subscription`-row swap). All 26 tests still passed after
+  the migration, but that only proved the schema change didn't break
+  anything the tests touch, not that signup itself still worked. Verified
+  the actual route separately via curl (`POST /auth/signup` against a fresh
+  subdomain, then a DB query joining `tenants`/`subscriptions` to confirm
+  the new firm actually got an active Free subscription row) before
+  considering this done — a reminder that "the test suite is green" and
+  "the changed code path works" aren't automatically the same claim.
+- Confirmed before proceeding, rather than assuming: the task said
+  `feature/cases` "has likely already been merged," but `git log`/
+  `git rev-parse` showed master, `feature/cases`, and `origin/master` all
+  pointing at the identical commit — i.e. never merged, with real
+  uncommitted work at risk. Surfaced this explicitly instead of either
+  silently merging on my own judgment or silently proceeding as if it had
+  already happened.
