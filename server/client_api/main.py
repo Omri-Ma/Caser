@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from client_api.routers.auth import router as auth_router
+from client_api.routers.cases import router as cases_router
 from shared.errors import register_error_handlers
 from shared.logging import RequestLoggingMiddleware, configure_logging
 from shared.tenant import BASE_DOMAIN
@@ -15,6 +16,7 @@ configure_logging()
 app = FastAPI(title="CaseHub Client API")
 register_error_handlers(app)
 app.include_router(auth_router)
+app.include_router(cases_router)
 
 # Every tenant gets a subdomain created dynamically at signup, so a fixed,
 # hand-typed allow_origins list can't work here — allow_origin_regex trusts

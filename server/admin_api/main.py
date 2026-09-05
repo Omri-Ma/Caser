@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from admin_api.routers.auth import router as auth_router
+from admin_api.routers.cases import router as cases_router
 from admin_api.routers.members import router as members_router
 from shared.errors import register_error_handlers
 from shared.logging import RequestLoggingMiddleware, configure_logging
@@ -17,6 +18,7 @@ app = FastAPI(title="CaseHub Admin API")
 register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(members_router)
+app.include_router(cases_router)
 
 # Same allow_origin_regex approach as client_api — see that app for the full
 # reasoning. Every tenant subdomain is trusted automatically (both the
