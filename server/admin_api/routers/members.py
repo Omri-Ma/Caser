@@ -2,12 +2,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from core.database import get_db
-from core.membership import require_role
-from core.tenant import get_current_tenant
-from models import Identity, Membership, Tenant
-from models.enums import UserRole
-from schemas.auth import AddMemberRequest, MembershipResponse
+from admin_api.schemas.auth import AddMemberRequest, MembershipResponse
+from shared.database import get_db
+from shared.membership import require_role
+from shared.models import Identity, Membership, Tenant
+from shared.models.enums import UserRole
+from shared.tenant import get_current_tenant
 
 router = APIRouter(prefix="/members", tags=["members"])
 

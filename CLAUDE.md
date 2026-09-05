@@ -33,13 +33,22 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   client can likewise hold memberships at more than one firm.
 
 ## Tech stack (do not substitute without asking)
-- Backend: FastAPI, Pydantic v2, SQLAlchemy (ORM), Alembic (migrations)
+- Backend: **two separate FastAPI apps**, `client_api` and `admin_api` (per
+  tutor guidance — they never call each other over HTTP, they only meet at
+  the shared database), plus a small `/server/shared` package (not a running
+  service) holding the one slice too risky to duplicate — table definitions
+  and tenant/auth logic. See Multi-tenancy architecture for the full reasoning.
+  Pydantic v2, SQLAlchemy (ORM), Alembic (migrations) — same stack, both apps.
 - Database: MySQL, single shared database, indexes on all search/filter fields
   (email, subdomain, case status, etc.), not just primary/foreign keys
 - Auth: JWT (access + refresh tokens), bcrypt or argon2 password hashing
 - Cache: Redis — used for caching (tenant lookups, dashboard stats), not locking
-- Frontend: React (or Next.js), two separate apps: `client/` (portal) and `admin/` (CMS)
-- Infra: Docker Compose (app + db + redis), Nginx (subdomain routing / reverse proxy)
+- Frontend: React (or Next.js), two separate apps: `client/` (portal) and
+  `admin/` (CMS) — deliberately different designs, no shared design system
+  between them (see Code quality) — different audiences, different purposes.
+- Infra: Docker Compose (`client_api` + `admin_api` + db + redis), Nginx
+  (subdomain routing / reverse proxy — a real-deployment concern, not needed
+  for local dev; see Multi-tenancy architecture for local vs. production addressing)
 - Testing: pytest + httpx
 - Logging: structured logging (e.g. `structlog`) instead of `print()` — always
   include `tenant_id` on request-scoped logs, it's essential for tracing isolation bugs.
@@ -73,6 +82,38 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   with path-based routing. Locally, test subdomains via `lvh.me`
   (e.g. `office1.lvh.me:8000`), which resolves any subdomain to localhost with
   zero config.
+- Two backends, two frontends, never merged, never talking to each other
+  directly — only through the database:
+  - **Backend**: `client_api` and `admin_api` are two independent FastAPI
+    processes. Neither calls the other over HTTP. Both connect to the same
+    MySQL database and both import the same `/server/shared` package (table
+    definitions + tenant/auth logic) — sharing *code*, imported at the
+    file-system level into each process, is not "communication" in the sense
+    the no-HTTP rule cares about; it's how real systems avoid the one kind of
+    duplication that's actually dangerous (see Code quality). Both must read
+    the *same* `JWT_SECRET_KEY` and cookie config from a shared `.env` — this
+    is what makes one login work across both apps with no second login: a
+    cookie is scoped by domain, not by port, so the browser sends it to
+    either backend automatically, and a JWT verifies itself (signature +
+    `token_version` lookup) without needing to ask the other backend anything.
+  - **Frontend**: `client/` and `admin/` are two independent apps. Locally,
+    both are reachable at the same tenant subdomain, distinguished by port
+    (e.g. `office1.lvh.me:5173` for the portal, `:5174` for the CMS) — zero
+    new infrastructure, just how two separate dev servers already behave.
+    Deliberately not a path (`office1.lvh.me/admin`): that needs a reverse
+    proxy to work at all, makes the CMS trivially guessable by anyone
+    appending `/admin` to any known URL (a near-universal habit), and blurs
+    "two independent apps" into "one app with a section." In a real
+    deployment, this becomes a subdomain **suffix**, not a nested
+    sub-subdomain: `acme.casehub.com` (portal) / `acme-admin.casehub.com`
+    (CMS) — a nested form (`admin.acme.casehub.com`) would need a separate
+    DNS wildcard per tenant, since a wildcard only covers one subdomain level;
+    a suffix needs only one wildcard (`*.casehub.com`) to cover every current
+    and future tenant, admin included.
+  - `super_admin`'s platform-only address (see below) is unaffected by any of
+    this — it only ever involves `admin/` + `admin_api`, never `client/` or
+    `client_api`, so there's no "which app" ambiguity there, only "which
+    login mode within admin."
 - Identity vs. membership: a login (`Identities`) is global — one person, one
   account — while tenant + role live on a separate `Memberships` row
   (`identity_id`, `tenant_id`, `role`). This lets one person hold a
@@ -99,6 +140,12 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   anything else system-meaningful) — otherwise a real firm could claim the
   exact address reserved for `super_admin`'s platform-only login, or another
   system-meaningful name, causing a real collision rather than a hypothetical one.
+  On top of the fixed list, a **pattern** rule: no subdomain may end in
+  `-admin`, not just the literal word "admin" — since that suffix is now
+  meaningful (see above), a firm registering e.g. `acme-admin` as its own
+  subdomain would collide with the real Acme firm's actual CMS address.
+  Checked at signup the same way the fixed blocklist is, just as a suffix
+  match instead of an exact match.
 - Founding a firm with an email that already has an Identity is allowed, not
   rejected: `POST /auth/signup` checks whether the given email already has an
   Identity and, if so, verifies the submitted password against that
@@ -315,7 +362,14 @@ are built — avoids painful migrations later.
 ```
 /client        — client/lawyer-facing React app
 /admin         — office manager / super admin CMS
-/server        — FastAPI backend (routers, schemas, services, models, deps, core)
+/server        — two independent FastAPI apps + one shared package:
+                   /server/shared     — table definitions, tenant/auth logic
+                                         (imported by both apps, never a
+                                         running service itself)
+                   /server/client_api — lawyer/client backend (routers,
+                                         schemas, services, deps, core)
+                   /server/admin_api  — office_manager/super_admin backend
+                                         (routers, schemas, services, deps, core)
 /db            — schema.sql, seed.sql, Alembic migrations
 /docs          — architecture.png, ERD, openapi.json, postman_collection.json, ai_usage.md
 docker-compose.yml
@@ -339,8 +393,14 @@ README.md
   doesn't weaken tenant isolation: CORS only controls whether the browser
   lets a page *read* a response, not what data the backend returns — that's
   still entirely gated by `get_current_tenant` + `tenant_id` filtering.
-- Add a basic `/health` endpoint so Docker Compose (and the grader) can confirm
-  the app actually started, not just that the container is running.
+  Configured independently in both `client_api` and `admin_api` (each is its
+  own FastAPI app) — the same pattern works for both as-is, since it doesn't
+  care about port locally or about the `-admin` suffix in production; no need
+  to write two different regexes unless you want the extra tidiness of each
+  backend only trusting its own frontend's naming pattern specifically.
+- Add a basic `/health` endpoint on **each** backend (`client_api` and
+  `admin_api` both) so Docker Compose (and the grader) can confirm both apps
+  actually started, not just that their containers are running.
 - All list endpoints (cases, documents, users, work logs) use pagination — never
   return an entire table in one response. 50 items per page by default — same
   idea as Gmail: nothing is ever unreachable, you just page through (page 2,
@@ -416,16 +476,23 @@ README.md
   product domain and UI copy are Hebrew/RTL.
 
 ## Code quality: scalable and reusable by default
-- Backend: shared logic (tenant filtering, auth checks, pagination, error
-  responses, file upload handling) lives in shared utilities/dependencies —
-  never copy-pasted per route file.
-- Frontend: one reusable data-table component, one reusable form component, one
-  reusable modal/dialog pattern, and one reusable "list → detail → edit"
-  structure — configured per entity (lawyers, clients, cases, documents), not
-  rebuilt per entity.
-- Frontend: colors, spacing, and typography live as CSS variables / a design
-  tokens file, not hardcoded per component — this doubles as the mechanism for
-  per-tenant branding, so build it once and reuse it for both purposes.
+- Backend: within each of `client_api`/`admin_api`, shared logic (pagination,
+  error responses, file upload handling) lives in that app's own shared
+  utilities/dependencies — never copy-pasted per route file. *Across* the two
+  apps, only `/server/shared`'s narrow scope (table definitions, tenant/auth
+  logic) is actually shared — everything else stays genuinely separate per
+  app, on purpose (see Multi-tenancy architecture for why only that one slice
+  is worth the shared-code discipline).
+- Frontend: within *each* of `client/` and `admin/` — separately, not shared
+  between them — one reusable data-table component, one reusable form
+  component, one reusable modal/dialog pattern, one reusable
+  "list → detail → edit" structure, and colors/spacing/typography as CSS
+  variables (which also doubles as that app's per-tenant branding mechanism).
+  Not shared *across* the two apps: they're deliberately differently designed
+  (see Tech stack), and actually sharing frontend code between two separate
+  npm projects needs real tooling (workspaces, or a published package) for a
+  benefit that's cosmetic at best here — not worth it for this project, so
+  each app defines its own tokens/components independently.
 - Favor composition over duplication: if a UI or logic pattern appears twice,
   extract it into a shared component/function before a third copy gets written.
 - Keep naming, response shapes, and file/folder conventions consistent across
@@ -436,11 +503,16 @@ Do not start any add-on feature until the core below is fully working and tested
 
 **Phase 1 — Skeleton (in order, before any feature work)**
 1. Repo + folder structure + `.gitignore`
-2. `docker-compose.yml` (app + MySQL + Redis) — must run cleanly with `docker-compose up`
+2. `docker-compose.yml` (`client_api` + `admin_api` + MySQL + Redis) — must run
+   cleanly with `docker-compose up`
 3. Full schema + Alembic migration (all tables above, including add-on tables)
-4. Auth: signup/login, JWT issuing, password hashing
-5. Subdomain-resolution middleware + tenant injection
-6. Role-based route protection (backend + frontend)
+4. Auth: signup/login, JWT issuing, password hashing — built once in
+   `/server/shared` (see Multi-tenancy architecture), used by both backends
+5. Subdomain-resolution middleware + tenant injection — same: lives in
+   `/server/shared`, not duplicated per backend
+6. Role-based route protection (backend + frontend) — each backend still
+   defines its own routes and its own role checks per route; only the
+   underlying "who is this, what tenant, what role" resolution is shared
 7. Tenant-isolation pytest test — written against real endpoints (not just
    models), so it necessarily lands with the first Case route in Phase 2
    rather than before any route exists. Still "early" per the rule below —

@@ -388,3 +388,117 @@ coupled Phase 1 fixes — without starting Phase 2 feature work.
   member-removal). Building any of these now would mean building the
   feature around them too, which is explicitly out of scope for this
   session.
+
+## 2026-09-03
+
+**Asked**: CLAUDE.md changed again — most significantly, the backend went
+from one FastAPI app to two independent apps (`client_api`, `admin_api`)
+that never call each other over HTTP, sharing only the database and a
+`/server/shared` package. Assess the actual code first (don't assume a prior
+session already handled it), then restructure to match, apply the
+foundation fixes in their new locations, and verify end-to-end. Explicitly
+told not to touch `client/`/`admin/` (frontends) and not to start Phase 2.
+
+**Changed**:
+- Assessed first: `server/` was still the single unified app from the
+  previous session (`main.py`, `core/`, `models/`, `routers/`, `schemas/`,
+  one `Dockerfile`) — zero prior progress on the split, confirmed by
+  diffing CLAUDE.md against the last commit and by listing `server/`
+  directly rather than trusting memory.
+- Moved `server/core/*` → `server/shared/*` and `server/models/*` →
+  `server/shared/models/*` via `git mv` (preserves history), largely as-is
+  per the instruction — only the internal `core.`/`models.` imports were
+  rewritten to `shared.`/`shared.models.`.
+- Split `server/routers/auth.py` (the one file that had signup, login,
+  register, logout, refresh, me all together) by audience into
+  `client_api/routers/auth.py` (register, login, logout, refresh, me) and
+  `admin_api/routers/auth.py` (signup, login, the new platform-login route,
+  logout, refresh, me); `members.py` moved to `admin_api/routers/`. Each
+  app got its own `schemas/auth.py`, `main.py` (own CORS regex, own
+  `/health`, own call to `configure_logging()`/`RequestLoggingMiddleware`),
+  and `Dockerfile` (each `COPY`s in `shared/` plus only its own app
+  directory, so `client_api`'s image doesn't contain `admin_api`'s route
+  code or vice versa, even though the dev bind-mount in `docker-compose.yml`
+  mounts all of `server/` for hot-reload either way).
+- Added a role check to both apps' `/auth/login` that wasn't in the old
+  single-app version: `client_api` now rejects a resolved `office_manager`
+  membership (403, "logs in through the admin portal"), and `admin_api`
+  rejects `lawyer`/`client` (403, "logs in through the client portal") —
+  this is the actual enforcement behind CLAUDE.md's Roles-section rule that
+  "nobody cross-logs into the other app," which the single-app version had
+  no reason to check since there was only one login endpoint total.
+- Added `Identities.is_super_admin` (bool, default false) and
+  `admin_api`'s `POST /auth/platform-login`: no `get_current_tenant`
+  dependency at all (platform isn't a `Tenant` row), checks
+  `Identities.is_super_admin` directly, and additionally verifies the
+  request's `Host` header actually is `platform.<BASE_DOMAIN>` before
+  accepting the login — not explicitly required by CLAUDE.md's text, but a
+  cheap defense-in-depth check so a login granting cross-tenant visibility
+  can't be triggered from a random tenant subdomain. Added
+  `db/seed.sql` with just the one bootstrap super_admin row (bcrypt-hashed
+  password), applied manually via `mysql < db/seed.sql` — this is
+  infrastructure per CLAUDE.md, not one of the two required demo users, so
+  no docker-compose auto-seeding wiring was added for it.
+- `shared/tenant.py` gained `is_reserved_subdomain()`, extending the
+  existing `RESERVED_SUBDOMAINS` set check with the new pattern rule: any
+  subdomain ending in `-admin` is also rejected (a firm registering
+  `acme-admin` would otherwise collide with the real Acme firm's own CMS
+  address under the new subdomain-suffix scheme). Used by `admin_api`'s
+  signup; `client_api` never creates tenants so never needed it.
+- `db/migrations/env.py` updated to import `shared.database`/`shared.models`
+  instead of `core.database`/`models` — migrations stay singular (one
+  `db/migrations/` tree, one `alembic.ini`) regardless of the backend split,
+  per the instruction.
+- `docker-compose.yml`: replaced the single `app` service with `client_api`
+  (port 8000) and `admin_api` (port 8001), each with its own build context
+  (`./server`) and Dockerfile path, both reading the same `.env`.
+- Regenerated the Alembic migration from scratch (`docker compose down -v`
+  — including manually removing an orphaned `caser-app-1` container/network
+  left over from the old single-service compose file, which `down -v` alone
+  didn't clean up since it's no longer declared in the compose file — fresh
+  `alembic revision --autogenerate`, applied), regenerated `db/schema.sql`.
+- Verified end-to-end via curl against real `*.lvh.me` subdomains on both
+  ports: both apps' `/health`; `admin_api` signup (including the new
+  `-admin`-suffix rejection alongside the existing literal blocklist);
+  office_manager login via `admin_api` succeeds, via `client_api` gets 403;
+  `client_api` register + office_manager adding that identity as `lawyer`
+  via `admin_api`; that lawyer logs in via `client_api` successfully, via
+  `admin_api` gets 403; `platform.lvh.me:8001` super_admin login succeeds,
+  the same call at a tenant subdomain is rejected, a non-super_admin
+  identity is rejected; **a token issued by `client_api` is accepted by
+  `admin_api`'s `/auth/me` with zero HTTP call between the two processes**
+  (shared `JWT_SECRET_KEY` + `token_version` lookup against the shared DB),
+  and logging out via `client_api` invalidates that same token on
+  `admin_api` too (`token_version` is per-Identity, not per-app); CORS
+  allow/deny on `admin_api`; structured JSON logs with `tenant_id` on both
+  apps independently.
+
+**Learned / decided**:
+- Hit the same `email-validator` reserved-TLD issue as last session, this
+  time on the seed data: `super@casehub.local` was rejected by `EmailStr`
+  the moment I tried to log in with it (`.local` is a reserved/special-use
+  TLD), even though the row itself was inserted via raw SQL and never passed
+  through Pydantic at insert time. Fixed by using `casehub.example.com`
+  instead. Worth remembering for any future seed/demo email: `.test`,
+  `.local`, `.example` (bare) and similar reserved TLDs will pass into the
+  database fine but then can never be used to log in through a Pydantic
+  `EmailStr` field.
+- `docker compose down -v` only removes what the *current* compose file
+  declares — a service renamed or removed from `docker-compose.yml` (here,
+  `app` → `client_api`/`admin_api`) leaves its old container and the
+  network genuinely orphaned, requiring a manual `docker stop`/`rm`/
+  `network rm` before `up` can succeed cleanly. Worth checking `docker ps -a`
+  after any compose service rename, not just after a plain `down -v`.
+- Chose one shared `server/requirements.txt` (referenced by both
+  Dockerfiles via the shared `./server` build context) rather than two
+  near-identical per-app files, since both apps need essentially the same
+  dependency set (they both import the same `shared/` code) — judged this
+  as dependency-declaration bookkeeping, not the "application logic"
+  duplication CLAUDE.md's Code quality section is actually trying to avoid
+  between the two apps.
+- Confirmed with the user before adding `is_super_admin`/the platform-login
+  route: CLAUDE.md's Step 2 instruction named the route explicitly, but the
+  same session's foundation-fixes list didn't mention the column, and a
+  prior session had explicitly deferred it as feature-coupled. User chose
+  to build it fully now (including the minimal seed row) rather than leave
+  it stubbed, since Step 5 required verifying it end-to-end.

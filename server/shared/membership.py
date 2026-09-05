@@ -1,10 +1,10 @@
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from core.database import get_db
-from core.identity import get_current_identity
-from core.tenant import get_current_tenant
-from models import Identity, Membership, Tenant
+from shared.database import get_db
+from shared.identity import get_current_identity
+from shared.tenant import get_current_tenant
+from shared.models import Identity, Membership, Tenant
 
 
 def get_current_membership(

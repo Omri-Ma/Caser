@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from models.enums import DocumentFolderType
+from shared.database import Base
+from shared.models.enums import DocumentFolderType
 
 
 class Document(Base):

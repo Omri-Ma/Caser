@@ -1,7 +1,7 @@
 from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, Numeric, Text, func
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from shared.database import Base
 
 
 class Narrative(Base):

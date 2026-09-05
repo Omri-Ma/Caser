@@ -1,9 +1,9 @@
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from core.database import get_db
-from core.security import ACCESS_COOKIE_NAME, decode_token
-from models import Identity
+from shared.database import get_db
+from shared.security import ACCESS_COOKIE_NAME, decode_token
+from shared.models import Identity
 
 
 def get_current_identity(request: Request, db: Session = Depends(get_db)) -> Identity:

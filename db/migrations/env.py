@@ -8,17 +8,17 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# The app code lives in server/ and imports itself as if server/ were the
-# project root (e.g. `from core.database import Base`), matching how it's
-# laid out inside the Docker image. Add it to sys.path so this script can
-# import the same modules the app does.
+# Both backend apps live under server/ and import shared/ as a top-level
+# package (e.g. `from shared.database import Base`), matching how each
+# app's own Docker image is laid out. Add server/ to sys.path so this script
+# can import the same shared modules the apps do.
 SERVER_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "server")
 sys.path.insert(0, os.path.abspath(SERVER_DIR))
 
 load_dotenv()
 
-from core.database import Base  # noqa: E402
-from models import *  # noqa: E402,F401,F403  (registers all tables on Base.metadata)
+from shared.database import Base  # noqa: E402
+from shared.models import *  # noqa: E402,F401,F403  (registers all tables on Base.metadata)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from shared.database import Base
 
 
 class Setting(Base):

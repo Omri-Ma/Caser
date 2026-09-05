@@ -1,8 +1,8 @@
 from sqlalchemy import Boolean, Column, Enum, ForeignKey, Index, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from models.enums import UserRole
+from shared.database import Base
+from shared.models.enums import UserRole
 
 
 class Membership(Base):

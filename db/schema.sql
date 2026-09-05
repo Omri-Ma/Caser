@@ -29,6 +29,7 @@ CREATE TABLE `identities` (
   `password_hash` varchar(255) NOT NULL,
   `bio` text,
   `photo_url` varchar(500) DEFAULT NULL,
+  `is_super_admin` tinyint(1) NOT NULL,
   `token_version` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ix_identities_email` (`email`)

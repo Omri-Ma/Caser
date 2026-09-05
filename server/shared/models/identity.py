@@ -1,7 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text
+from sqlalchemy import Boolean, Column, Integer, String, Text
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from shared.database import Base
 
 
 class Identity(Base):
@@ -23,6 +23,12 @@ class Identity(Base):
     password_hash = Column(String(255), nullable=False)
     bio = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
+    # Platform-staff flag, unrelated to Memberships — super_admin can never
+    # be a Memberships.role value (a Memberships row means "belongs to this
+    # tenant", and super_admin doesn't belong to any tenant). Checked
+    # directly by admin_api's platform-only login route, never through the
+    # normal tenant/Membership login path.
+    is_super_admin = Column(Boolean, nullable=False, default=False)
     # Bumped on logout/password change. JWTs aren't stored server-side, so
     # this is the only way to invalidate an outstanding token early — every
     # request compares the token's embedded value against this column.

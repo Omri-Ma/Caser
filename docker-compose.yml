@@ -23,15 +23,36 @@ services:
     ports:
       - "6379:6379"
 
-  app:
+  # client_api and admin_api are two independent FastAPI processes — neither
+  # calls the other over HTTP, they only meet at the shared MySQL database
+  # and the shared/ package (imported at the file-system level into each
+  # image, not a running service). See CLAUDE.md's Multi-tenancy architecture.
+  client_api:
     build:
       context: ./server
-      dockerfile: Dockerfile
+      dockerfile: client_api/Dockerfile
     restart: unless-stopped
     env_file:
       - .env
     ports:
       - "8000:8000"
+    volumes:
+      - ./server:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  admin_api:
+    build:
+      context: ./server
+      dockerfile: admin_api/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8001:8001"
     volumes:
       - ./server:/app
     depends_on:

@@ -3,8 +3,8 @@ import os
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
-from core.database import get_db
-from models import Tenant
+from shared.database import get_db
+from shared.models import Tenant
 
 BASE_DOMAIN = os.getenv("BASE_DOMAIN", "lvh.me")
 
@@ -28,6 +28,17 @@ RESERVED_SUBDOMAINS = {
     "health",
     "localhost",
 }
+
+
+def is_reserved_subdomain(subdomain: str) -> bool:
+    """Checked at signup, alongside the uniqueness check. Two rules: the
+    fixed blocklist above, and a pattern rule — no subdomain may *end in*
+    `-admin`, since that suffix is meaningful in production (a tenant's CMS
+    lives at `<subdomain>-admin.<domain>`, see CLAUDE.md's Multi-tenancy
+    architecture) — a firm registering e.g. `acme-admin` would otherwise
+    collide with the real Acme firm's own CMS address.
+    """
+    return subdomain in RESERVED_SUBDOMAINS or subdomain.endswith("-admin")
 
 
 def get_current_tenant(request: Request, db: Session = Depends(get_db)) -> Tenant:

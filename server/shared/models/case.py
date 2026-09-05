@@ -1,8 +1,8 @@
 from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String, func
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from models.enums import CaseStatus
+from shared.database import Base
+from shared.models.enums import CaseStatus
 
 
 class Case(Base):

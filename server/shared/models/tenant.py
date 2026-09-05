@@ -1,8 +1,8 @@
 from sqlalchemy import Boolean, Column, Enum, Integer, String
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from models.enums import Plan
+from shared.database import Base
+from shared.models.enums import Plan
 
 
 class Tenant(Base):

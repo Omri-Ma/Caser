@@ -1,17 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field
 
-from models.enums import UserRole
-
-
-class RegisterRequest(BaseModel):
-    """Create a bare global account — no firm attached yet. A lawyer/client
-    uses this once, then an office manager attaches them to a firm via
-    POST /members.
-    """
-
-    name: str = Field(..., min_length=1, max_length=255)
-    email: EmailStr
-    password: str = Field(..., min_length=8)
+from shared.models.enums import UserRole
 
 
 class SignupRequest(BaseModel):
@@ -25,6 +14,15 @@ class SignupRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class PlatformLoginRequest(BaseModel):
+    """super_admin login at the fixed platform address — no tenant/subdomain
+    involved, just Identity + Identities.is_super_admin.
+    """
+
     email: EmailStr
     password: str
 
@@ -46,6 +44,13 @@ class SessionResponse(BaseModel):
     name: str
     email: EmailStr
     role: UserRole
+
+
+class PlatformSessionResponse(BaseModel):
+    """super_admin has no Membership/role — just a name and email."""
+
+    name: str
+    email: EmailStr
 
 
 class MembershipResponse(BaseModel):

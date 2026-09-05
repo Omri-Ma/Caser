@@ -1,8 +1,8 @@
 from sqlalchemy import Column, Date, Enum, ForeignKey, Index, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
-from core.database import Base
-from models.enums import WorkLogSource
+from shared.database import Base
+from shared.models.enums import WorkLogSource
 
 
 class WorkLog(Base):
