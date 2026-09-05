@@ -502,3 +502,71 @@ told not to touch `client/`/`admin/` (frontends) and not to start Phase 2.
   prior session had explicitly deferred it as feature-coupled. User chose
   to build it fully now (including the minimal seed row) rather than leave
   it stubbed, since Step 5 required verifying it end-to-end.
+
+## 2026-09-05
+
+**Asked**: Phase 2's first vertical slice — Cases. `Case`/`CaseAssignment`
+already existed as models (Phase 1's "create all tables upfront" rule), so
+this was routes only, split by audience: `admin_api` gets create/list-all
+(office_manager sees every case automatically)/edit-title/change-status
+(incl. reopening a closed case)/assign-unassign, all `office_manager`-only;
+`client_api` gets list-assigned-only and view-if-assigned for
+`lawyer`/`client`. Also due with this slice per CLAUDE.md's Build order: the
+Phase 1 tenant-isolation pytest test, written against real endpoints.
+
+**Changed**:
+- `admin_api/routers/cases.py` + `admin_api/schemas/cases.py`: create, list
+  (paginated), get, edit title, change status, and list/create/delete
+  `CaseAssignment`. Every route taking a foreign id (`case_id` in the path,
+  `membership_id` in the assign body) resolves it through `get_tenant_scoped`
+  rather than a bare `.filter(id == ...)` — both are exercised by the
+  isolation tests below.
+- `client_api/routers/cases.py` + `client_api/schemas/cases.py`: list cases
+  joined through `CaseAssignment` filtered to the caller's own
+  `membership.id`; get-one resolves the case tenant-scoped first (404 if it
+  isn't even this tenant's case), then checks the assignment separately
+  (403 if the case exists here but isn't assigned to this membership).
+- `admin_api/core/pagination.py` and `client_api/core/pagination.py`: a small
+  `PageParams`/`Page`/`paginate()` helper, written once per app on purpose —
+  CLAUDE.md's Code quality section scopes `/server/shared` to only table
+  definitions + tenant/auth logic and calls out pagination specifically as
+  something that stays separate per app rather than shared across the two.
+- `server/tests/` (new): `conftest.py` (fresh-schema-per-test fixture against
+  a dedicated `casehub_test` MySQL database — created manually via
+  `docker exec ... mysql -uroot ... CREATE DATABASE casehub_test` and granted
+  to `app_user` — plus `TestClient` fixtures for both apps with `get_db`
+  overridden to the test session, and an `auth_for()` helper that mints a
+  real JWT and passes it as a per-request cookie alongside a spoofed `Host`
+  header, sidestepping the test client's cookie-jar domain matching
+  entirely), `test_cases_admin.py`, `test_cases_client.py`, and
+  `test_tenant_isolation.py` — the required Phase 1 test, proving an
+  `office_manager`/`lawyer`/`client` authenticated on tenant A's subdomain
+  cannot get, list, edit, change the status of, assign to, or unassign from
+  tenant B's case on either backend, including the case where the
+  `membership_id` in an assignment request body points at a foreign tenant's
+  membership. 26 tests, all passing against real endpoints, not mocks.
+- Added `pytest`/`httpx` to `server/requirements.txt` (named in CLAUDE.md's
+  tech stack since the start but never actually added until this slice
+  needed to run a test), a `TEST_DATABASE_URL` entry in `.env`/
+  `.env.example`, and `server/pytest.ini` (`testpaths = tests`).
+
+**Learned / decided**:
+- Hit the same `email_validator` reserved-TLD rejection noted in the
+  2026-08-25 entry above, this time in fresh test fixtures written without
+  remembering that note: `@acme.test` failed `EmailStr` validation on every
+  response model with an email field. Switched fixture domains to ordinary
+  `.com` addresses.
+- `docs/` existed already (this file has history back to 2026-08-19) but I
+  didn't check for that before my first write attempt and nearly clobbered
+  the whole log with a from-scratch version containing only this entry —
+  caught it via `git diff` before committing anything and restored the
+  original with `git checkout -- docs/ai_usage.md` before appending properly.
+  Lesson: always check `git log`/read the existing file before writing to a
+  path CLAUDE.md describes as a persistent, growing log, rather than
+  trusting a single `find`/`ls` run from the wrong working directory.
+- Verified both `admin_api` and `client_api` boot cleanly with the new
+  routers registered by checking `/openapi.json` on the actual running
+  Docker containers (which auto-reloaded on the file changes via
+  `WatchFiles`) — pytest alone exercises the same route code but through an
+  ASGI transport rather than a live uvicorn process, so this was a useful
+  independent check.
