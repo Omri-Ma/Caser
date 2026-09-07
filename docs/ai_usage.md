@@ -628,3 +628,140 @@ directly on `master` (Phase 1 foundational correction, not a new feature).
   uncommitted work at risk. Surfaced this explicitly instead of either
   silently merging on my own judgment or silently proceeding as if it had
   already happened.
+
+## 2026-09-07
+
+**Asked**: First frontend session — nothing existed yet in `client/`/`admin/`.
+Scope: two real, separate Vite/React apps proving the login/cookie/session
+mechanism works in a real browser (register/login/signup + a minimal
+authenticated landing page calling `/auth/me`). Explicitly not Cases screens
+yet. New branch `feature/frontend-auth-shell`, per the branch+PR discipline
+that starts at Phase 2's first vertical slice.
+
+**Changed**:
+- Scaffolded `client/` and `admin/` as two independent `npm create vite@latest
+  -- --template react` projects (plain JS, not TS — matches the rest of the
+  codebase using plain Python without heavy type-ceremony) plus
+  `react-router-dom`. Removed the default scaffold cruft (`App.css`, the
+  Vite/React demo assets/logos).
+- Both apps: `index.html` sets `<html lang="he" dir="rtl">` at the root (not
+  just a wrapper div), so RTL is a document-level default before any CSS
+  runs. `src/index.css` defines each app's own CSS custom properties
+  (colors/spacing/typography) — genuinely different palettes (client: warm/
+  light, teal primary; admin: cooler/denser, indigo primary) per CLAUDE.md's
+  "deliberately different designs, not shared" rule, not just a copy-paste
+  with one color swapped.
+- `vite.config.js` (both apps): fixed `port`/`strictPort` (5173 client, 5174
+  admin) and `server.allowedHosts: ['.lvh.me']` — Vite's dev server rejects
+  unrecognized `Host` headers by default (DNS-rebinding protection), which
+  would otherwise block every tenant-subdomain request (`office1.lvh.me:5173`)
+  since Vite only trusts `localhost`/the literal configured host by default.
+- `src/api/client.js` (both apps): the auth-aware fetch wrapper. Base URL is
+  built from `window.location.hostname` (whatever tenant subdomain the page
+  is actually being viewed at) plus a protocol/port pair read from
+  `VITE_API_PORT`/`VITE_API_PROTOCOL` env vars — not a full hardcoded URL,
+  since a full URL can't be both "from env" and "correct for every tenant
+  subdomain" at once (the whole point of subdomain-based tenancy is that the
+  frontend and backend share the same subdomain, differing only by port).
+  Sends `credentials: 'include'` on every request, parses the `{error,
+  field}` shape, and redirects to `/login` on a 401 — except login/register/
+  signup calls themselves pass `redirectOn401: false`, since a 401 there
+  means "wrong password" (an inline form error), not an expired session.
+- `src/api/auth.js` (per app): thin wrappers per endpoint — `client/` has
+  `register`/`login`/`me`/`logout`; `admin/` has `signup`/`login`/`me`/
+  `logout` (platform-login skipped this session, per the task's own
+  "nice-to-have, skip if short on time").
+- Reusable component patterns established in both apps independently (own
+  files, not shared — same reasoning as the CSS tokens): `DataTable` (handles
+  Loading/Error/Empty explicitly, per CLAUDE.md's three-states rule — used
+  today to render the logged-in identity's id/name/email on the landing
+  page), `FormField`/`FormError` (used by every form this session), `Modal`
+  (portal-based; wired into `Layout`'s "אודות/About" link so it's a real,
+  exercised code path today rather than dead scaffolding waiting for Cases).
+- `Layout` component (both apps): header with `<nav>` as the first DOM child
+  — in an RTL flex row the first child lands at the "start" edge, which is
+  the right side, giving "nav on the right" from plain source order rather
+  than manual positioning.
+- Screens: `client/` — `RegisterPage`, `LoginPage`, `LandingPage`; `admin/` —
+  `SignupPage`, `LoginPage`, `LandingPage`. All UI copy (labels, buttons,
+  headings, error banners) written in Hebrew per CLAUDE.md's "Frontend UI is
+  RTL (Hebrew)" rule; code/variables/comments stayed English per the same
+  rule. Backend error strings (e.g. "Invalid email or password") are
+  displayed as-is in English — translating API error copy wasn't in scope
+  this session.
+- `db/seed.sql`: added the two required demo users (a dedicated `Demo Firm`
+  tenant at subdomain `demo`, an active Free `Subscription` row for it, and
+  one `office_manager` + one `client` `Identity`+`Membership` each) —
+  `office_manager@casehub.example.com` / `OfficeManager123!` and
+  `client@casehub.example.com` / `Client123!`. Applied directly to the
+  running dev DB via `docker exec ... mysql`, not just written to the file.
+- `client/.env.example` / `admin/.env.example` (+ matching `.env`, gitignored
+  by the existing root pattern): `VITE_API_PROTOCOL`, `VITE_API_PORT` (8000 /
+  8001 respectively).
+
+**Verified**:
+- Via curl with real `*.lvh.me` subdomains (not spoofed `Host` headers) and a
+  shared cookie jar: `admin_api` signup at `office1.lvh.me:8001` sets the
+  session cookie and returns the office_manager; `GET /auth/me` on
+  `client_api` at the *same* subdomain, different port, recognizes the exact
+  same cookie and resolves the identity — the concrete proof of CLAUDE.md's
+  "one login, many apps" cookie-domain-scoping claim, this time actually
+  exercised through what the frontend's own fetch wrapper does (not just
+  cookie mechanics in the abstract). `client_api` register (bare identity),
+  `/auth/me`, and the two demo users logging in via their respective apps at
+  `demo.lvh.me` all confirmed working. CORS: a request carrying
+  `Origin: http://office1.lvh.me:5173`/`:5174` gets back matching
+  `access-control-allow-origin` + `allow-credentials: true` on both APIs,
+  confirming the frontend's actual dev-server origins are trusted, not just
+  the regex pattern read by eye. Logout correctly invalidates the session
+  (`token_version` bump) — a captured cookie is rejected with 401
+  immediately after.
+- `npm run build` succeeds cleanly for both apps (no import/syntax errors).
+  Both Vite dev servers confirmed serving `office1.lvh.me:5173`/`:5174` with
+  HTTP 200 (proving `allowedHosts` actually works against a real tenant
+  subdomain, not just `localhost`).
+- Real-browser confirmation via headless Chromium (Playwright, installed
+  fresh for this session — not previously set up in the project): drove the
+  full admin-signup → landing → client-register → landing flow against real
+  `*.lvh.me` subdomains on both dev-server ports, with screenshots at each
+  step. Confirmed: `document.documentElement.dir === 'rtl'`; the nav element
+  renders right of the brand element (`getBoundingClientRect().x` compared
+  directly, not just eyeballed); the About modal opens correctly; both apps'
+  distinct color tokens render as designed; `console` carried no errors
+  except one real bug caught this way (see below). Also directly observed
+  the cross-app cookie sharing in the browser itself, not just curl: after
+  registering as a new identity in `client/`, reloading `admin/`'s landing
+  page (same browser, no new admin login) showed the *client* identity's
+  `/auth/me` data — the browser's single cookie jar for `.lvh.me` was
+  overwritten by the more recent register call, exactly as the architecture
+  predicts (one person, one session, shared across every app on the domain).
+  This was flagged to the user as the expected mechanism, not a bug, since
+  the recommended manual click-through would otherwise look like a broken
+  session.
+
+**Bug found and fixed via the browser check (not caught by `npm run
+build`/lint or curl)**: `admin/src/pages/SignupPage.jsx`'s subdomain field
+had `pattern="[a-z0-9-]+"`. Real Chromium logs a console error compiling
+this as an invalid regex (`/[a-z0-9-]+/v: Invalid character class`) — some
+Chromium versions validate the HTML5 `pattern` attribute using the regex `v`
+(unicode-sets) flag, under which a bare trailing `-` in a character class is
+ambiguous. Fixed by escaping it (`[a-z0-9\-]+`); re-verified zero console
+errors after. Worth remembering for any other `pattern` attribute added
+later in either app.
+
+**Learned / decided**:
+- The `VITE_API_PORT`/`VITE_API_PROTOCOL`-plus-`window.location.hostname`
+  split (instead of one `VITE_API_BASE_URL`) is the one real design call
+  made without asking first — reasoned through in the moment rather than
+  guessed: a single full base URL read from env can't simultaneously be
+  "configurable" and "correct for whatever tenant subdomain the page happens
+  to be on," since the tenant subdomain is only known at request time in the
+  browser, never at build/env time. Worth being able to explain this
+  specific tradeoff in the defense if asked why the API URL isn't just one
+  env var.
+- Vite's dev-server `allowedHosts` default (only `localhost`/the configured
+  host trusted, everything else 403's as a DNS-rebinding guard) would have
+  silently blocked every tenant-subdomain request had it not been caught
+  before first browser test — worth remembering for any future Vite config
+  change, since the failure mode (a blank 403 page) doesn't obviously point
+  at this setting.

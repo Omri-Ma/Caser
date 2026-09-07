@@ -1,0 +1,27 @@
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  text-align: right;
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.data-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+
+.data-table-state {
+  padding: var(--space-3);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.data-table-state-error {
+  color: var(--color-error);
+}

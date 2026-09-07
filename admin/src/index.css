@@ -1,0 +1,118 @@
+/* Design tokens for the admin CMS — defined independently from client/,
+   per CLAUDE.md (two deliberately different designs, no shared system).
+   Darker/denser palette to read as a back-office tool, distinct from the
+   client portal's lighter look. */
+:root {
+  --color-bg: #eef0f3;
+  --color-surface: #ffffff;
+  --color-text: #1c1f26;
+  --color-text-muted: #5b6270;
+  --color-primary: #2a3b8f;
+  --color-primary-hover: #202e70;
+  --color-primary-contrast: #ffffff;
+  --color-border: #d3d7e0;
+  --color-error: #b3261e;
+  --color-error-bg: #fdecea;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+
+  --font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif;
+  --font-size-base: 15px;
+  --font-size-lg: 19px;
+  --font-size-xl: 26px;
+  --radius: 6px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+  background: var(--color-bg);
+  text-align: right;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0 0 var(--space-3);
+}
+
+button {
+  font-family: inherit;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+}
+
+a {
+  color: var(--color-primary);
+}
+
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: var(--space-5) var(--space-3);
+}
+
+.page-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
+  width: 100%;
+  max-width: 460px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.auth-switch {
+  margin-top: var(--space-3);
+  color: var(--color-text-muted);
+}
+
+.primary-button {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  border: none;
+  border-radius: var(--radius);
+  font-size: var(--font-size-base);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+}
+
+.primary-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondary-button {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius);
+}
