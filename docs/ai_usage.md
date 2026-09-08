@@ -994,3 +994,84 @@ console errors.
   gave a before/after pair worth re-running after the fix — cheap
   insurance against "looks right" being wrong at a specific breakpoint or
   in a specific browser.
+
+## 2026-09-08 (3) — investigated a reported color "regression"; found none; two real design tuning requests instead
+
+**Asked**: A follow-up report claimed the DOM-order fix above caused the
+header's color to look "slightly off," with a specific hypothesis to check
+first: a positional selector (`:first-child`/`:last-child`/`:nth-child`/an
+adjacent-sibling `+`) styling the brand or nav instead of a class name,
+which reordering the DOM would silently misapply. Told explicitly not to
+force that explanation if it turned out to be something else, and not to
+just patch a color back by hand without finding the actual cause.
+
+**Investigated, found no regression at all**: grepped both apps' entire
+`src/` trees for `:first-child`, `:last-child`, `:nth-child`,
+`:nth-of-type`, and sibling combinators (`+`, `~`) — zero matches anywhere;
+every header-related rule is a plain class selector. Re-read the exact diff
+of the prior commit: both `className` attributes stayed correctly bound to
+their original elements, only DOM position changed. Then verified this
+empirically three ways rather than stopping at static reading: (1)
+`getComputedStyle(.app-brand).color` on the live pages resolved to exactly
+`var(--color-primary-hover)` (client) / `var(--color-primary)` (admin) —
+precisely the values `Layout.css` specifies; (2) pixel-diffed (installed
+Pillow for this) the brand-text region between the screenshot taken right
+after the DOM-order fix and a fresh screenshot taken just now — **0 of
+7200 pixels differed**, on both apps; (3) confirmed no child-combinator or
+cascade-order mechanism exists anywhere that could make sibling order
+matter, and that `.app-header` has no background of its own (so no
+gradient positioned elsewhere could bleed through differently based on
+child order). Reported this evidence back rather than fabricating a "fix"
+for a bug that didn't reproduce — the user then clarified: not a bug,
+two actual design tuning requests.
+
+**Changed** (still `fix/rtl-header-logo`, since PR #4 hadn't been merged
+yet — per instruction, one more commit on the same branch rather than a
+new one, kept separate from the RTL commit so the two changes stay
+distinguishable in history):
+- `client/src/components/Layout.css` and `admin/src/components/Layout.css`:
+  `.app-header` gained `background: var(--color-surface)` (white, the same
+  token cards already use) and a subtle two-layer `box-shadow` in the same
+  formula/hue as the existing `--shadow-card` token, so the header now
+  reads as a distinct elevated surface above the pearl page background
+  instead of blending into it — applied identically to both apps'
+  otherwise-identical `Layout.css` files.
+- `client/src/components/Layout.css`'s `.app-main` background: the second
+  `radial-gradient` layer's hue was hardcoded at `38` (orange/coral family)
+  — confirmed via `grep` before touching anything (the only hue-38 hit in
+  either app's entire CSS; admin's own single gradient layer was already
+  hue `258`/navy-family, untouched). Left over from before the
+  accent-color cleanup in the design-system session (which fixed the named
+  CSS variables — buttons/badges — but missed this hardcoded inline value
+  in a gradient stop). Changed `oklch(93% 0.03 38 / 0.3)` →
+  `oklch(93% 0.03 155 / 0.3)` — same lightness/chroma/alpha, hue shifted to
+  155 (client's own forest anchor family), rather than introducing a new
+  arbitrary color.
+
+**Verified**: `getComputedStyle` confirms both headers now render
+`background-color: rgb(255, 255, 255)` with the intended box-shadow, on
+both apps. Sampled pixels in the login page's bottom-right gradient corner
+(previously the orange stop's territory): `rgb(240, 245, 239)` — green
+channel dominant, a subtle warm-*green* tint, not orange. Re-confirmed the
+RTL fix from the earlier commit is still intact (`brand.x > nav.x` on the
+admin login page). Re-checked the `AppShell`-based Cases screen (which has
+no gradient and a different header entirely — `.content-topbar`, not
+`.app-header`) renders identically, confirming neither change leaked
+scope. Zero console errors throughout.
+
+**Learned / decided**:
+- A user-reported "regression" tied to a very specific, plausible-sounding
+  hypothesis is still worth disproving with hard evidence (computed styles
+  + pixel diff) rather than either blindly trusting the hypothesis or
+  dismissing the report — in this case the hypothesis was wrong, no code
+  regression existed, but the underlying concern (the header not reading
+  as a distinct element) was a legitimate design gap once reframed as a
+  tuning request rather than a bug.
+- The hardcoded `oklch(... 38 ...)` gradient stop is a good example of why
+  a "replace the named token, done" cleanup can leave a real leftover: the
+  accent-color removal fixed `--color-primary`/badge/button colors (named
+  variables), but a raw color value typed directly into a `background:`
+  gradient declaration isn't reachable by a token rename — worth a
+  one-time `grep -r "oklch("` sweep across both apps' CSS if another
+  color-family cleanup happens later, rather than trusting that all colors
+  route through named tokens.
