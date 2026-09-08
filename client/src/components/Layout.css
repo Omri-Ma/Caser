@@ -3,14 +3,20 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
 }
 
 .app-brand {
-  font-weight: 600;
+  font-family: var(--font-family-wordmark);
+  font-weight: 700;
   font-size: var(--font-size-lg);
-  color: var(--color-primary);
+  color: var(--color-primary-hover);
+}
+
+.app-main {
+  background:
+    radial-gradient(1100px 500px at 15% -10%, oklch(93% 0.02 258 / 0.4), transparent),
+    radial-gradient(900px 500px at 100% 100%, oklch(93% 0.03 38 / 0.3), transparent),
+    var(--color-bg);
 }
 
 .app-nav {

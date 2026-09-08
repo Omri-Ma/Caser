@@ -1,18 +1,30 @@
 /* Design tokens for the admin CMS — defined independently from client/,
    per CLAUDE.md (two deliberately different designs, no shared system).
-   Darker/denser palette to read as a back-office tool, distinct from the
-   client portal's lighter look. */
+   Values match the settled design proposal: saturated navy blue anchor,
+   warm pearl background, no separate accent hue (buttons/badges/progress
+   all derive from the anchor hue, tonal variations only). */
 :root {
-  --color-bg: #eef0f3;
-  --color-surface: #ffffff;
-  --color-text: #1c1f26;
-  --color-text-muted: #5b6270;
-  --color-primary: #2a3b8f;
-  --color-primary-hover: #202e70;
+  --color-primary: oklch(30% 0.13 258);
+  --color-primary-hover: oklch(40% 0.13 258);
+  --color-primary-bg: oklch(90% 0.03 258);
   --color-primary-contrast: #ffffff;
-  --color-border: #d3d7e0;
-  --color-error: #b3261e;
-  --color-error-bg: #fdecea;
+
+  --color-bg: oklch(98% 0.004 60);
+  --color-surface: #ffffff;
+  --color-text: oklch(23% 0.012 260);
+  --color-text-muted: oklch(46% 0.014 260);
+  --color-border: oklch(82% 0.01 260);
+
+  --color-success: oklch(55% 0.12 145);
+  --color-success-bg: oklch(94% 0.05 150);
+  --color-info: oklch(52% 0.06 258);
+  --color-info-bg: oklch(93% 0.03 258);
+  --color-warn: oklch(60% 0.12 60);
+  --color-warn-bg: oklch(94% 0.06 70);
+  --color-gray: oklch(50% 0.01 260);
+  --color-gray-bg: oklch(93% 0.006 260);
+  --color-error: oklch(55% 0.17 25);
+  --color-error-bg: oklch(94% 0.06 25);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -20,11 +32,19 @@
   --space-4: 24px;
   --space-5: 40px;
 
-  --font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif;
+  --font-family: 'Heebo', Arial, sans-serif;
+  --font-family-wordmark: 'Frank Ruhl Libre', Georgia, serif;
   --font-size-base: 15px;
   --font-size-lg: 19px;
   --font-size-xl: 26px;
-  --radius: 6px;
+
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+  --radius: var(--radius-control);
+
+  --shadow-card: 0 1px 2px oklch(26% 0.05 258 / 0.04), 0 8px 24px oklch(26% 0.05 258 / 0.05);
+  --shadow-modal: 0 1px 2px oklch(26% 0.05 258 / 0.06), 0 16px 40px oklch(26% 0.05 258 / 0.12);
 }
 
 * {
@@ -50,6 +70,12 @@ h1,
 h2,
 h3 {
   margin: 0 0 var(--space-3);
+  font-family: var(--font-family);
+  font-weight: 800;
+}
+
+.wordmark {
+  font-family: var(--font-family-wordmark);
 }
 
 button {
@@ -60,6 +86,11 @@ button {
 
 a {
   color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
 }
 
 .app-shell {
@@ -73,21 +104,36 @@ a {
   display: flex;
   justify-content: center;
   padding: var(--space-5) var(--space-3);
+  background: radial-gradient(1100px 500px at 15% -10%, oklch(88% 0.02 258 / 0.45), transparent), var(--color-bg);
+}
+
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .page-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-modal);
   padding: var(--space-4);
   width: 100%;
   max-width: 460px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-modal);
 }
 
 .auth-switch {
   margin-top: var(--space-3);
   color: var(--color-text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .primary-button {
@@ -96,8 +142,9 @@ a {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   font-size: var(--font-size-base);
+  font-weight: 700;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -114,5 +161,6 @@ a {
   background: transparent;
   color: var(--color-primary);
   border: 1px solid var(--color-primary);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
+  font-weight: 700;
 }

@@ -10,11 +10,11 @@
 
 .modal {
   background: var(--color-surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-modal, var(--radius));
   padding: var(--space-4);
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-modal, 0 4px 16px rgba(0, 0, 0, 0.2));
 }
 
 .modal-header {
