@@ -924,3 +924,73 @@ against the actual Vite dev servers:
   local Docker volume on this machine, not committed, since CLAUDE.md's
   seed-data spec names exactly two required demo users and doesn't call for
   case/assignment seed data.
+
+## 2026-09-08 (2) — RTL header/logo bug fix
+
+**Asked**: The brand wordmark in the auth-pages header (`Layout.jsx`,
+`/login`/`/register` in both apps) was rendering on the left instead of the
+right. New branch `fix/rtl-header-logo` off `master` (after pulling in the
+now-merged previous PR), same branch+PR discipline as any Phase 2 change.
+Investigate the actual cause before touching anything — check for
+hardcoded directional CSS (`margin-left`, `float: left`, explicit
+`left:`/`right:`) instead of flexbox/logical properties, and confirm
+`dir="rtl"` is actually scoped onto the component — rather than assuming.
+
+**Investigated first** (Playwright against the real running dev servers,
+not just reading the CSS): confirmed `<html dir="rtl">` is set and
+inherited with no override anywhere in either app (`grep`'d both `src/`
+trees for `dir=`, `direction:`, `float:`, `margin-left`/`-right`,
+`left:`/`right:` — zero hardcoded directional properties exist in the
+whole frontend). `getComputedStyle(.app-header).direction` was already
+`"rtl"`, `display` was `"flex"`, and every positional computed property on
+`.app-brand` (`float`, `marginLeft`, `marginRight`, `position`, `left`,
+`right`) was a no-op default (`none`/`0px`/`static`/`auto`). So this was
+**not** a directional-CSS-property bug and **not** a `dir`-scoping bug —
+flexbox's `justify-content: space-between` was already correctly
+auto-reversing under RTL. The actual cause: `<nav>` (the "About" link) was
+the *first* DOM child in `Layout.jsx`'s `<header>`, landing at the RTL
+"start" (right) edge, with the brand `<div>` second, landing at the "end"
+(left) edge — a deliberate DOM-order choice from the frontend-auth-shell
+session (documented in that file's own comment at the time), now
+superseded by the design direction that the brand belongs at the
+start/right, matching `AppShell`'s sidebar (where the brand is already the
+first child and correctly sits top-right — confirmed by the same
+measurement approach as a sanity baseline).
+
+**Changed**:
+- `client/src/components/Layout.jsx` and `admin/src/components/Layout.jsx`
+  (identical structure, differ only in copy — confirmed via `diff` before
+  fixing both): swapped the `<header>`'s child order so `.app-brand` is
+  first (right) and `<nav>` is second (left). Updated the stale comment to
+  describe the new order and note it now matches `AppShell`'s sidebar
+  convention. No CSS changes needed — flexbox already did the right thing
+  once DOM order was corrected.
+- Checked for the same pattern elsewhere in header/topbar components before
+  calling this done: `AppShell.jsx`'s `.content-topbar` has no brand at all
+  (just user info + logout, DOM order there was never wrong), and its
+  sidebar brand was already first-child/correct — so the fix is fully
+  scoped to the two `Layout.jsx` files, nothing else needed touching.
+
+**Verified**: re-ran the same Playwright bounding-rect measurement after
+the fix — brand now renders at `x≈1182–1245` (right edge of a 1400px
+viewport) and nav at `x=24` (left edge), reversed from before. Screenshots
+confirm both apps' login/register headers now show the wordmark top-right,
+"About" top-left; the already-correct `AppShell`-based Cases screen (not
+touched by this fix) re-verified rendering identically to before, zero
+console errors.
+
+**Learned / decided**:
+- A "logo on the wrong side" bug in an RTL layout isn't always a missing
+  `dir` attribute or a leftover `margin-left`/`float:left` — flexbox with
+  `justify-content: space-between` auto-reverses correctly under `dir=rtl`
+  precisely *because* it has no built-in concept of "left"/"right", only
+  DOM order and start/end. That means the bug can be purely which element
+  comes first in the DOM, with the CSS itself already textbook-correct —
+  worth checking DOM order specifically, not just scanning for
+  directional CSS properties, when a flex-based RTL layout looks mirrored
+  from what's intended.
+- Verifying the "before" state with real computed-style measurements (not
+  just eyeballing a screenshot) both confirmed the diagnosis precisely and
+  gave a before/after pair worth re-running after the fix — cheap
+  insurance against "looks right" being wrong at a specific breakpoint or
+  in a specific browser.
