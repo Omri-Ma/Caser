@@ -924,3 +924,154 @@ against the actual Vite dev servers:
   local Docker volume on this machine, not committed, since CLAUDE.md's
   seed-data spec names exactly two required demo users and doesn't call for
   case/assignment seed data.
+
+## 2026-09-08 (2) — RTL header/logo bug fix
+
+**Asked**: The brand wordmark in the auth-pages header (`Layout.jsx`,
+`/login`/`/register` in both apps) was rendering on the left instead of the
+right. New branch `fix/rtl-header-logo` off `master` (after pulling in the
+now-merged previous PR), same branch+PR discipline as any Phase 2 change.
+Investigate the actual cause before touching anything — check for
+hardcoded directional CSS (`margin-left`, `float: left`, explicit
+`left:`/`right:`) instead of flexbox/logical properties, and confirm
+`dir="rtl"` is actually scoped onto the component — rather than assuming.
+
+**Investigated first** (Playwright against the real running dev servers,
+not just reading the CSS): confirmed `<html dir="rtl">` is set and
+inherited with no override anywhere in either app (`grep`'d both `src/`
+trees for `dir=`, `direction:`, `float:`, `margin-left`/`-right`,
+`left:`/`right:` — zero hardcoded directional properties exist in the
+whole frontend). `getComputedStyle(.app-header).direction` was already
+`"rtl"`, `display` was `"flex"`, and every positional computed property on
+`.app-brand` (`float`, `marginLeft`, `marginRight`, `position`, `left`,
+`right`) was a no-op default (`none`/`0px`/`static`/`auto`). So this was
+**not** a directional-CSS-property bug and **not** a `dir`-scoping bug —
+flexbox's `justify-content: space-between` was already correctly
+auto-reversing under RTL. The actual cause: `<nav>` (the "About" link) was
+the *first* DOM child in `Layout.jsx`'s `<header>`, landing at the RTL
+"start" (right) edge, with the brand `<div>` second, landing at the "end"
+(left) edge — a deliberate DOM-order choice from the frontend-auth-shell
+session (documented in that file's own comment at the time), now
+superseded by the design direction that the brand belongs at the
+start/right, matching `AppShell`'s sidebar (where the brand is already the
+first child and correctly sits top-right — confirmed by the same
+measurement approach as a sanity baseline).
+
+**Changed**:
+- `client/src/components/Layout.jsx` and `admin/src/components/Layout.jsx`
+  (identical structure, differ only in copy — confirmed via `diff` before
+  fixing both): swapped the `<header>`'s child order so `.app-brand` is
+  first (right) and `<nav>` is second (left). Updated the stale comment to
+  describe the new order and note it now matches `AppShell`'s sidebar
+  convention. No CSS changes needed — flexbox already did the right thing
+  once DOM order was corrected.
+- Checked for the same pattern elsewhere in header/topbar components before
+  calling this done: `AppShell.jsx`'s `.content-topbar` has no brand at all
+  (just user info + logout, DOM order there was never wrong), and its
+  sidebar brand was already first-child/correct — so the fix is fully
+  scoped to the two `Layout.jsx` files, nothing else needed touching.
+
+**Verified**: re-ran the same Playwright bounding-rect measurement after
+the fix — brand now renders at `x≈1182–1245` (right edge of a 1400px
+viewport) and nav at `x=24` (left edge), reversed from before. Screenshots
+confirm both apps' login/register headers now show the wordmark top-right,
+"About" top-left; the already-correct `AppShell`-based Cases screen (not
+touched by this fix) re-verified rendering identically to before, zero
+console errors.
+
+**Learned / decided**:
+- A "logo on the wrong side" bug in an RTL layout isn't always a missing
+  `dir` attribute or a leftover `margin-left`/`float:left` — flexbox with
+  `justify-content: space-between` auto-reverses correctly under `dir=rtl`
+  precisely *because* it has no built-in concept of "left"/"right", only
+  DOM order and start/end. That means the bug can be purely which element
+  comes first in the DOM, with the CSS itself already textbook-correct —
+  worth checking DOM order specifically, not just scanning for
+  directional CSS properties, when a flex-based RTL layout looks mirrored
+  from what's intended.
+- Verifying the "before" state with real computed-style measurements (not
+  just eyeballing a screenshot) both confirmed the diagnosis precisely and
+  gave a before/after pair worth re-running after the fix — cheap
+  insurance against "looks right" being wrong at a specific breakpoint or
+  in a specific browser.
+
+## 2026-09-08 (3) — investigated a reported color "regression"; found none; two real design tuning requests instead
+
+**Asked**: A follow-up report claimed the DOM-order fix above caused the
+header's color to look "slightly off," with a specific hypothesis to check
+first: a positional selector (`:first-child`/`:last-child`/`:nth-child`/an
+adjacent-sibling `+`) styling the brand or nav instead of a class name,
+which reordering the DOM would silently misapply. Told explicitly not to
+force that explanation if it turned out to be something else, and not to
+just patch a color back by hand without finding the actual cause.
+
+**Investigated, found no regression at all**: grepped both apps' entire
+`src/` trees for `:first-child`, `:last-child`, `:nth-child`,
+`:nth-of-type`, and sibling combinators (`+`, `~`) — zero matches anywhere;
+every header-related rule is a plain class selector. Re-read the exact diff
+of the prior commit: both `className` attributes stayed correctly bound to
+their original elements, only DOM position changed. Then verified this
+empirically three ways rather than stopping at static reading: (1)
+`getComputedStyle(.app-brand).color` on the live pages resolved to exactly
+`var(--color-primary-hover)` (client) / `var(--color-primary)` (admin) —
+precisely the values `Layout.css` specifies; (2) pixel-diffed (installed
+Pillow for this) the brand-text region between the screenshot taken right
+after the DOM-order fix and a fresh screenshot taken just now — **0 of
+7200 pixels differed**, on both apps; (3) confirmed no child-combinator or
+cascade-order mechanism exists anywhere that could make sibling order
+matter, and that `.app-header` has no background of its own (so no
+gradient positioned elsewhere could bleed through differently based on
+child order). Reported this evidence back rather than fabricating a "fix"
+for a bug that didn't reproduce — the user then clarified: not a bug,
+two actual design tuning requests.
+
+**Changed** (still `fix/rtl-header-logo`, since PR #4 hadn't been merged
+yet — per instruction, one more commit on the same branch rather than a
+new one, kept separate from the RTL commit so the two changes stay
+distinguishable in history):
+- `client/src/components/Layout.css` and `admin/src/components/Layout.css`:
+  `.app-header` gained `background: var(--color-surface)` (white, the same
+  token cards already use) and a subtle two-layer `box-shadow` in the same
+  formula/hue as the existing `--shadow-card` token, so the header now
+  reads as a distinct elevated surface above the pearl page background
+  instead of blending into it — applied identically to both apps'
+  otherwise-identical `Layout.css` files.
+- `client/src/components/Layout.css`'s `.app-main` background: the second
+  `radial-gradient` layer's hue was hardcoded at `38` (orange/coral family)
+  — confirmed via `grep` before touching anything (the only hue-38 hit in
+  either app's entire CSS; admin's own single gradient layer was already
+  hue `258`/navy-family, untouched). Left over from before the
+  accent-color cleanup in the design-system session (which fixed the named
+  CSS variables — buttons/badges — but missed this hardcoded inline value
+  in a gradient stop). Changed `oklch(93% 0.03 38 / 0.3)` →
+  `oklch(93% 0.03 155 / 0.3)` — same lightness/chroma/alpha, hue shifted to
+  155 (client's own forest anchor family), rather than introducing a new
+  arbitrary color.
+
+**Verified**: `getComputedStyle` confirms both headers now render
+`background-color: rgb(255, 255, 255)` with the intended box-shadow, on
+both apps. Sampled pixels in the login page's bottom-right gradient corner
+(previously the orange stop's territory): `rgb(240, 245, 239)` — green
+channel dominant, a subtle warm-*green* tint, not orange. Re-confirmed the
+RTL fix from the earlier commit is still intact (`brand.x > nav.x` on the
+admin login page). Re-checked the `AppShell`-based Cases screen (which has
+no gradient and a different header entirely — `.content-topbar`, not
+`.app-header`) renders identically, confirming neither change leaked
+scope. Zero console errors throughout.
+
+**Learned / decided**:
+- A user-reported "regression" tied to a very specific, plausible-sounding
+  hypothesis is still worth disproving with hard evidence (computed styles
+  + pixel diff) rather than either blindly trusting the hypothesis or
+  dismissing the report — in this case the hypothesis was wrong, no code
+  regression existed, but the underlying concern (the header not reading
+  as a distinct element) was a legitimate design gap once reframed as a
+  tuning request rather than a bug.
+- The hardcoded `oklch(... 38 ...)` gradient stop is a good example of why
+  a "replace the named token, done" cleanup can leave a real leftover: the
+  accent-color removal fixed `--color-primary`/badge/button colors (named
+  variables), but a raw color value typed directly into a `background:`
+  gradient declaration isn't reachable by a token rename — worth a
+  one-time `grep -r "oklch("` sweep across both apps' CSS if another
+  color-family cleanup happens later, rather than trusting that all colors
+  route through named tokens.
