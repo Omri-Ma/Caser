@@ -765,3 +765,162 @@ later in either app.
   before first browser test — worth remembering for any future Vite config
   change, since the failure mode (a blank 403 page) doesn't obviously point
   at this setting.
+
+## 2026-09-08
+
+**Asked**: Apply the settled visual design (published earlier as a design
+canvas artifact — forest-green anchor for `client/`, navy anchor for
+`admin/`, warm pearl background, no separate accent hue, Heebo/Frank Ruhl
+Libre, 10/16/20px radius scale, soft-shadow cards) to both real frontends,
+then build the first real feature screens on top of it: Cases list + Cases
+detail in `client/`, wired to the actual `client_api` endpoints. New branch
+`feature/client-case-screens`. Explicitly out of scope: admin's own
+case-management screens, and any backend changes.
+
+**Blocker surfaced and resolved before writing any UI**: read the actual
+`Case` model/`CaseResponse` schema and `client_api`'s router list before
+building anything, rather than assuming the design mockup's data was all
+real. Found two gaps between the mockup and reality: (1) `Cases` only has
+`id`/`tenant_id`/`title`/`status`/`created_at` — no practice-area or
+progress field the mockup showed; (2) `client_api` only has `auth`/`cases`
+routers — no `/documents` or `/work-logs` endpoints exist yet, even though
+the task asked for a document-folders section and a work-hours summary on
+the case detail screen. Asked the user rather than guessing (per this
+session's explicit instruction): confirmed dropping the fabricated list
+columns entirely (no fake progress-from-status mapping), and building the
+document/hours sections as honest static "coming soon" placeholders in the
+real layout rather than either faking data or skipping the sections.
+
+**Changed**:
+- `client/src/index.css` and `admin/src/index.css`: full token rewrite —
+  `oklch()` color values matching the design artifact exactly (client:
+  `--color-primary: oklch(38% 0.08 155)` / sidebar `oklch(27% 0.06 155)`;
+  admin: `--color-primary: oklch(30% 0.13 258)`), a three-tier radius scale
+  (`--radius-control: 10px`, `--radius-card: 16px`, `--radius-modal: 20px`,
+  with `--radius` kept as an alias to `-control` so existing component CSS
+  using `var(--radius)` picked up the right tier with zero changes), and
+  semantic status tokens (`--color-success`/`-info`/`-warn`/`-gray`, each
+  with a `-bg` tint) for status pills — conventional traffic-light colors,
+  not derived from the anchor hue, same as the design artifact itself does;
+  the "no separate accent hue" rule reads as applying to brand/action colors
+  (buttons, highlights, progress bars), not to semantic status indicators.
+  Added Heebo/Frank Ruhl Libre via Google Fonts `<link>` in both
+  `index.html`s (`.wordmark` class reserves the serif for the brand name
+  only, per the rule).
+- `Modal.css` (both apps): radius/shadow switched to the new `-modal` tier
+  tokens.
+- `client/src/components/AppShell.jsx` (new) + `.css`: the sidebar shell
+  every authenticated screen now renders inside — resolves `/auth/me` once
+  (redirects to `/login` on failure) and renders the 232px forest sidebar +
+  topbar (user initials/name + logout) + content area around whatever page
+  is passed in. Nav has three items (`תיקים`/`מסמכים`/`שעות עבודה`) matching
+  the mockup, but only `תיקים` is a real link — the other two render as
+  visually-styled but inert (`disabled`, non-clickable) items rather than
+  linking to screens that don't exist yet, so the shell matches the settled
+  design without shipping dead routes.
+- `client/src/components/Layout.jsx`'s existing CSS (kept, not replaced) got
+  the gradient background + wordmark-font brand treatment from the login
+  mockup — still used for `/login`/`/register` only, which stay outside
+  `AppShell` (no sidebar on unauthenticated screens, matching the mockup).
+- `client/src/components/DataTable.jsx`: added an `onRowClick` prop (row
+  → click handler) — extended rather than duplicated, since both new Cases
+  screens need clickable rows and this is the one reusable table component
+  in the app.
+- `client/src/api/cases.js` (new): `listMyCases()` (single call at
+  `page_size=200`, the API's max — a lawyer/client's own assigned-case count
+  realistically never exceeds that, so this covers the whole list without
+  building real pagination UI on top of it yet, noted as a simplification
+  rather than silently skipped), `getMyCase(id)`.
+- `client/src/api/session.js` (new) + `auth.js` edit: `login()`'s response
+  already carries `role` (per `client_api`'s `SessionResponse`), but
+  `/auth/me` (used on every page reload) doesn't — so `role` is stashed in
+  `sessionStorage` on login and cleared on logout, purely so the case-detail
+  screen knows whether to show the internal-documents tab. Documented inline
+  as a UI-only convenience, never a security boundary — real enforcement
+  will live server-side once `/documents` exists.
+- `client/src/utils/caseStatus.js` + `format.js` (new): status label/color
+  mapping and date/avatar-initial formatting, extracted immediately since
+  both the list and detail screens needed the same status pill and both
+  needed a date formatter — not left duplicated waiting for a third
+  caller.
+- `client/src/pages/CasesListPage.jsx` + `.css` (new): sidebar nav "תיקים",
+  a title, then either an error banner, a loading message, an empty-state
+  card ("אין לך תיקים משויכים כרגע"), or (once cases exist) four real stat
+  cards (counts per `CaseStatus` value — open/in_progress/on_hold/closed,
+  the only stats actually backed by real data) + a status-tab-filterable
+  table (avatar-initial + title + case-number, opened date, status pill),
+  rows clickable through to the detail screen via `DataTable`'s new
+  `onRowClick`.
+- `client/src/pages/CaseDetailPage.jsx` + `.css` (new): back link, title +
+  status pill + case-number chip + opened date, then a two-column layout —
+  a documents card (client-folder tab always shown; internal-folder tab only
+  if the stored role is `lawyer`) and a work-hours card, both rendering the
+  agreed "coming soon" placeholder text instead of calling endpoints that
+  don't exist. Loading/error states cover the whole screen (a 403 on an
+  unassigned case renders the server's own message in the error state).
+- `client/src/App.jsx`: routes restructured — `/login`/`/register` still
+  wrapped in `Layout`; `/cases` and `/cases/:caseId` render directly (they
+  wrap themselves in `AppShell`); `/` now redirects to `/cases` instead of
+  rendering the old scaffold `LandingPage`.
+- Deleted `client/src/pages/LandingPage.jsx` — it was explicitly a
+  placeholder from the prior auth-shell session ("the actual proof this
+  session sets out to give"), fully superseded now that `CasesListPage` is
+  the real authenticated home; left as dead code otherwise.
+
+**Verified in a real browser** (Playwright/Chromium — not previously set up
+on this machine this session, installed via `pip install playwright` +
+`playwright install chromium`, since no `chromium-cli` was available here;
+worth a `/run-skill-generator` follow-up so a future session doesn't
+re-solve this): created throwaway test data through the real running apps,
+not fixtures — registered a `lior.lawyer@example.com` identity via
+`client_api`, added as `lawyer` at the `demo` tenant and created/assigned
+four cases (one per `CaseStatus` value) via `admin_api` (as the seeded
+office_manager), all through real HTTP calls against `demo.lvh.me`. Then,
+against the actual Vite dev servers:
+- Demo client (`client@casehub.example.com`) sees exactly the 2 cases they
+  were assigned (open + in_progress), correct stat counts, forest sidebar,
+  Heebo/rounded-card styling; case detail shows exactly 1 document tab
+  (client-visible only).
+- Demo lawyer sees all 4 cases including the closed one, correct per-status
+  stat counts; case detail on the closed case shows 2 document tabs
+  (client + internal) — confirms the role-gating actually branches, not
+  just present in one screenshot.
+- Error state: navigating a client to a case they're not assigned to
+  renders the 403 message in the error banner, shell (sidebar/topbar) still
+  intact.
+- True empty state: a freshly-registered client with zero assignments sees
+  the "אין לך תיקים משויכים כרגע" card, no stat row, no table.
+- Admin login screen confirmed rendering the navy anchor (`oklch(30% 0.13
+  258)`), independently of the client login's forest anchor — the two-app
+  color-token fix verified side by side, not just read from the CSS.
+- Zero browser console errors across every step (`page.on('console')`/
+  `pageerror` both checked, not just visual inspection).
+- Backend error strings surfaced in the UI (e.g. "You are not assigned to
+  this case") are still raw English from the API, same known gap noted in
+  the 2026-09-07 entry — not addressed this session, frontend-only scope.
+
+**Learned / decided**:
+- Read the actual `Case` model and router list before writing any UI code,
+  rather than trusting the design mockup's fields — the mockup was drawn
+  before the document/work-log backend slices existed, so it necessarily
+  showed data that doesn't exist yet. Asking before guessing here avoided
+  either fabricating fake progress/practice-area data or silently building
+  UI that calls endpoints that don't exist and would 500/404 in the demo.
+- `role` is a genuine gap in `/auth/me` (only `login` returns it) — worked
+  around client-side via `sessionStorage` rather than touching
+  `client_api/schemas/auth.py`, since backend changes were explicitly out of
+  scope this session. Worth a small follow-up to add `role` to
+  `IdentityResponse` so a page refresh doesn't rely on a same-tab-only
+  stash.
+- The `--radius`-as-alias-to-`--radius-control` token trick let every
+  existing input/button CSS rule (written before this session, referencing
+  `var(--radius)`) automatically land on the correct tier without editing
+  those files — only `.modal` needed an explicit override to the `-modal`
+  tier, since it's the one component that intentionally uses a different
+  radius than the default alias.
+- Test data (the `lior.lawyer@example.com` identity, four demo cases, and
+  one zero-assignment client) was created directly against the running dev
+  containers via `curl`, not added to `db/seed.sql` — it exists only in the
+  local Docker volume on this machine, not committed, since CLAUDE.md's
+  seed-data spec names exactly two required demo users and doesn't call for
+  case/assignment seed data.

@@ -1,20 +1,35 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import CasesListPage from './pages/CasesListPage'
+import CaseDetailPage from './pages/CaseDetailPage'
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/" element={<LandingPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route
+          path="/register"
+          element={
+            <Layout>
+              <RegisterPage />
+            </Layout>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <Layout>
+              <LoginPage />
+            </Layout>
+          }
+        />
+        <Route path="/cases" element={<CasesListPage />} />
+        <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+        <Route path="/" element={<Navigate to="/cases" replace />} />
+        <Route path="*" element={<Navigate to="/cases" replace />} />
+      </Routes>
     </BrowserRouter>
   )
 }

@@ -3,7 +3,7 @@ import './DataTable.css'
 // Reusable list display for every future data screen (cases, documents,
 // work logs, ...). Always handles the three required states explicitly —
 // Loading / Error / Empty — instead of leaving that to each caller.
-export default function DataTable({ columns, rows, loading, error, emptyMessage = 'אין נתונים להצגה.' }) {
+export default function DataTable({ columns, rows, loading, error, emptyMessage = 'אין נתונים להצגה.', onRowClick }) {
   if (loading) {
     return <div className="data-table-state">טוען…</div>
   }
@@ -27,9 +27,13 @@ export default function DataTable({ columns, rows, loading, error, emptyMessage 
       </thead>
       <tbody>
         {rows.map((row, index) => (
-          <tr key={row.id ?? index}>
+          <tr
+            key={row.id ?? index}
+            className={onRowClick ? 'data-table-row-clickable' : undefined}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+          >
             {columns.map((column) => (
-              <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>
+              <td key={column.key}>{column.render ? column.render(row, index) : row[column.key]}</td>
             ))}
           </tr>
         ))}

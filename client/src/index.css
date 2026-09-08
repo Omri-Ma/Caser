@@ -1,16 +1,45 @@
 /* Design tokens for the client portal — defined independently from admin/,
-   per CLAUDE.md (two deliberately different designs, no shared system). */
+   per CLAUDE.md (two deliberately different designs, no shared system).
+   Values match the settled design proposal: dark forest green anchor,
+   warm pearl background, no separate accent hue (buttons/badges/progress
+   all derive from the anchor hue, tonal variations only). */
 :root {
-  --color-bg: #f6f5f2;
-  --color-surface: #ffffff;
-  --color-text: #232323;
-  --color-text-muted: #6b6b6b;
-  --color-primary: #0f6e5c;
-  --color-primary-hover: #0b5747;
+  /* Anchor (forest green) — sidebar, primary buttons, active nav, progress fill */
+  --color-primary: oklch(38% 0.08 155);
+  --color-primary-hover: oklch(28% 0.07 155);
+  --color-primary-bg: oklch(90% 0.035 155);
   --color-primary-contrast: #ffffff;
-  --color-border: #dcd8d0;
-  --color-error: #b3261e;
-  --color-error-bg: #fdecea;
+
+  --color-sidebar: oklch(27% 0.06 155);
+  --color-sidebar-active: oklch(36% 0.07 155);
+  --color-sidebar-text: oklch(85% 0.02 155);
+
+  --color-bg: oklch(98% 0.004 60);
+  --color-surface: #ffffff;
+  --color-text: oklch(23% 0.012 260);
+  --color-text-muted: oklch(46% 0.014 260);
+  --color-border: oklch(91% 0.008 60);
+
+  /* Semantic status colors — conventional (not derived from the anchor hue),
+     used for status pills/chips only. */
+  --color-success: oklch(55% 0.12 145);
+  --color-success-bg: oklch(94% 0.05 150);
+  --color-info: oklch(52% 0.06 258);
+  --color-info-bg: oklch(93% 0.03 258);
+  --color-warn: oklch(60% 0.12 60);
+  --color-warn-bg: oklch(94% 0.06 70);
+  --color-gray: oklch(50% 0.01 260);
+  --color-gray-bg: oklch(93% 0.006 260);
+  --color-error: oklch(55% 0.17 25);
+  --color-error-bg: oklch(94% 0.06 25);
+
+  /* Rotating avatar tonal palette (all within the anchor hue) */
+  --color-avatar1-bg: oklch(89% 0.035 155);
+  --color-avatar1: oklch(35% 0.06 155);
+  --color-avatar2-bg: oklch(93% 0.02 155);
+  --color-avatar2: oklch(48% 0.05 155);
+  --color-avatar3-bg: oklch(85% 0.045 155);
+  --color-avatar3: oklch(30% 0.05 155);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -18,11 +47,19 @@
   --space-4: 24px;
   --space-5: 40px;
 
-  --font-family: "Segoe UI", "Arial Hebrew", Arial, sans-serif;
-  --font-size-base: 16px;
-  --font-size-lg: 20px;
-  --font-size-xl: 28px;
-  --radius: 10px;
+  --font-family: 'Heebo', Arial, sans-serif;
+  --font-family-wordmark: 'Frank Ruhl Libre', Georgia, serif;
+  --font-size-base: 15px;
+  --font-size-lg: 19px;
+  --font-size-xl: 27px;
+
+  --radius-control: 10px;
+  --radius-card: 16px;
+  --radius-modal: 20px;
+  --radius: var(--radius-control);
+
+  --shadow-card: 0 1px 2px oklch(26% 0.05 258 / 0.04), 0 8px 24px oklch(26% 0.05 258 / 0.05);
+  --shadow-modal: 0 1px 2px oklch(26% 0.05 258 / 0.05), 0 16px 40px oklch(26% 0.05 258 / 0.1);
 }
 
 * {
@@ -48,6 +85,12 @@ h1,
 h2,
 h3 {
   margin: 0 0 var(--space-3);
+  font-family: var(--font-family);
+  font-weight: 800;
+}
+
+.wordmark {
+  font-family: var(--font-family-wordmark);
 }
 
 button {
@@ -57,6 +100,11 @@ button {
 }
 
 a {
+  color: var(--color-primary-hover);
+  text-decoration: none;
+}
+
+a:hover {
   color: var(--color-primary);
 }
 
@@ -73,19 +121,33 @@ a {
   padding: var(--space-5) var(--space-3);
 }
 
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
 .page-card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-modal);
   padding: var(--space-4);
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--shadow-modal);
 }
 
 .auth-switch {
   margin-top: var(--space-3);
   color: var(--color-text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .primary-button {
@@ -94,8 +156,9 @@ a {
   background: var(--color-primary);
   color: var(--color-primary-contrast);
   border: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
   font-size: var(--font-size-base);
+  font-weight: 700;
 }
 
 .primary-button:hover:not(:disabled) {
@@ -110,7 +173,8 @@ a {
 .secondary-button {
   padding: var(--space-2) var(--space-3);
   background: transparent;
-  color: var(--color-primary);
+  color: var(--color-primary-hover);
   border: 1px solid var(--color-primary);
-  border-radius: var(--radius);
+  border-radius: var(--radius-control);
+  font-weight: 700;
 }
