@@ -1,0 +1,31 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-brand {
+  font-weight: 600;
+  font-size: var(--font-size-lg);
+  color: var(--color-primary);
+}
+
+.app-nav {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.app-nav-link {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+  padding: 0;
+}
+
+.app-nav-link:hover {
+  color: var(--color-primary);
+}

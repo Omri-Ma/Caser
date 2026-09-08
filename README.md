@@ -3,8 +3,10 @@
 A multi-tenant SaaS platform for law firms. Each law firm is a tenant with its own
 subdomain, branding, and subscription plan.
 
-> Status: scaffolding in progress (Phase 1). This README is updated progressively
-> as features land, per project convention — not reconstructed at the end.
+> Status: Phase 1 (auth/tenancy foundation) done; Phase 2 in progress — Cases
+> backend slice done, frontend auth shell done (register/login/signup screens,
+> no Cases UI yet). This README is updated progressively as features land, per
+> project convention — not reconstructed at the end.
 
 ## Architecture
 
@@ -23,12 +25,48 @@ stabilize).
 
 ## Install & run
 
-_Coming as Phase 1 completes — will include Docker Compose instructions
-(`docker-compose up`) and manual local setup for backend/frontend._
+Prerequisites: Docker Desktop, Node.js 18+.
+
+1. Copy `.env.example` to `.env` (and `client/.env.example` → `client/.env`,
+   `admin/.env.example` → `admin/.env`) — defaults work as-is for local dev.
+2. Start the backend + database + cache:
+   ```
+   docker-compose up -d
+   ```
+   This runs `client_api` on port 8000, `admin_api` on port 8001, MySQL, and
+   Redis. Check both are up: `curl http://lvh.me:8000/health` and
+   `curl http://lvh.me:8001/health`.
+3. Apply the schema (first time only) and seed data:
+   ```
+   alembic upgrade head
+   docker exec -i <mysql-container> mysql -u app_user -p casehub < db/seed.sql
+   ```
+4. Start the two frontends (separate terminals):
+   ```
+   cd client && npm install && npm run dev   # http://<subdomain>.lvh.me:5173
+   cd admin  && npm install && npm run dev   # http://<subdomain>.lvh.me:5174
+   ```
+   `lvh.me` resolves any subdomain to `127.0.0.1`, so no `/etc/hosts` editing
+   is needed. Both apps must be opened at a real tenant subdomain (e.g.
+   `office1.lvh.me:5173`), not bare `localhost` — that's what makes the
+   session cookie and CORS both work (see `CLAUDE.md`'s Multi-tenancy
+   architecture section).
+5. To found a new firm: open `http://<subdomain>.lvh.me:5174/signup` (any
+   subdomain not already taken). To use an existing firm, use the demo users
+   below at `demo.lvh.me`.
 
 ## Demo users
 
-_Two seed users (one client, one admin) will be listed here once seeding is in place._
+Seeded via `db/seed.sql`, attached to a dedicated `demo` tenant:
+
+| Role           | App                          | URL                         | Email                              | Password           |
+|----------------|-------------------------------|-----------------------------|-------------------------------------|--------------------|
+| office_manager | admin (CMS)                   | `demo.lvh.me:5174/login`    | `office_manager@casehub.example.com` | `OfficeManager123!` |
+| client         | client (portal)                | `demo.lvh.me:5173/login`    | `client@casehub.example.com`         | `Client123!`        |
+
+Plus the `super_admin` bootstrap account (platform-only, not one of the two
+required demo users): `super@casehub.example.com` / `SuperAdmin123!`, logs in
+at `platform.lvh.me:8001/auth/platform-login` (no dedicated screen yet).
 
 ## Screenshots
 
