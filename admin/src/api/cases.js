@@ -40,3 +40,7 @@ export function assignToCase(caseId, membershipId) {
 export function unassignFromCase(caseId, assignmentId) {
   return apiFetch(`/cases/${caseId}/assignments/${assignmentId}`, { method: 'DELETE' })
 }
+
+export function deleteCase(caseId) {
+  return apiFetch(`/cases/${caseId}`, { method: 'DELETE' })
+}

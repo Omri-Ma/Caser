@@ -15,7 +15,7 @@ from admin_api.schemas.cases import (
 )
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import Case, CaseAssignment, Identity, Membership, Tenant
+from shared.models import Case, CaseAssignment, Document, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
@@ -103,6 +103,36 @@ def update_case_status(
     db.commit()
     db.refresh(case)
     return case
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(
+    case_id: int,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Permanent delete — only allowed if the case has zero real content
+    attached (no WorkLogs, no Documents). Per CLAUDE.md's Cases deletion
+    policy: this is for a mistakenly-created case nothing has happened on
+    yet, not a general way to erase history — closing the case is the
+    correct action once real content exists, with no override here.
+    CaseAssignments aren't "content" (just access grants), so they're
+    cleaned up as part of the same delete rather than blocking it.
+    """
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+
+    has_work_logs = db.query(WorkLog).filter(WorkLog.case_id == case.id).first() is not None
+    has_documents = db.query(Document).filter(Document.case_id == case.id).first() is not None
+    if has_work_logs or has_documents:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This case has work logs or documents attached and can't be deleted — close it instead",
+        )
+
+    db.query(CaseAssignment).filter(CaseAssignment.case_id == case.id).delete()
+    db.delete(case)
+    db.commit()
 
 
 @router.get("/{case_id}/assignments", response_model=Page[CaseAssignmentResponse])

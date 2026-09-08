@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AssignMemberModal from '../components/AssignMemberModal'
 import { FormError } from '../components/Form'
-import { getCase, listCaseAssignments, unassignFromCase, updateCaseStatus, updateCaseTitle } from '../api/cases'
+import { deleteCase, getCase, listCaseAssignments, unassignFromCase, updateCaseStatus, updateCaseTitle } from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
 import { formatDate } from '../utils/format'
 import './CaseDetailPage.css'
@@ -29,6 +29,9 @@ export default function CaseDetailPage() {
 
   const [statusSaving, setStatusSaving] = useState(false)
   const [statusError, setStatusError] = useState(null)
+
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   const loadCase = useCallback(() => {
     setLoading(true)
@@ -111,6 +114,26 @@ export default function CaseDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        `למחוק לצמיתות את התיק "${caseData.title}"? הפעולה אינה הפיכה. המחיקה תתאפשר רק אם אין לתיק שעות עבודה או מסמכים.`,
+      )
+    ) {
+      return
+    }
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteCase(caseId)
+      navigate('/cases')
+    } catch (err) {
+      setDeleteError(err.message)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const lawyers = (assignments ?? []).filter((a) => a.role === 'lawyer')
   const clients = (assignments ?? []).filter((a) => a.role === 'client')
   const assignedMembershipIds = (assignments ?? []).map((a) => a.membership_id)
@@ -181,6 +204,13 @@ export default function CaseDetailPage() {
           </div>
           {titleError && <FormError message={titleError} />}
           {statusError && <FormError message={statusError} />}
+
+          <div className="detail-actions">
+            <button type="button" className="detail-delete-button" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'מוחק תיק…' : 'מחיקת תיק'}
+            </button>
+          </div>
+          {deleteError && <FormError message={deleteError} />}
 
           <div className="card detail-card">
             <div className="detail-assign-header">

@@ -135,6 +135,20 @@ def test_office_manager_cannot_unassign_another_tenants_assignment(admin_client,
     assert resp.status_code == 404
 
 
+def test_office_manager_cannot_delete_another_tenants_case(admin_client, db):
+    tenant_a = make_tenant(db, "acme")
+    tenant_b = make_tenant(db, "globex")
+    manager_a = make_identity(db, "manager@acme.com")
+    make_membership(db, manager_a.id, tenant_a.id, UserRole.OFFICE_MANAGER)
+    case_b = make_case(db, tenant_b.id, "Globex Case")
+    headers, cookies = auth_for(manager_a, "acme")
+
+    resp = admin_client.delete(f"/cases/{case_b.id}", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 404
+    db.refresh(case_b)  # still exists, untouched
+
+
 def test_lawyer_cannot_list_another_tenants_cases_even_if_assigned_elsewhere(client_client, db):
     tenant_a = make_tenant(db, "acme")
     tenant_b = make_tenant(db, "globex")

@@ -1202,3 +1202,89 @@ rather than reaching for a raw DB delete.)
   download) for driving a real verification pass. Worth recommending
   `/run-skill-generator` if browser verification becomes a recurring need
   in this repo, so the setup doesn't get re-derived each time.
+
+## 2026-09-08 (5) — case permanent-delete, per the new CLAUDE.md deletion policy (same branch)
+
+**Asked**: CLAUDE.md's Cases section had just been updated with a deletion
+policy (office_manager can permanently delete a case, but only if it has
+zero `WorkLogs`/`Documents` attached — otherwise rejected outright, close
+the case instead, no override). Told to first commit the already-finished
+Cases-screens work as its own commit (done in the prior session — commit
+`8860be9`), then add this as a new feature on the same branch: a
+`DELETE /cases/{id}` in `admin_api`, a confirm-then-delete action on
+`CaseDetailPage` that surfaces the backend's rejection clearly, verify both
+the happy path and the guard in a real browser, and use the happy-path
+verification to clean up the two leftover test cases (#8/#9) from the
+previous session's browser testing.
+
+**Changed — backend** (`server/admin_api/routers/cases.py`):
+- `DELETE /cases/{case_id}` — office_manager-only, looks the case up via
+  the existing `get_tenant_scoped` (same as every other case route). Checks
+  for any `WorkLog`/`Document` row referencing the case; if either exists,
+  rejects with `400` and the message "This case has work logs or documents
+  attached and can't be deleted — close it instead" (surfaces verbatim
+  through the shared `{"error": ...}` response shape, same as every other
+  endpoint). Otherwise deletes the case's `CaseAssignment` rows first (not
+  "content" under the policy, just access grants — same reasoning
+  `unassign` already uses) then the `Case` row itself, in one transaction.
+- `server/tests/conftest.py`: added `make_work_log`/`make_document` fixture
+  helpers (no route creates either yet — Phase 3/2 add-ons not built — so
+  tests construct rows directly, same as every other fixture helper here).
+- `server/tests/test_cases_admin.py`: empty-case delete succeeds and is
+  actually gone (`404` on re-fetch); deleting a case with an assignment
+  also succeeds (assignments aren't blocking content); a case with a
+  `WorkLog` or a `Document` is rejected with `400` and stays fully intact
+  (`200` on re-fetch); a lawyer gets `403`. `server/tests/
+  test_tenant_isolation.py`: added the delete-across-tenants case (`404`,
+  case B untouched). Full suite: 38/38 passing against the real
+  `casehub_test` MySQL database.
+
+**Changed — frontend** (`admin/src`):
+- `api/cases.js`: added `deleteCase(caseId)`.
+- `pages/CaseDetailPage.jsx`/`.css`: a "מחיקת תיק" danger-styled button
+  (red outline, same `--color-error` token used elsewhere) in the detail
+  header area. Click → `window.confirm` naming the case and stating the
+  action is irreversible and content-gated (same confirmation mechanism
+  already used for unassign, kept consistent rather than introducing a new
+  pattern for one button) → on confirm, calls the endpoint and navigates
+  back to `/cases` on success, or renders the backend's exact rejection
+  text in the existing `FormError` banner and leaves the page untouched on
+  failure.
+
+**Verified in a real browser** (same `puppeteer-core` + system Chrome setup
+as the previous session), against the live `demo.lvh.me` tenant, logged in
+as the seeded office_manager:
+- Happy path *and* cleanup in one motion: navigated to the two leftover
+  test cases from last session (#8, #9 — both had zero work logs/documents
+  by construction, since no upload/log-entry feature exists yet to have
+  put anything on them), deleted each through the real UI, confirmed both
+  redirect to `/cases` and are gone from the list (final count back to the
+  original 7 seeded cases).
+- Guard path: created a fresh case through the UI, then — since no
+  work-log/document creation endpoint exists yet in either backend to do
+  this through the app itself — inserted one `WorkLogs` row directly into
+  the dev database via `mysql` in the `db` container (tenant/case ids read
+  from the running app's own data first, not guessed). Clicked delete in
+  the browser: the request came back `400`, the page stayed put, and the
+  exact backend message rendered in the error banner. Then removed that
+  one `WorkLogs` row the same way and deleted the case through the UI
+  again — this time it succeeded, proving the guard reopens once the
+  blocker is actually gone rather than being stuck permanently. Confirmed
+  via direct DB query afterward that `work_logs` is empty and the case
+  list is back to exactly the original 7 seeded cases — no test artifacts
+  left behind on either side of this session's work.
+
+**Learned / decided**:
+- `CaseAssignment` has a plain (non-cascading) foreign key to `cases.id`,
+  so a case with active assignments would fail at the database level on a
+  bare `DELETE` — confirmed by reading the model rather than discovering
+  it by trial and error, and handled by explicitly deleting the case's
+  assignment rows first, consistent with the policy treating assignments
+  as access grants rather than blocking "content."
+- Verifying a rejection guard for a feature with no creation UI yet
+  (work-log entry / document upload are both unbuilt Phase 3 items) still
+  doesn't require waiting for those features — inserting one row directly
+  against the real dev database (not the test database) to set up the
+  precondition, then driving the actual guarded action through the real
+  browser/API, tests the thing that's actually being built (the delete
+  guard) without needing to fake or skip the verification.

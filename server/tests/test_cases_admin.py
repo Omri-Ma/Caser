@@ -1,4 +1,4 @@
-from conftest import auth_for, make_case, make_identity, make_membership, make_tenant
+from conftest import auth_for, make_case, make_document, make_identity, make_membership, make_tenant, make_work_log
 from shared.models.enums import CaseStatus, UserRole
 
 
@@ -192,3 +192,79 @@ def test_unassign_from_case(admin_client, db):
 
     list_resp = admin_client.get(f"/cases/{case.id}/assignments", headers=headers, cookies=cookies)
     assert list_resp.json()["total"] == 0
+
+
+def test_office_manager_deletes_empty_case(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    case = make_case(db, tenant.id, "Empty Case")
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
+    assert resp.status_code == 204
+
+    get_resp = admin_client.get(f"/cases/{case.id}", headers=headers, cookies=cookies)
+    assert get_resp.status_code == 404
+
+
+def test_deleting_case_removes_its_assignments(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    lawyer_identity = make_identity(db, "lawyer@acme.com")
+    lawyer_membership = make_membership(db, lawyer_identity.id, tenant.id, UserRole.LAWYER)
+    case = make_case(db, tenant.id)
+    headers, cookies = auth_for(manager, "acme")
+    admin_client.post(
+        f"/cases/{case.id}/assignments", json={"membership_id": lawyer_membership.id}, headers=headers, cookies=cookies
+    )
+
+    resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 204
+
+
+def test_cannot_delete_case_with_work_logs(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    case = make_case(db, tenant.id)
+    make_work_log(db, tenant.id, case.id, manager_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 400
+    assert "close it instead" in resp.json()["error"]
+
+    get_resp = admin_client.get(f"/cases/{case.id}", headers=headers, cookies=cookies)
+    assert get_resp.status_code == 200
+
+
+def test_cannot_delete_case_with_documents(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    case = make_case(db, tenant.id)
+    make_document(db, tenant.id, case.id, manager_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 400
+
+    get_resp = admin_client.get(f"/cases/{case.id}", headers=headers, cookies=cookies)
+    assert get_resp.status_code == 200
+
+
+def test_lawyer_cannot_delete_case(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    lawyer_identity = make_identity(db, "lawyer@acme.com")
+    make_membership(db, lawyer_identity.id, tenant.id, UserRole.LAWYER)
+    case = make_case(db, tenant.id)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 403
