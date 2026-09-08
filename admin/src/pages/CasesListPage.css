@@ -1,0 +1,106 @@
+.cases-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 26px;
+  gap: 16px;
+}
+
+.cases-header .page-title {
+  padding-top: 0;
+  margin: 0;
+}
+
+.cases-new-button {
+  width: auto;
+  white-space: nowrap;
+}
+
+.cases-state {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.cases-state-error {
+  color: var(--color-error);
+}
+
+.cases-table-card {
+  overflow: hidden;
+}
+
+.cases-tabs {
+  display: flex;
+  gap: 20px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-bg);
+  font-size: 13px;
+  font-weight: 700;
+  flex-wrap: wrap;
+}
+
+.cases-tab {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  padding-bottom: 12px;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -15px;
+}
+
+.cases-tab.active {
+  color: var(--color-primary-hover);
+  border-bottom-color: var(--color-primary);
+}
+
+.case-title-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.case-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-control);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.case-title-text {
+  font-weight: 700;
+}
+
+.case-title-sub {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.case-muted {
+  color: var(--color-text-muted);
+}
+
+.cases-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 18px;
+  border-top: 1px solid var(--color-bg);
+}
+
+.cases-pagination .secondary-button {
+  width: auto;
+  padding: 6px 16px;
+  font-size: 12.5px;
+}
+
+.cases-pagination-info {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}

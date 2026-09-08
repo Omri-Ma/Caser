@@ -61,6 +61,21 @@ def test_list_cases_is_paginated(admin_client, db):
     assert body["page_size"] == 2
 
 
+def test_list_cases_filters_by_status(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    make_case(db, tenant.id, "Open Case", status=CaseStatus.OPEN)
+    make_case(db, tenant.id, "Closed Case", status=CaseStatus.CLOSED)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get("/cases", params={"status": "closed"}, headers=headers, cookies=cookies)
+
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Closed Case"
+
+
 def test_office_manager_edits_case_title(admin_client, db):
     tenant = make_tenant(db, "acme")
     manager = make_identity(db, "manager@acme.com")

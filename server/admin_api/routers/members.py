@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from admin_api.schemas.auth import AddMemberRequest, MembershipResponse
+from admin_api.core.pagination import Page, PageParams, paginate
+from admin_api.schemas.auth import AddMemberRequest, MemberResponse, MembershipResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import Identity, Membership, Tenant
@@ -10,6 +13,46 @@ from shared.models.enums import UserRole
 from shared.tenant import get_current_tenant
 
 router = APIRouter(prefix="/members", tags=["members"])
+
+
+@router.get("", response_model=Page[MemberResponse])
+def list_members(
+    role: Optional[UserRole] = Query(None),
+    params: PageParams = Depends(),
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Currently-active members at this firm, optionally filtered by role —
+    powers pickers like the case-assignment modal (lawyers/clients only,
+    never office managers/super_admin) as well as any future members screen.
+    Same "active = true" convention as every other "who currently works
+    here" query (see CLAUDE.md's Memberships.active note).
+    """
+    query = (
+        db.query(Membership, Identity)
+        .join(Identity, Membership.identity_id == Identity.id)
+        .filter(Membership.tenant_id == tenant.id, Membership.active.is_(True))
+    )
+    if role is not None:
+        query = query.filter(Membership.role == role)
+    query = query.order_by(Identity.name)
+
+    total = query.count()
+    rows = query.offset((params.page - 1) * params.page_size).limit(params.page_size).all()
+    items = [
+        MemberResponse(
+            id=membership.id,
+            identity_id=membership.identity_id,
+            tenant_id=membership.tenant_id,
+            role=membership.role,
+            identity_name=identity.name,
+            identity_email=identity.email,
+            active=membership.active,
+        )
+        for membership, identity in rows
+    ]
+    return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
 
 @router.post("", response_model=MembershipResponse, status_code=status.HTTP_201_CREATED)

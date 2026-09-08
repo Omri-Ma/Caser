@@ -58,3 +58,18 @@ class MembershipResponse(BaseModel):
     identity_id: int
     tenant_id: int
     role: UserRole
+
+
+class MemberResponse(BaseModel):
+    """A membership joined with its identity's name/email — what the case
+    assignment picker (and any future members list screen) actually needs to
+    display, not just the bare ids MembershipResponse carries.
+    """
+
+    id: int
+    identity_id: int
+    tenant_id: int
+    role: UserRole
+    identity_name: str
+    identity_email: EmailStr
+    active: bool

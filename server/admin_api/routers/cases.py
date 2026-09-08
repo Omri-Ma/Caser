@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,7 +16,7 @@ from admin_api.schemas.cases import (
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import Case, CaseAssignment, Identity, Membership, Tenant
-from shared.models.enums import UserRole
+from shared.models.enums import CaseStatus, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
 
@@ -37,15 +39,22 @@ def create_case(
 
 @router.get("", response_model=Page[CaseResponse])
 def list_cases(
+    status_filter: Optional[CaseStatus] = Query(None, alias="status"),
     params: PageParams = Depends(),
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
     """office_manager sees every case at their own tenant automatically —
-    no CaseAssignment row needed, unlike a lawyer/client.
+    no CaseAssignment row needed, unlike a lawyer/client. Optional `status`
+    filter so the admin case list can offer a real (server-paginated) status
+    filter instead of only ever filtering whatever single page happened to
+    be fetched.
     """
-    query = db.query(Case).filter(Case.tenant_id == tenant.id).order_by(Case.created_at.desc())
+    query = db.query(Case).filter(Case.tenant_id == tenant.id)
+    if status_filter is not None:
+        query = query.filter(Case.status == status_filter)
+    query = query.order_by(Case.created_at.desc())
     items, total = paginate(query, params)
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
 
