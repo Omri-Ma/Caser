@@ -5,12 +5,13 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 
+from client_api.core.case_access import get_assigned_case
 from client_api.core.file_validation import CONTENT_TYPE_BY_LABEL, MAX_FILE_SIZE_BYTES, detect_file_type
 from client_api.core.pagination import Page, PageParams, paginate
 from client_api.schemas.documents import DocumentResponse, ReclassifyDocumentRequest
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import AuditLog, Case, CaseAssignment, Document, Identity, Membership, Tenant
+from shared.models import AuditLog, Case, Document, Identity, Membership, Tenant
 from shared.models.enums import CaseStatus, DocumentFolderType, UserRole
 from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
@@ -18,27 +19,6 @@ from shared.storage import get_file_url, save_file
 from shared.tenant import get_current_tenant
 
 router = APIRouter(prefix="/cases/{case_id}/documents", tags=["documents"])
-
-
-def _get_assigned_case(case_id: int, tenant: Tenant, membership: Membership, db: Session) -> Case:
-    """Same pattern as cases.py's get_my_case: resolve tenant-scoped first
-    (404 if the case isn't even this tenant's), then require an explicit
-    CaseAssignment (403 if it exists here but isn't assigned to this
-    membership) — lawyers and clients alike have no automatic case access.
-    """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
-    assigned = (
-        db.query(CaseAssignment)
-        .filter(
-            CaseAssignment.tenant_id == tenant.id,
-            CaseAssignment.case_id == case.id,
-            CaseAssignment.membership_id == membership.id,
-        )
-        .first()
-    )
-    if assigned is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not assigned to this case")
-    return case
 
 
 def _get_case_document(case: Case, document_id: int, tenant: Tenant, db: Session) -> Document:
@@ -89,7 +69,7 @@ async def upload_document(
     confirms, at which point the old document is archived (not deleted) and
     the new upload becomes active under that name.
     """
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
 
     if case.status == CaseStatus.CLOSED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — new documents can't be added")
@@ -176,7 +156,7 @@ def list_documents(
     to ask for, the internal folder. Clients can't browse the archive at
     all (once archived, it's out of their hands).
     """
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
 
     if archived and membership.role == UserRole.CLIENT:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clients can't browse the archive")
@@ -228,7 +208,7 @@ def download_document(
     db: Session = Depends(get_db),
     membership: Membership = Depends(require_role(UserRole.LAWYER, UserRole.CLIENT)),
 ):
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
     document = _get_case_document(case, document_id, tenant, db)
 
     if membership.role == UserRole.CLIENT and (
@@ -252,7 +232,7 @@ def archive_document(
     case, their own or a colleague's — same broad, collaborative authority
     used elsewhere on a shared case record.
     """
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
     document = _get_case_document(case, document_id, tenant, db)
 
     if membership.role == UserRole.CLIENT and document.uploaded_by != membership.id:
@@ -286,7 +266,7 @@ def restore_document(
     """Lawyer-only — clients can't restore anything, even their own, same
     asymmetry as everywhere else (they'd ask a lawyer).
     """
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
     document = _get_case_document(case, document_id, tenant, db)
 
     if document.archived_at is None:
@@ -319,7 +299,7 @@ def reclassify_document(
     would just make it invisible to yourself, so it's meaningless as a
     client action anyway.
     """
-    case = _get_assigned_case(case_id, tenant, membership, db)
+    case = get_assigned_case(case_id, tenant, membership, db)
     document = _get_case_document(case, document_id, tenant, db)
 
     document.folder_type = payload.folder_type
