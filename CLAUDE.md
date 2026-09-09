@@ -236,7 +236,21 @@ are built — avoids painful migrations later.
   something operationally, both so a closed case can't keep silently
   accumulating billable hours, and to protect billing integrity once a case
   has been narrated/invoiced. Reopening (office_manager, no restriction on
-  when) is what resumes activity.
+  when) is what resumes activity. "Not currently being worked on" doesn't
+  need a separate mechanism — `on_hold`/`closed` already mean that, and the
+  case list's existing status filter already lets it be hidden from the
+  default view; no new status or archive concept required for this.
+
+  Deletion is deliberately much lighter than `Documents`' two-stage trash —
+  proportionate to how much less is at stake: a `Case` row itself is just a
+  title and status, not a potential legal exhibit. `office_manager` can
+  permanently delete a case, but **only if it has zero real content
+  attached** — no `WorkLogs`, no `Documents` reference it. If either exists,
+  the delete is rejected outright with a message pointing at closing the
+  case instead; there is no override. This exists specifically for a case
+  created by mistake that nothing has happened on yet (e.g. a test/duplicate
+  case) — not as a general-purpose way to remove a case's history. Real
+  billable hours or documents are never destroyable this way, at any stage.
 - `CaseAssignments` (id, tenant_id, case_id, membership_id) — many-to-many:
   which memberships (lawyers *and* clients alike — a case can have more than
   one of each) can access a case. Whether an assigned membership is a lawyer
