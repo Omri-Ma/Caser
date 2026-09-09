@@ -20,6 +20,11 @@ build/
 # Uploaded files (local disk storage backend)
 server/storage/
 server/uploads/
+# Safety net for the now-fixed STORAGE_ROOT double-resolution bug (see
+# docs/ai_usage.md) — nothing has ever been tracked here, but the pattern
+# above doesn't cover this nested depth if a stale .env value ever
+# resurfaces it.
+server/server/
 
 # Editor / OS
 .vscode/
