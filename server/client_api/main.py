@@ -9,6 +9,7 @@ from client_api.routers.cases import router as cases_router
 from client_api.routers.documents import router as documents_router
 from client_api.routers.narratives import router as narratives_router
 from client_api.routers.public import router as public_router
+from client_api.routers.work_log_import import router as work_log_import_router
 from client_api.routers.work_logs import router as work_logs_router
 from shared.errors import register_error_handlers
 from shared.logging import RequestLoggingMiddleware, configure_logging
@@ -25,6 +26,7 @@ app.include_router(cases_router)
 app.include_router(documents_router)
 app.include_router(narratives_router)
 app.include_router(work_logs_router)
+app.include_router(work_log_import_router)
 
 # Every tenant gets a subdomain created dynamically at signup, so a fixed,
 # hand-typed allow_origins list can't work here — allow_origin_regex trusts

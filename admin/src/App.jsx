@@ -9,6 +9,7 @@ import MembersPage from './pages/MembersPage'
 import AuditLogPage from './pages/AuditLogPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
 import { isPlatformHost } from './utils/host'
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/members" element={<MembersPage />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
+            <Route path="/work-logs/import" element={<WorkLogImportPage />} />
             <Route path="/settings/branding" element={<BrandingPage />} />
             <Route path="/settings/subscription" element={<SubscriptionPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />

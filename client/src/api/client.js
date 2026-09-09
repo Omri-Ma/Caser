@@ -11,10 +11,13 @@ function apiBaseUrl() {
 }
 
 export class ApiError extends Error {
-  constructor(message, { status, field } = {}) {
+  constructor(message, { status, field, rowErrors } = {}) {
     super(message)
     this.status = status
     this.field = field
+    // Only set for the Excel import endpoints' 422 response shape
+    // ({error, field, row_errors}) — undefined everywhere else.
+    this.rowErrors = rowErrors
   }
 }
 
@@ -71,7 +74,11 @@ export async function apiUpload(path, formData) {
   }
 
   if (!response.ok) {
-    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', { status: response.status, field: data?.field })
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', {
+      status: response.status,
+      field: data?.field,
+      rowErrors: data?.row_errors,
+    })
   }
 
   return data

@@ -37,6 +37,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    key: 'work-log-import',
+    label: 'ייבוא שעות מאקסל',
+    path: '/work-logs/import',
+    icon: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5V12l3 2" />
+      </>
+    ),
+  },
+  {
     key: 'settings',
     label: 'הגדרות משרד',
     path: '/settings/branding',

@@ -38,3 +38,23 @@ def detect_file_type(content: bytes) -> str | None:
         except zipfile.BadZipFile:
             return None
     return None
+
+
+# Separate from detect_file_type/CONTENT_TYPE_BY_LABEL on purpose — that
+# allowlist is for Documents uploads (PDF/DOCX/JPEG/PNG); a work-log Excel
+# import is a different upload with its own single expected type.
+MAX_IMPORT_FILE_SIZE_BYTES = 5 * 1024 * 1024
+
+
+def is_xlsx_file(content: bytes) -> bool:
+    """Same zip-signature + inner-file-check approach as the DOCX case
+    above — a bare "PK\\x03\\x04" signature can't distinguish .xlsx from any
+    other zip, so this confirms the one entry every real .xlsx contains.
+    """
+    if content[:4] != b"PK\x03\x04":
+        return False
+    try:
+        with zipfile.ZipFile(BytesIO(content)) as archive:
+            return "xl/workbook.xml" in archive.namelist()
+    except zipfile.BadZipFile:
+        return False
