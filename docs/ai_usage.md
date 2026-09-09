@@ -1504,3 +1504,55 @@ real sessions back-to-back:
   remembering that a previously-green build/dev command on this machine
   isn't guaranteed to stay green between sessions if Windows security
   policy changes underneath it.
+
+## 2026-09-09
+
+**Asked**: Set up the missing `/docs` deliverables (OpenAPI export, Postman
+Collection, ERD) as a repeatable, re-runnable process rather than a one-off
+manual export, since these need to be regenerated after every future feature.
+Branch `feature/docs-export`.
+
+**Changed**:
+- `server/scripts/export_openapi.py` — imports `client_api.main:app` and
+  `admin_api.main:app` directly and calls `.openapi()` on each; writes
+  `docs/openapi_client.json` / `docs/openapi_admin.json`. No server needs to
+  be running and no live DB connection is made (SQLAlchemy's `create_engine`
+  is lazy), so it works identically with Docker up or down.
+- `server/scripts/generate_erd.py` — imports `shared.models` (populates
+  `Base.metadata` via the real `ForeignKey` columns already on every model)
+  and feeds it straight to `eralchemy2.render_er()`; writes `docs/erd.png`
+  and a text-diffable `docs/erd.mmd.md` (Mermaid ER syntax).
+- `server/scripts/generate_postman.sh` — converts both OpenAPI files into
+  Postman collections via Postman's own official `openapi-to-postmanv2`
+  npm CLI (pinned `6.3.3`, run through `npx` so no permanent install is
+  needed); writes `docs/postman_collection_client.json` /
+  `docs/postman_collection_admin.json`.
+- `server/scripts/export_docs.sh` — one-command orchestrator running all
+  three in order.
+- `server/scripts/requirements-docs.txt` — `eralchemy2`/`pygraphviz` pinned,
+  kept separate from `server/requirements.txt` since neither app needs them
+  at runtime, only doc generation does.
+- README: new "Regenerating /docs" section documenting the one-time setup
+  and the single re-run command, so a future session doesn't need this
+  conversation's context to refresh these files.
+- Generated the actual files into `/docs` for the current codebase state
+  (13 client_api paths, 18 admin_api paths, ERD covering all 11 tables).
+
+**Learned / decided**:
+- `eralchemy2` (SQLAlchemy 2.0-compatible fork of the original `eralchemy`)
+  needs Graphviz's `dot` engine to render an image, but its `pygraphviz`
+  dependency shipped a wheel with `dot` bundled for this
+  platform/Python version — no separate system-level Graphviz install was
+  needed. Worth re-checking if this ever breaks on a different machine/OS;
+  the fallback is installing Graphviz separately and ensuring `dot` is on
+  PATH.
+- Passed `Base.metadata` (a `MetaData` instance) directly into
+  `eralchemy2.render_er()` in-process, rather than driving it via its CLI's
+  `-i` flag (which expects a DB URI or an `.er` file) — the CLI has no clean
+  way to point at "a SQLAlchemy declarative Base living in a Python module,"
+  so the reusable, code-importable path is a plain script, same pattern
+  already used for the OpenAPI export.
+- Chose `openapi-to-postmanv2` (Postman's own official converter, high
+  download count, actively maintained) over the Postman desktop app's manual
+  import/export UI specifically because it's scriptable — the whole point of
+  this task was making the export re-runnable without a human driving a GUI.

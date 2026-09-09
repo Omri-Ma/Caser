@@ -20,8 +20,9 @@ subdomain, branding, and subscription plan.
 - **Auth**: JWT (access + refresh), bcrypt/argon2 password hashing, RBAC enforced
   server-side (frontend route guards are UX only).
 
-See `/docs` for the ERD, OpenAPI export, and Postman collection (added as endpoints
-stabilize).
+See `/docs` for the ERD, OpenAPI export, and Postman collection — all three are
+generated, not hand-maintained (see "Regenerating /docs" below), and are
+refreshed whenever routes or models change.
 
 ## Install & run
 
@@ -67,6 +68,37 @@ Seeded via `db/seed.sql`, attached to a dedicated `demo` tenant:
 Plus the `super_admin` bootstrap account (platform-only, not one of the two
 required demo users): `super@casehub.example.com` / `SuperAdmin123!`, logs in
 at `platform.lvh.me:8001/auth/platform-login` (no dedicated screen yet).
+
+## Regenerating /docs
+
+`docs/openapi_client.json`, `docs/openapi_admin.json`, `docs/postman_collection_client.json`,
+`docs/postman_collection_admin.json`, `docs/erd.png`, and `docs/erd.mmd.md` are
+all generated from code (route declarations and `server/shared/models`), never
+edited by hand. Re-run this after any change to routes or table/relationship
+definitions:
+
+```
+# one-time setup
+server/.venv/Scripts/python.exe -m pip install -r server/requirements.txt -r server/scripts/requirements-docs.txt
+# (Node/npm on PATH is also required — used via npx for the Postman conversion)
+
+# every time routes or models change
+bash server/scripts/export_docs.sh
+```
+
+This runs three independent scripts in order (each can also be run alone):
+- `server/scripts/export_openapi.py` — imports the `client_api`/`admin_api`
+  FastAPI app objects directly and calls `.openapi()`; no server needs to be
+  running, no Docker needed.
+- `server/scripts/generate_erd.py` — imports `shared.models` and feeds
+  `Base.metadata` to `eralchemy2`, which reads the real `ForeignKey`
+  constraints; also no DB connection needed.
+- `server/scripts/generate_postman.sh` — converts the two OpenAPI files above
+  into Postman collections via Postman's own `openapi-to-postmanv2` CLI (via
+  `npx`, pinned version).
+
+Review the diff under `docs/` and commit the results like any other
+generated-but-tracked artifact.
 
 ## Screenshots
 
