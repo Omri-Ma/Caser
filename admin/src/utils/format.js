@@ -1,8 +1,19 @@
 const dateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: 'short', year: 'numeric' })
+const dateTimeFormatter = new Intl.DateTimeFormat('he-IL', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+})
 const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'short', year: '2-digit' })
 
 export function formatDate(isoString) {
   return dateFormatter.format(new Date(isoString))
+}
+
+export function formatDateTime(isoString) {
+  return dateTimeFormatter.format(new Date(isoString))
 }
 
 // "2026-03" -> a short localized month label ("מרץ 26") for the case-

@@ -26,6 +26,17 @@ const NAV_ITEMS = [
     ),
   },
   {
+    key: 'audit-log',
+    label: 'יומן פעולות',
+    path: '/audit-log',
+    icon: (
+      <>
+        <path d="M6 3.5h9l3.5 3.5V20.5H6z" />
+        <path d="M8.5 10.5h7M8.5 13.5h7M8.5 16.5h4.5" />
+      </>
+    ),
+  },
+  {
     key: 'settings',
     label: 'הגדרות משרד',
     path: '/settings/branding',

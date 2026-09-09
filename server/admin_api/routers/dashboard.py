@@ -5,10 +5,14 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
-from admin_api.schemas.dashboard import DashboardStatsResponse, MonthlyCaseActivityPoint
+from admin_api.schemas.dashboard import (
+    DashboardStatsResponse,
+    MonthlyBillableHoursPoint,
+    MonthlyCaseActivityPoint,
+)
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import Case, Identity, Membership, Tenant
+from shared.models import Case, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole
 from shared.plan_limits import count_active_lawyers, get_plan_usage
 from shared.tenant import get_current_tenant
@@ -62,6 +66,27 @@ def _monthly_case_activity(tenant_id: int, db: Session) -> list[MonthlyCaseActiv
     ]
 
 
+def _monthly_billable_hours(tenant_id: int, db: Session) -> list[MonthlyBillableHoursPoint]:
+    """Total WorkLog hours (by work date) for the trailing
+    MONTHLY_ACTIVITY_MONTHS months — same trailing-window/Python-bucketing
+    approach as _monthly_case_activity above, for the same portability
+    reason. Distinct chart from case activity: hours worked, not cases opened.
+    """
+    months = _last_n_months(MONTHLY_ACTIVITY_MONTHS)
+    totals = {key: 0.0 for key in months}
+
+    entries = db.query(WorkLog.date, WorkLog.hours).filter(WorkLog.tenant_id == tenant_id).all()
+    for work_date, hours in entries:
+        key = (work_date.year, work_date.month)
+        if key in totals:
+            totals[key] += float(hours)
+
+    return [
+        MonthlyBillableHoursPoint(month=f"{year:04d}-{month:02d}", total_hours=round(totals[(year, month)], 2))
+        for year, month in months
+    ]
+
+
 @router.get("/stats", response_model=DashboardStatsResponse)
 def dashboard_stats(
     tenant: Tenant = Depends(get_current_tenant),
@@ -93,6 +118,7 @@ def dashboard_stats(
         storage_used_bytes=usage["storage_used_bytes"],
         storage_limit_bytes=usage["storage_limit_bytes"],
         monthly_case_activity=_monthly_case_activity(tenant.id, db),
+        monthly_billable_hours=_monthly_billable_hours(tenant.id, db),
     )
 
 
