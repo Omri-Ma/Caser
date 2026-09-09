@@ -76,6 +76,58 @@ def test_list_cases_filters_by_status(admin_client, db):
     assert body["items"][0]["title"] == "Closed Case"
 
 
+def test_list_cases_searches_by_title_partial_match(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    make_case(db, tenant.id, "Smith v. Jones")
+    make_case(db, tenant.id, "Doe v. Roe")
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get("/cases", params={"search": "smith"}, headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Smith v. Jones"
+
+
+def test_list_cases_search_and_status_combine(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    make_case(db, tenant.id, "Smith Open", status=CaseStatus.OPEN)
+    make_case(db, tenant.id, "Smith Closed", status=CaseStatus.CLOSED)
+    make_case(db, tenant.id, "Other Open", status=CaseStatus.OPEN)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get(
+        "/cases", params={"search": "smith", "status": "open"}, headers=headers, cookies=cookies
+    )
+
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Smith Open"
+
+
+def test_list_cases_search_respects_pagination(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    for i in range(3):
+        make_case(db, tenant.id, f"Matching Case {i}")
+    make_case(db, tenant.id, "Unrelated")
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get(
+        "/cases", params={"search": "matching", "page": 1, "page_size": 2}, headers=headers, cookies=cookies
+    )
+
+    body = resp.json()
+    assert body["total"] == 3
+    assert len(body["items"]) == 2
+
+
 def test_office_manager_edits_case_title(admin_client, db):
     tenant = make_tenant(db, "acme")
     manager = make_identity(db, "manager@acme.com")

@@ -201,6 +201,45 @@ def test_upload_over_storage_quota_rejected(client_client, db, monkeypatch):
     assert "quota" in resp.json()["error"].lower()
 
 
+def test_lawyer_searches_documents_by_filename(client_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    make_document(db, tenant.id, case.id, lawyer_membership.id, original_filename="contract.pdf")
+    make_document(db, tenant.id, case.id, lawyer_membership.id, original_filename="invoice.pdf")
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = client_client.get(
+        f"/cases/{case.id}/documents", params={"search": "contract"}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["original_filename"] == "contract.pdf"
+
+
+def test_client_searches_only_within_client_folder(client_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    client_identity, client_membership = _client_on_case(db, tenant, case)
+    make_document(
+        db, tenant.id, case.id, client_membership.id, folder_type=DocumentFolderType.CLIENT, original_filename="contract.pdf"
+    )
+    make_document(
+        db, tenant.id, case.id, client_membership.id, folder_type=DocumentFolderType.INTERNAL, original_filename="contract-notes.pdf"
+    )
+    headers, cookies = auth_for(client_identity, "acme")
+
+    resp = client_client.get(
+        f"/cases/{case.id}/documents", params={"search": "contract"}, headers=headers, cookies=cookies
+    )
+
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["original_filename"] == "contract.pdf"
+
+
 def test_client_never_sees_internal_folder(client_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)

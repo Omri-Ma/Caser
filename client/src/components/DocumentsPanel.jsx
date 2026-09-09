@@ -37,16 +37,23 @@ export default function DocumentsPanel({ caseId, role, showInternalTab, caseClos
   const [actioningId, setActioningId] = useState(null)
   const [uploadError, setUploadError] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
   const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    listDocuments(caseId, { folderType: tab, archived: viewingArchive })
+    listDocuments(caseId, { folderType: tab, archived: viewingArchive, search: search || undefined })
       .then((page) => setDocuments(page.items))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [caseId, tab, viewingArchive])
+  }, [caseId, tab, viewingArchive, search])
 
   useEffect(() => {
     load()
@@ -153,6 +160,13 @@ export default function DocumentsPanel({ caseId, role, showInternalTab, caseClos
             {viewingArchive ? 'חזרה למסמכים פעילים' : 'צפייה בארכיון'}
           </button>
         )}
+        <input
+          type="text"
+          className="documents-search-input"
+          placeholder="חיפוש לפי שם קובץ…"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+        />
       </div>
       {uploadError && <FormError message={uploadError} />}
       {actionError && <FormError message={actionError} />}
@@ -160,7 +174,9 @@ export default function DocumentsPanel({ caseId, role, showInternalTab, caseClos
       {loading && <div className="detail-state">טוען מסמכים…</div>}
       {!loading && error && <div className="detail-state detail-state-error">{error}</div>}
       {!loading && !error && documents && documents.length === 0 && (
-        <div className="detail-state">{viewingArchive ? 'הארכיון ריק.' : 'אין מסמכים בתיקייה זו עדיין.'}</div>
+        <div className="detail-state">
+          {search ? 'לא נמצאו מסמכים התואמים את החיפוש.' : viewingArchive ? 'הארכיון ריק.' : 'אין מסמכים בתיקייה זו עדיין.'}
+        </div>
       )}
       {!loading && !error && documents && documents.length > 0 && (
         <ul className="documents-list">

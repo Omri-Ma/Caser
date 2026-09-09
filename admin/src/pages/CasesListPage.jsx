@@ -14,19 +14,31 @@ export default function CasesListPage() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [newCaseOpen, setNewCaseOpen] = useState(false)
 
+  // Debounce the search box so every keystroke doesn't fire a request —
+  // the actual filtering still happens server-side once `search` settles.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
   useEffect(() => {
     setLoading(true)
     setError(null)
-    listCases({ page, status: statusFilter === 'all' ? undefined : statusFilter })
+    listCases({ page, status: statusFilter === 'all' ? undefined : statusFilter, search: search || undefined })
       .then(setResult)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [page, statusFilter])
+  }, [page, statusFilter, search])
 
   function selectStatus(status) {
     setStatusFilter(status)
@@ -85,24 +97,37 @@ export default function CasesListPage() {
 
       {!error && (
         <div className="card cases-table-card">
-          <div className="cases-tabs">
-            {STATUS_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className={`cases-tab${statusFilter === tab.key ? ' active' : ''}`}
-                onClick={() => selectStatus(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="cases-toolbar">
+            <div className="cases-tabs">
+              {STATUS_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`cases-tab${statusFilter === tab.key ? ' active' : ''}`}
+                  onClick={() => selectStatus(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              className="cases-search-input"
+              placeholder="חיפוש לפי שם תיק…"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+            />
           </div>
 
           <DataTable
             columns={columns}
             rows={result?.items}
             loading={loading}
-            emptyMessage={statusFilter === 'all' ? 'עדיין אין תיקים במשרד. צרו תיק חדש כדי להתחיל.' : 'אין תיקים בסטטוס זה.'}
+            emptyMessage={
+              search || statusFilter !== 'all'
+                ? 'לא נמצאו תיקים התואמים את החיפוש או הסינון.'
+                : 'עדיין אין תיקים במשרד. צרו תיק חדש כדי להתחיל.'
+            }
             onRowClick={(row) => navigate(`/cases/${row.id}`)}
           />
 

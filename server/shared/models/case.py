@@ -10,6 +10,7 @@ class Case(Base):
     __table_args__ = (
         Index("ix_cases_tenant_id", "tenant_id"),
         Index("ix_cases_status", "status"),
+        Index("ix_cases_title", "title"),
     )
 
     id = Column(Integer, primary_key=True)

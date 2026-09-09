@@ -49,6 +49,7 @@ def _to_response(document: Document, db: Session) -> DocumentResponse:
 @router.get("", response_model=Page[DocumentResponse])
 def list_documents(
     case_id: int,
+    search: Optional[str] = Query(None, description="Partial, case-insensitive match on filename"),
     folder_type: Optional[DocumentFolderType] = Query(None),
     archived: bool = Query(False),
     params: PageParams = Depends(),
@@ -68,6 +69,8 @@ def list_documents(
         .join(Identity, Membership.identity_id == Identity.id)
         .filter(Document.tenant_id == tenant.id, Document.case_id == case.id)
     )
+    if search:
+        query = query.filter(Document.original_filename.ilike(f"%{search}%"))
     if folder_type is not None:
         query = query.filter(Document.folder_type == folder_type)
     if archived:

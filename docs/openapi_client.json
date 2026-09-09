@@ -166,9 +166,43 @@
           "cases"
         ],
         "summary": "List My Cases",
-        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unlike office_manager, a lawyer/client has no automatic\ntenant-wide visibility.",
+        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unlike office_manager, a lawyer/client has no automatic\ntenant-wide visibility. Optional server-side title search + status\nfilter, same as the admin case list.",
         "operationId": "list_my_cases_cases_get",
         "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on case title",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on case title"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CaseStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
           {
             "name": "page",
             "in": "query",
@@ -328,6 +362,24 @@
               "type": "integer",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on filename",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on filename"
           },
           {
             "name": "folder_type",

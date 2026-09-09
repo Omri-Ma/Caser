@@ -437,9 +437,27 @@
           "cases"
         ],
         "summary": "List Cases",
-        "description": "office_manager sees every case at their own tenant automatically —\nno CaseAssignment row needed, unlike a lawyer/client. Optional `status`\nfilter so the admin case list can offer a real (server-paginated) status\nfilter instead of only ever filtering whatever single page happened to\nbe fetched.",
+        "description": "office_manager sees every case at their own tenant automatically —\nno CaseAssignment row needed, unlike a lawyer/client. Optional `search`\n(title, partial match) and `status` filter so the admin case list can\noffer real (server-paginated) search/filtering instead of only ever\nfiltering whatever single page happened to be fetched.",
         "operationId": "list_cases_cases_get",
         "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on case title",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on case title"
+          },
           {
             "name": "status",
             "in": "query",
@@ -862,6 +880,24 @@
               "type": "integer",
               "title": "Case Id"
             }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on filename",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on filename"
           },
           {
             "name": "folder_type",

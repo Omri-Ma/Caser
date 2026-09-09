@@ -39,6 +39,7 @@ def create_case(
 
 @router.get("", response_model=Page[CaseResponse])
 def list_cases(
+    search: Optional[str] = Query(None, description="Partial, case-insensitive match on case title"),
     status_filter: Optional[CaseStatus] = Query(None, alias="status"),
     params: PageParams = Depends(),
     tenant: Tenant = Depends(get_current_tenant),
@@ -46,12 +47,14 @@ def list_cases(
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
     """office_manager sees every case at their own tenant automatically —
-    no CaseAssignment row needed, unlike a lawyer/client. Optional `status`
-    filter so the admin case list can offer a real (server-paginated) status
-    filter instead of only ever filtering whatever single page happened to
-    be fetched.
+    no CaseAssignment row needed, unlike a lawyer/client. Optional `search`
+    (title, partial match) and `status` filter so the admin case list can
+    offer real (server-paginated) search/filtering instead of only ever
+    filtering whatever single page happened to be fetched.
     """
     query = db.query(Case).filter(Case.tenant_id == tenant.id)
+    if search:
+        query = query.filter(Case.title.ilike(f"%{search}%"))
     if status_filter is not None:
         query = query.filter(Case.status == status_filter)
     query = query.order_by(Case.created_at.desc())

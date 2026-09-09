@@ -6,8 +6,11 @@ import { apiFetch } from './client'
 // real pagination UI on top of it yet.
 const MAX_PAGE_SIZE = 200
 
-export function listMyCases() {
-  return apiFetch(`/cases?page=1&page_size=${MAX_PAGE_SIZE}`)
+export function listMyCases({ search, status } = {}) {
+  const params = new URLSearchParams({ page: '1', page_size: String(MAX_PAGE_SIZE) })
+  if (search) params.set('search', search)
+  if (status) params.set('status', status)
+  return apiFetch(`/cases?${params}`)
 }
 
 export function getMyCase(caseId) {
