@@ -67,7 +67,8 @@ Seeded via `db/seed.sql`, attached to a dedicated `demo` tenant:
 
 Plus the `super_admin` bootstrap account (platform-only, not one of the two
 required demo users): `super@casehub.example.com` / `SuperAdmin123!`, logs in
-at `platform.lvh.me:8001/auth/platform-login` (no dedicated screen yet).
+at `platform.lvh.me:5174/login` — the cross-tenant firm list and
+platform-wide stats dashboard (suspend/reactivate a firm from there too).
 
 ## Regenerating /docs
 

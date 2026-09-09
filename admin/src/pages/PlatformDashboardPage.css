@@ -1,0 +1,43 @@
+.platform-page-title {
+  padding-top: 26px;
+}
+
+.platform-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.platform-stat-card {
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.platform-stat-value {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  color: var(--color-primary);
+}
+
+.platform-stat-label {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+}
+
+.platform-tenants-title {
+  margin-bottom: var(--space-3);
+}
+
+.tenant-status-suspended {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+@media (max-width: 720px) {
+  .platform-stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

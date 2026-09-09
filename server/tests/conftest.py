@@ -96,8 +96,13 @@ def make_tenant(db, subdomain: str, name: str = "Test Firm", active: bool = True
     return tenant
 
 
-def make_identity(db, email: str, name: str = "Test User") -> Identity:
-    identity = Identity(name=name, email=email, password_hash=hash_password("password123"))
+def make_identity(db, email: str, name: str = "Test User", is_super_admin: bool = False) -> Identity:
+    identity = Identity(
+        name=name,
+        email=email,
+        password_hash=hash_password("password123"),
+        is_super_admin=is_super_admin,
+    )
     db.add(identity)
     db.commit()
     db.refresh(identity)
