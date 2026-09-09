@@ -1,0 +1,62 @@
+.work-hours-total {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+}
+
+.work-hours-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  margin-bottom: 14px;
+}
+
+.work-hours-form input {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font-size: 12.5px;
+}
+
+.work-hours-inline-form {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  border: none;
+  padding: 0;
+  margin-bottom: 0;
+  width: 100%;
+}
+
+.work-hours-inline-form input {
+  flex: 1;
+  min-width: 100px;
+}
+
+.work-hours-edit-row {
+  align-items: stretch;
+}
+
+.work-hours-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.work-hours-form-actions .secondary-button {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.work-hours-form-cancel {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}

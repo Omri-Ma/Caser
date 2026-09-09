@@ -1556,3 +1556,169 @@ Branch `feature/docs-export`.
   download count, actively maintained) over the Postman desktop app's manual
   import/export UI specifically because it's scriptable — the whole point of
   this task was making the export re-runnable without a human driving a GUI.
+
+## 2026-09-09 (continued)
+
+**Asked**: Build the full WorkLogs feature — backend and frontend, both
+apps — in one pass, sized like the Documents session. Branch
+`feature/worklogs`. Manual entry, list, edit, delete on `client_api`
+(lawyer-only, any lawyer assigned to the case can edit/delete any entry,
+every edit/delete audited, locked once the case is closed); `admin_api` gets
+the same edit/delete authority plus read access for oversight; frontend
+panels on both apps' case-detail screens, replacing `client/`'s "coming
+soon" placeholder; confirm a client account sees no trace of the feature.
+Re-run the `/docs` export as a standard last step.
+
+**Changed — backend, shared**:
+- No new model needed — `WorkLog` already existed (Phase 1's "create every
+  table upfront" rule) with exactly the columns CLAUDE.md specifies
+  (`tenant_id`, `lawyer_id`, `case_id`, `date`, `hours` as `Numeric(6,2)`,
+  `description`, `source`).
+- `client_api/core/case_access.py` (new): extracted `get_assigned_case()` out
+  of `documents.py`'s private `_get_assigned_case` — work_logs.py needed the
+  exact same "resolve tenant-scoped, then require an explicit
+  CaseAssignment" check, so this was the second real caller CLAUDE.md's
+  "extract before a third copy" rule is about. `documents.py` now imports it
+  too instead of keeping its own copy.
+
+**Changed — backend, `client_api`**:
+- `schemas/work_logs.py`, `routers/work_logs.py` (new), registered in
+  `main.py`. `POST`/`GET`/`PATCH`/`DELETE` all gated
+  `require_role(UserRole.LAWYER)` only — no `CLIENT` in the allowed-roles
+  list at all, the literal enforcement of "WorkLogs are never client-visible,
+  no route should expose them to a client role." Create/edit/delete all
+  check `case.status == CaseStatus.CLOSED` and reject with 400 — "locked
+  entirely once the case is closed" applies to all three mutations, not just
+  creation (a stricter rule than Documents, which only blocks new uploads on
+  a closed case, not archive/restore/reclassify of existing ones — CLAUDE.md
+  states this WorkLogs rule explicitly, so it wasn't invented by analogy).
+  Edit/delete both write an `AuditLog` row (`work_log_edited`/
+  `work_log_deleted`, target `work_log:<id>`) — action happened + who + when
+  only, no before/after value tracking, per CLAUDE.md's explicit scope for
+  this log.
+- Every lawyer assigned to the case can edit/delete any entry on it, not
+  just their own — same broad, collaborative authority `Documents` already
+  established, re-used rather than re-derived.
+
+**Changed — backend, `admin_api`**:
+- `schemas/work_logs.py`, `routers/work_logs.py` (new), registered in
+  `main.py`. `GET` (list, `office_manager`-only, no `CaseAssignment` check —
+  same automatic-access oversight pattern as `admin_api`'s Documents list)
+  plus `PATCH`/`DELETE` with the identical closed-case lock and audit-log
+  write as the lawyer-facing route. No `POST` — manual entry stays the
+  lawyer/client portal's job, `admin_api` is oversight only, per this
+  session's own scope (CLAUDE.md's text doesn't explicitly rule out
+  office_manager creating entries, but the task narrowed it to "edit/delete
+  ... plus read access," so no create endpoint was built here).
+
+**Changed — tests**:
+- `tests/test_work_logs_client.py` (11 tests), `tests/test_work_logs_admin.py`
+  (5 tests): manual creation (success, client-403, unassigned-lawyer-403,
+  closed-case-400, non-positive-hours-422), lawyer-edits-colleague's-entry
+  (+ audit row asserted), edit/delete blocked on a closed case,
+  lawyer-deletes-colleague's-entry (+ audit row), office_manager
+  list-without-assignment, office_manager edits/deletes any entry (+ audit
+  row with the right `user_id`), lawyer 403'd off the admin route.
+- `tests/test_tenant_isolation.py`: two more cases —
+  lawyer-cannot-create-work-log-on-another-tenant's-case (404, the case_id
+  itself resolves through `get_tenant_scoped` before assignment logic runs)
+  and office_manager-cannot-list-another-tenant's-work-logs (404).
+- Fixed 3 initial test-assertion failures against the real running suite
+  (not assumed passing): `hours` comes back as `"4.00"`/`"3.50"`/`"6.00"`
+  from MySQL's `Numeric(6,2)`, not `"4"`/`"3.5"`/`"6"` — my first draft
+  assumed Python `Decimal`'s default string form, forgetting the column's
+  actual scale. Full suite: 83/83 passing after the fix (up from 66 before
+  this session, +17 for WorkLogs).
+
+**Changed — frontend, `client/`**:
+- `api/work_logs.js` (new): `listWorkLogs`/`createWorkLog`/`updateWorkLog`/
+  `deleteWorkLog`, same single-page-covers-it `page_size=200` shortcut
+  `documents.js` already uses for one case's list.
+- `components/WorkHoursPanel.jsx` + `.css` (new): total-hours summary,
+  an inline "+ רישום שעות" create form (date/hours/description), and a list
+  with per-row inline edit (swaps the row into its own small form) and
+  delete (native `confirm()`, matching the existing
+  unassign/delete-case/archive confirmation pattern already used elsewhere
+  in this app). Both create and every row's edit/delete are hidden (not just
+  disabled) when the case is closed, with the same `documents-closed-note`
+  banner style Documents already uses for its own closed-case messaging.
+- `pages/CaseDetailPage.jsx`: replaced the static "מעקב שעות בקרוב" (coming
+  soon) placeholder with `{canSeeWorkHours() && <WorkHoursPanel ... />}` — a
+  second `getStoredRole() === 'lawyer'` check, deliberately separate from
+  `canSeeInternalFolder()` even though today they'd always agree, since
+  they're gating two independently-specified things (which document folder
+  vs. whether the section exists at all) and CLAUDE.md is explicit that
+  WorkLogs get a *stronger* rule than Documents (not rendered at all, vs.
+  Documents' folder-level tab hiding) — collapsing them into one shared
+  check would have obscured that the two are different guarantees that only
+  happen to currently produce the same boolean. This is still UX-only, same
+  disclaimer as `canSeeInternalFolder()`: a client hitting the API directly
+  gets a real 403, enforced by `require_role` never listing `CLIENT` at all
+  for this router.
+
+**Changed — frontend, `admin/`**:
+- `api/work_logs.js` (new): same shape as `client/`'s, minus `createWorkLog`
+  (no create UI here, oversight only).
+- `components/WorkHoursPanel.jsx` + `.css` (new): office_manager's oversight
+  panel on `CaseDetailPage` — every work log on the case with no assignment
+  needed, total-hours summary, inline edit/delete reusing the same row/form
+  markup pattern as `client/`'s panel (kept as two independent
+  implementations per CLAUDE.md's "not shared across the two frontends"
+  rule, not a copy-paste accident). No create button, matching this
+  session's scoped authority.
+
+**Bug found and fixed via real-browser verification (not caught by pytest or
+a build)**: the hours `<input type="number">` had `min="0.01" step="0.25"`.
+HTML5's step-mismatch validation computes valid values from `min` as the
+step base, not from 0 — so with `min="0.01"`, the only browser-accepted
+values are 0.01, 0.26, 0.51, 0.76, … (never a clean number like 3.5),
+silently blocking every real submission with a native "the two nearest
+valid values are 3.26 and 3.51" tooltip and no network request ever firing.
+Fixed by changing `min` to `"0.25"` (a real multiple of the 0.25 step) in
+both apps' create and inline-edit hour inputs. `curl`/pytest never exercise
+HTML5 constraint validation at all (it's a browser-only gate before the
+`fetch()` call is even made), so this is exactly the class of bug the
+"verify in a real browser" rule exists to catch — the backend's own
+`gt=0, le=24` Pydantic validation was always correct and never saw this
+input rejected.
+
+**Verified**: full pytest suite (83/83). Real-browser pass (Playwright/
+Chromium, reusing the already-installed browser binary) against the actual
+running Docker stack and `demo.lvh.me`, driving three real sessions against
+a shared demo case (case #4, already assigned to the seeded demo client from
+prior session data):
+- **Lawyer** (a throwaway `test.lawyer.wh@example.com` account, registered,
+  added, and assigned to the case via real API calls, not fixtures):
+  created a real entry, inline-edited its hours, deleted it (confirm-dialog
+  handled), then created a second entry left in place for the
+  office_manager check.
+- **Client** (the seeded demo client, already assigned to this same case):
+  confirmed by DOM query for the panel's own `.detail-hours-card` class
+  (not a plain text search — the sidebar's disabled "שעות עבודה" nav label
+  shares the same text and would have been a false positive; caught this
+  mid-verification and fixed the check rather than trusting the first,
+  wrong "count=1" result) that the panel is not rendered at all — count 0.
+- **Office manager** (seeded demo account): saw the lawyer's entry on the
+  case with no assignment of their own, edited its hours, deleted it,
+  confirming the empty state afterward.
+- Zero console/page errors across every step.
+- All throwaway data (the extra lawyer identity/membership/assignment, every
+  test work-log row) cleaned up directly against the dev DB afterward.
+
+**Learned / decided**:
+- CLAUDE.md's WorkLogs closed-case rule ("locked entirely once the case is
+  closed") is textually stronger than its Documents rule ("blocks new
+  Documents ... from being added") — read literally rather than by analogy,
+  since the two features' text actually differs on this point and Documents'
+  archive/restore/reclassify staying open on a closed case was itself a
+  deliberate decision from the prior session, not an oversight to copy.
+- Extracting `get_assigned_case()` into `client_api/core/case_access.py` now
+  (rather than leaving `work_logs.py` with its own copy) was judged as
+  exactly the "if a pattern appears twice, extract before a third" case from
+  CLAUDE.md's Code quality section — `documents.py` was the first copy,
+  `work_logs.py` would have been an identical second, so extracting now
+  rather than waiting for an unlikely third caller.
+- The `min`/`step` HTML5-validation bug is worth remembering for any other
+  numeric input added later with a non-1 `step`: `min` must itself be a
+  multiple of `step`, or the browser's implied valid-value sequence starts
+  from the wrong base and silently rejects otherwise-sane input.

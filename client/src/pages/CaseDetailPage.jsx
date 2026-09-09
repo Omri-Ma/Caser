@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import DocumentsPanel from '../components/DocumentsPanel'
+import WorkHoursPanel from '../components/WorkHoursPanel'
 import { getMyCase } from '../api/cases'
 import { getStoredRole } from '../api/session'
 import { caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
@@ -14,6 +15,13 @@ import './CaseDetailPage.css'
 // navigation without a stored session role) — this is a display choice
 // only, not a security boundary, that's enforced server-side.
 function canSeeInternalFolder() {
+  return getStoredRole() === 'lawyer'
+}
+
+// WorkLogs are never client-visible at all (CLAUDE.md) — the panel isn't
+// just hidden by CSS, it's not rendered/mounted for a client, so it never
+// issues a request the server would 403 anyway.
+function canSeeWorkHours() {
   return getStoredRole() === 'lawyer'
 }
 
@@ -66,22 +74,10 @@ export default function CaseDetailPage() {
               showInternalTab={canSeeInternalFolder()}
               caseClosed={caseData.status === 'closed'}
             />
-            <WorkHoursSection />
+            {canSeeWorkHours() && <WorkHoursPanel caseId={caseId} caseClosed={caseData.status === 'closed'} />}
           </div>
         </>
       )}
     </AppShell>
-  )
-}
-
-function WorkHoursSection() {
-  return (
-    <div className="card detail-card detail-hours-card">
-      <div className="detail-card-title">שעות עבודה</div>
-      <div className="detail-placeholder">
-        <div className="detail-placeholder-title">מעקב שעות בקרוב</div>
-        <div className="detail-placeholder-sub">סיכום שעות העבודה שנרשמו בתיק יופיע כאן בשלב הבא של הפיתוח.</div>
-      </div>
-    </div>
   )
 }

@@ -5,7 +5,16 @@ backend, under any role. Written against the real Case endpoints, since
 that's the first slice to actually land tenant-scoped resources beyond auth.
 """
 
-from conftest import auth_for, make_assignment, make_case, make_document, make_identity, make_membership, make_tenant
+from conftest import (
+    auth_for,
+    make_assignment,
+    make_case,
+    make_document,
+    make_identity,
+    make_membership,
+    make_tenant,
+    make_work_log,
+)
 from shared.models.enums import DocumentFolderType, UserRole
 
 
@@ -250,3 +259,39 @@ def test_office_manager_cannot_archive_another_tenants_document(admin_client, db
     assert resp.status_code == 404
     db.refresh(doc_b)
     assert doc_b.archived_at is None
+
+
+def test_lawyer_cannot_create_work_log_on_another_tenants_case(client_client, db):
+    tenant_a = make_tenant(db, "acme")
+    tenant_b = make_tenant(db, "globex")
+    lawyer_identity = make_identity(db, "lawyer@multi.com")
+    make_membership(db, lawyer_identity.id, tenant_a.id, UserRole.LAWYER)
+    lawyer_b_membership = make_membership(db, lawyer_identity.id, tenant_b.id, UserRole.LAWYER)
+    case_b = make_case(db, tenant_b.id, "Globex Case")
+    make_assignment(db, tenant_b.id, case_b.id, lawyer_b_membership.id)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = client_client.post(
+        f"/cases/{case_b.id}/work-logs",
+        json={"date": "2026-09-01", "hours": "2", "description": "n/a"},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 404
+
+
+def test_office_manager_cannot_list_another_tenants_work_logs(admin_client, db):
+    tenant_a = make_tenant(db, "acme")
+    tenant_b = make_tenant(db, "globex")
+    manager_a = make_identity(db, "manager@acme.com")
+    make_membership(db, manager_a.id, tenant_a.id, UserRole.OFFICE_MANAGER)
+    manager_b_identity = make_identity(db, "manager@globex.com")
+    manager_b_membership = make_membership(db, manager_b_identity.id, tenant_b.id, UserRole.OFFICE_MANAGER)
+    case_b = make_case(db, tenant_b.id, "Globex Case")
+    make_work_log(db, tenant_b.id, case_b.id, manager_b_membership.id)
+    headers, cookies = auth_for(manager_a, "acme")
+
+    resp = admin_client.get(f"/cases/{case_b.id}/work-logs", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 404
