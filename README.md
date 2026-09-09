@@ -3,10 +3,11 @@
 A multi-tenant SaaS platform for law firms. Each law firm is a tenant with its own
 subdomain, branding, and subscription plan.
 
-> Status: Phase 1 (auth/tenancy foundation) done; Phase 2 in progress — Cases
-> backend slice done, frontend auth shell done (register/login/signup screens,
-> no Cases UI yet). This README is updated progressively as features land, per
-> project convention — not reconstructed at the end.
+> Status: Phase 1 (auth/tenancy foundation), Phase 2 (core features), and
+> Phase 3 (add-ons — Excel import, narrative generation + PDF export,
+> audit log, billable-hours chart, search/filtering) are all done. This
+> README is updated progressively as features land, per project convention —
+> not reconstructed at the end.
 
 ## Architecture
 
@@ -103,4 +104,37 @@ generated-but-tracked artifact.
 
 ## Screenshots
 
-_Added as UI screens are completed._
+All taken against a real running instance (Docker `client_api`/`admin_api` +
+the two Vite dev servers) at the `demo` tenant, logged in as the two seeded
+demo users above.
+
+**Public firm homepage** (unauthenticated, `demo.lvh.me:5173/`) — non-sensitive
+firm profile info only, with a sign-in link into the real portal:
+
+![Public firm homepage](docs/screenshots/01-public-homepage.png)
+
+**Client login** (`demo.lvh.me:5173/login`):
+
+![Client login](docs/screenshots/02-client-login.png)
+
+**Client case detail** — a client only ever sees the client-visible documents
+folder for a case they're assigned to (work logs and narratives are
+firm-internal and not rendered for this role at all, per `CLAUDE.md`'s
+Documents/WorkLogs rules):
+
+![Client case detail](docs/screenshots/03-client-case-detail.png)
+
+**Admin dashboard** — office_manager's per-tenant stats, storage usage, new-cases
+trend, and the billable-hours-by-month chart (Phase 3 add-on):
+
+![Admin dashboard with billable-hours chart](docs/screenshots/04-admin-dashboard.png)
+
+**Admin cases list** with a status filter and search term both active
+(Phase 3 search/filtering add-on):
+
+![Admin cases list with search and filter](docs/screenshots/05-admin-cases-search-filter.png)
+
+**Audit log** — office_manager-only read-only browsing of deliberate,
+file-changing actions (Phase 3 add-on):
+
+![Admin audit log](docs/screenshots/06-admin-audit-log.png)
