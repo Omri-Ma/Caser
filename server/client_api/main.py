@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from client_api.routers.auth import router as auth_router
 from client_api.routers.cases import router as cases_router
+from client_api.routers.documents import router as documents_router
 from shared.errors import register_error_handlers
 from shared.logging import RequestLoggingMiddleware, configure_logging
 from shared.tenant import BASE_DOMAIN
@@ -17,6 +18,7 @@ app = FastAPI(title="CaseHub Client API")
 register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(cases_router)
+app.include_router(documents_router)
 
 # Every tenant gets a subdomain created dynamically at signup, so a fixed,
 # hand-typed allow_origins list can't work here — allow_origin_regex trusts
@@ -29,6 +31,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Content-Disposition isn't one of the small set of "safe" response
+    # headers browsers expose to JS by default — without this, the document
+    # download flow's fetch() can read the file bytes but not the real
+    # filename FileResponse sets, and silently falls back to "download".
+    expose_headers=["Content-Disposition"],
 )
 app.add_middleware(RequestLoggingMiddleware)
 

@@ -46,3 +46,61 @@ export async function apiFetch(path, { method = 'GET', body, redirectOn401 = tru
 
   return data
 }
+
+// Multipart upload variant — apiFetch always JSON-encodes its body, which a
+// file upload can't use. No Content-Type header is set here on purpose;
+// the browser sets its own (including the multipart boundary) when the
+// body is a FormData instance.
+export async function apiUpload(path, formData) {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+
+  let data = null
+  try {
+    data = await response.json()
+  } catch {
+    data = null
+  }
+
+  if (response.status === 401) {
+    window.location.assign('/login')
+    throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
+  }
+
+  if (!response.ok) {
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', { status: response.status, field: data?.field })
+  }
+
+  return data
+}
+
+// Downloads return a raw file, not JSON — fetch the blob directly and read
+// the real filename off Content-Disposition (set server-side from
+// Documents.original_filename) rather than guessing it from the URL.
+export async function apiDownload(path) {
+  const response = await fetch(`${apiBaseUrl()}${path}`, { method: 'GET', credentials: 'include' })
+
+  if (response.status === 401) {
+    window.location.assign('/login')
+    throw new ApiError('ההתחברות פגה', { status: 401 })
+  }
+
+  if (!response.ok) {
+    let data = null
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', { status: response.status, field: data?.field })
+  }
+
+  const blob = await response.blob()
+  const disposition = response.headers.get('Content-Disposition') || ''
+  const match = disposition.match(/filename="?([^"]+)"?/)
+  const filename = match ? decodeURIComponent(match[1]) : 'download'
+  return { blob, filename }
+}

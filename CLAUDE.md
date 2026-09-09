@@ -289,9 +289,9 @@ are built — avoids painful migrations later.
     normal views): `client` can archive only their own uploads; any `lawyer`
     assigned to the case can archive *any* document on it (their own or a
     colleague's); `office_manager` can archive anything at their firm.
-  - **Restore** (`archived_at` cleared): any `lawyer` assigned to the case
-    can restore. `client` cannot restore anything, even their own — same
-    asymmetry as everywhere else, they'd ask a lawyer.
+  - **Restore** (`archived_at` cleared): any `lawyer` assigned to the case,
+    or `office_manager`, can restore. `client` cannot restore anything, even
+    their own — same asymmetry as everywhere else, they'd ask a lawyer.
   - **Permanent delete** (the actual file + row erased — irreversible):
     only reachable *from inside the archive*, never as a direct action on an
     active document, and only `office_manager` can do it.
@@ -491,12 +491,22 @@ README.md
 
 ## Code quality: scalable and reusable by default
 - Backend: within each of `client_api`/`admin_api`, shared logic (pagination,
-  error responses, file upload handling) lives in that app's own shared
+  error responses, upload request validation) lives in that app's own shared
   utilities/dependencies — never copy-pasted per route file. *Across* the two
   apps, only `/server/shared`'s narrow scope (table definitions, tenant/auth
   logic) is actually shared — everything else stays genuinely separate per
   app, on purpose (see Multi-tenancy architecture for why only that one slice
-  is worth the shared-code discipline).
+  is worth the shared-code discipline). Two narrow, deliberate extensions to
+  that scope, added with the Documents feature: `shared/storage.py`
+  (`save_file`/`get_file_url`) and `shared/plan_limits.py`
+  (`check_plan_limit`). Both are genuine cross-app invariants rather than
+  per-app presentation choices like pagination's page size — `admin_api` has
+  to resolve the exact storage key `client_api` wrote to serve a download, and
+  a plan's GB/lawyer limits must be one number both apps enforce identically,
+  not two independently-maintained copies that could silently drift apart.
+  Request-level upload handling (multipart parsing, magic-byte file-type
+  validation) stays `client_api`-only, since `admin_api` never receives an
+  upload.
 - Frontend: within *each* of `client/` and `admin/` — separately, not shared
   between them — one reusable data-table component, one reusable form
   component, one reusable modal/dialog pattern, one reusable
