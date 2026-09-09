@@ -28,15 +28,26 @@ export default function DocumentsPanel({ caseId }) {
   const [error, setError] = useState(null)
   const [actionError, setActionError] = useState(null)
   const [actioningId, setActioningId] = useState(null)
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    listDocuments(caseId, { folderType: folderFilter === 'all' ? undefined : folderFilter, archived: viewingArchive })
+    listDocuments(caseId, {
+      folderType: folderFilter === 'all' ? undefined : folderFilter,
+      archived: viewingArchive,
+      search: search || undefined,
+    })
       .then((page) => setDocuments(page.items))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [caseId, folderFilter, viewingArchive])
+  }, [caseId, folderFilter, viewingArchive, search])
 
   useEffect(() => {
     load()
@@ -99,13 +110,22 @@ export default function DocumentsPanel({ caseId }) {
             </button>
           ))}
         </div>
+        <input
+          type="text"
+          className="documents-search-input"
+          placeholder="חיפוש לפי שם קובץ…"
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+        />
       </div>
       {actionError && <FormError message={actionError} />}
 
       {loading && <div className="detail-state">טוען מסמכים…</div>}
       {!loading && error && <div className="detail-state detail-state-error">{error}</div>}
       {!loading && !error && documents && documents.length === 0 && (
-        <div className="detail-state">{viewingArchive ? 'הארכיון ריק.' : 'אין מסמכים בתיק זה עדיין.'}</div>
+        <div className="detail-state">
+          {search ? 'לא נמצאו מסמכים התואמים את החיפוש.' : viewingArchive ? 'הארכיון ריק.' : 'אין מסמכים בתיק זה עדיין.'}
+        </div>
       )}
       {!loading && !error && documents && documents.length > 0 && (
         <ul className="documents-list">

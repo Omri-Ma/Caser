@@ -58,6 +58,7 @@ CREATE TABLE `cases` (
   PRIMARY KEY (`id`),
   KEY `ix_cases_status` (`status`),
   KEY `ix_cases_tenant_id` (`tenant_id`),
+  KEY `ix_cases_title` (`title`),
   CONSTRAINT `cases_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -92,6 +93,9 @@ CREATE TABLE `documents` (
   KEY `uploaded_by` (`uploaded_by`),
   KEY `ix_documents_case_id` (`case_id`),
   KEY `ix_documents_tenant_id` (`tenant_id`),
+  KEY `ix_documents_original_filename` (`original_filename`),
+  KEY `ix_documents_folder_type` (`folder_type`),
+  KEY `ix_documents_archived_at` (`archived_at`),
   CONSTRAINT `documents_ibfk_1` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`),
   CONSTRAINT `documents_ibfk_2` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
   CONSTRAINT `documents_ibfk_3` FOREIGN KEY (`uploaded_by`) REFERENCES `memberships` (`id`)

@@ -10,6 +10,9 @@ class Document(Base):
     __table_args__ = (
         Index("ix_documents_tenant_id", "tenant_id"),
         Index("ix_documents_case_id", "case_id"),
+        Index("ix_documents_original_filename", "original_filename"),
+        Index("ix_documents_folder_type", "folder_type"),
+        Index("ix_documents_archived_at", "archived_at"),
     )
 
     id = Column(Integer, primary_key=True)

@@ -7,9 +7,10 @@ const PAGE_SIZE = 50
 // lawyer/client's assigned-case list.
 const ASSIGNMENTS_PAGE_SIZE = 200
 
-export function listCases({ page = 1, status } = {}) {
+export function listCases({ page = 1, status, search } = {}) {
   const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
   if (status) params.set('status', status)
+  if (search) params.set('search', search)
   return apiFetch(`/cases?${params}`)
 }
 

@@ -4,9 +4,10 @@ import { apiDownload, apiFetch, apiUpload } from './client'
 // already takes for a single case's assignment list — one call covers it.
 const PAGE_SIZE = 200
 
-export function listDocuments(caseId, { folderType, archived = false } = {}) {
+export function listDocuments(caseId, { folderType, archived = false, search } = {}) {
   const params = new URLSearchParams({ page: '1', page_size: String(PAGE_SIZE), archived: String(archived) })
   if (folderType) params.set('folder_type', folderType)
+  if (search) params.set('search', search)
   return apiFetch(`/cases/${caseId}/documents?${params}`)
 }
 

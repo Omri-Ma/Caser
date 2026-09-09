@@ -25,6 +25,55 @@ def test_office_manager_sees_both_folders_without_assignment(admin_client, db):
     assert resp.json()["total"] == 2
 
 
+def test_office_manager_searches_documents_by_filename(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity, manager_membership = _manager(db, tenant)
+    make_document(db, tenant.id, case.id, manager_membership.id, original_filename="contract.pdf")
+    make_document(db, tenant.id, case.id, manager_membership.id, original_filename="invoice.pdf")
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.get(
+        f"/cases/{case.id}/documents", params={"search": "contract"}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["original_filename"] == "contract.pdf"
+
+
+def test_office_manager_filters_documents_by_folder_and_archived_state(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity, manager_membership = _manager(db, tenant)
+    make_document(db, tenant.id, case.id, manager_membership.id, folder_type=DocumentFolderType.CLIENT)
+    make_document(db, tenant.id, case.id, manager_membership.id, folder_type=DocumentFolderType.INTERNAL)
+    make_document(
+        db,
+        tenant.id,
+        case.id,
+        manager_membership.id,
+        folder_type=DocumentFolderType.INTERNAL,
+        archived_at=datetime.now(timezone.utc),
+    )
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    active_internal = admin_client.get(
+        f"/cases/{case.id}/documents",
+        params={"folder_type": "internal"},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert active_internal.json()["total"] == 1
+
+    archived = admin_client.get(
+        f"/cases/{case.id}/documents", params={"archived": "true"}, headers=headers, cookies=cookies
+    )
+    assert archived.json()["total"] == 1
+    assert archived.json()["items"][0]["folder_type"] == "internal"
+
+
 def test_lawyer_cannot_use_admin_documents_route(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)

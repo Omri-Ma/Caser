@@ -57,13 +57,40 @@
   overflow: hidden;
 }
 
+.cases-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--color-bg);
+  flex-wrap: wrap;
+}
+
 .cases-tabs {
   display: flex;
   gap: 20px;
   padding: 14px 18px;
-  border-bottom: 1px solid var(--color-bg);
   font-size: 13px;
   font-weight: 700;
+  flex-wrap: wrap;
+}
+
+.cases-search-input {
+  margin: 10px 18px;
+  padding: var(--space-2);
+  font-size: var(--font-size-base);
+  font-family: inherit;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: right;
+  min-width: 220px;
+}
+
+.cases-search-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 .cases-tab {

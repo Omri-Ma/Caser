@@ -1,5 +1,5 @@
 from conftest import auth_for, make_assignment, make_case, make_identity, make_membership, make_tenant
-from shared.models.enums import UserRole
+from shared.models.enums import CaseStatus, UserRole
 
 
 def test_lawyer_lists_only_assigned_cases(client_client, db):
@@ -32,6 +32,41 @@ def test_client_lists_only_assigned_cases(client_client, db):
 
     assert resp.json()["total"] == 1
     assert resp.json()["items"][0]["title"] == "My Case"
+
+
+def test_lawyer_searches_own_cases_by_title(client_client, db):
+    tenant = make_tenant(db, "acme")
+    lawyer_identity = make_identity(db, "lawyer@acme.com")
+    lawyer_membership = make_membership(db, lawyer_identity.id, tenant.id, UserRole.LAWYER)
+    smith_case = make_case(db, tenant.id, "Smith v. Jones")
+    doe_case = make_case(db, tenant.id, "Doe v. Roe")
+    make_assignment(db, tenant.id, smith_case.id, lawyer_membership.id)
+    make_assignment(db, tenant.id, doe_case.id, lawyer_membership.id)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = client_client.get("/cases", params={"search": "smith"}, headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Smith v. Jones"
+
+
+def test_lawyer_filters_own_cases_by_status(client_client, db):
+    tenant = make_tenant(db, "acme")
+    lawyer_identity = make_identity(db, "lawyer@acme.com")
+    lawyer_membership = make_membership(db, lawyer_identity.id, tenant.id, UserRole.LAWYER)
+    open_case = make_case(db, tenant.id, "Open Case")
+    closed_case = make_case(db, tenant.id, "Closed Case", status=CaseStatus.CLOSED)
+    make_assignment(db, tenant.id, open_case.id, lawyer_membership.id)
+    make_assignment(db, tenant.id, closed_case.id, lawyer_membership.id)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = client_client.get("/cases", params={"status": "closed"}, headers=headers, cookies=cookies)
+
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "Closed Case"
 
 
 def test_office_manager_gets_no_automatic_client_side_visibility(client_client, db):
