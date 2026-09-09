@@ -32,9 +32,21 @@ from shared.models import Case, CaseAssignment, Document, Identity, Membership, 
 from shared.models.enums import CaseStatus, DocumentFolderType, UserRole, WorkLogSource  # noqa: E402, F401
 from shared.security import ACCESS_COOKIE_NAME, create_access_token, hash_password  # noqa: E402
 from shared.tenant import BASE_DOMAIN  # noqa: E402
+import shared.storage as storage  # noqa: E402
 
 test_engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_storage_root(tmp_path, monkeypatch):
+    """Document upload routes write real files via shared.storage — without
+    this, tests would hit STORAGE_ROOT's relative default ("./server/storage"),
+    which resolves against whatever directory pytest happens to be invoked
+    from and leaves real files behind. Every test gets its own tmp_path
+    instead, cleaned up automatically by pytest.
+    """
+    monkeypatch.setattr(storage, "STORAGE_ROOT", tmp_path)
 
 
 @pytest.fixture()
@@ -134,13 +146,26 @@ def make_work_log(db, tenant_id: int, case_id: int, lawyer_id: int, hours: str =
     return work_log
 
 
-def make_document(db, tenant_id: int, case_id: int, uploaded_by: int) -> Document:
+def make_document(
+    db,
+    tenant_id: int,
+    case_id: int,
+    uploaded_by: int,
+    folder_type: DocumentFolderType = DocumentFolderType.INTERNAL,
+    original_filename: str = "test.pdf",
+    file_size: int = 1024,
+    archived_at=None,
+) -> Document:
     document = Document(
         tenant_id=tenant_id,
         case_id=case_id,
         uploaded_by=uploaded_by,
-        file_url="/files/test.pdf",
-        folder_type=DocumentFolderType.INTERNAL,
+        file_url=f"{tenant_id}/{case_id}/test-{original_filename}",
+        original_filename=original_filename,
+        content_type="application/pdf",
+        file_size=file_size,
+        folder_type=folder_type,
+        archived_at=archived_at,
     )
     db.add(document)
     db.commit()

@@ -1288,3 +1288,219 @@ as the seeded office_manager:
   precondition, then driving the actual guarded action through the real
   browser/API, tests the thing that's actually being built (the delete
   guard) without needing to fake or skip the verification.
+
+## 2026-09-09 — Documents feature (full vertical slice, both backends, both frontends)
+
+**Asked**: Build the complete Documents feature in one pass per CLAUDE.md's
+already-fully-specified Documents section: local-disk storage abstraction,
+upload with magic-byte file-type validation and a storage-quota plan guard,
+folder-visibility-aware list/download, the two-stage trash (archive/restore/
+permanent-delete) with its per-role authority matrix, folder reclassify,
+same-filename replace-prompt, plus real screens in both `client/` and
+`admin/`. New branch `feature/documents`.
+
+**Blocker surfaced before writing code**: `feature/admin-case-screens`
+(previous session's finished work) was pushed but had no PR and wasn't
+merged into `master` — `gh pr create` even failed with "no commits between"
+because local `master` itself was 3 commits behind `origin/master` (PR #5
+had already merged it on GitHub, local git just hadn't fetched). Fixed by
+fast-forwarding local `master` to `origin/master`, confirmed the 3 commits
+were the already-merged PR, then branched `feature/documents` from a clean,
+up-to-date `master` — flagged to the user rather than assuming either "needs
+a new PR" or "definitely already merged."
+
+**Decision surfaced before writing code**: where should the new
+`storage.py`/`plan_limits.py` modules live — duplicated per app (matching
+the existing pagination.py/errors.py precedent) or in `/server/shared`
+(CLAUDE.md's stated scope for that package is narrower: table definitions +
+tenant/auth logic only)? Asked the user; chose `/server/shared` — both are
+genuine cross-app invariants (storage key format, plan limit numbers) rather
+than per-app presentation choices, unlike pagination. Documented as a
+deliberate, narrow extension in CLAUDE.md's Code quality section rather than
+silently deviating from its literal text.
+
+**Changed — schema/migration**:
+- `shared/models/document.py`: dropped `visible_to` (CLAUDE.md: never had a
+  defined purpose once `CaseAssignments` existed); added `archived_at`
+  (two-stage trash), `file_size`/`original_filename`/`content_type` (storage
+  quota, same-filename detection, correct download headers — implementation
+  necessities the schema list didn't spell out column-by-column), `created_at`.
+- Written as a **real incremental Alembic migration**
+  (`a1b2c3d4e5f6_documents_archive_and_metadata.py`), not the project's
+  earlier "wipe the DB and regenerate from scratch" pattern — that pattern
+  only ever held because no real data existed yet; the demo tenant now has
+  real case/assignment history worth preserving. Applied against the live
+  dev DB via the host `.venv`'s Alembic, verified via `mysqldump --no-data`,
+  `db/schema.sql` regenerated from the actual live schema (column order and
+  all) rather than hand-typed.
+- `tests/conftest.py`'s `make_document` extended with the new required
+  columns (folder_type/original_filename/file_size/archived_at params,
+  sensible defaults) — every existing caller (case-delete-guard tests) kept
+  working unchanged.
+
+**Changed — backend, `shared/`**:
+- `storage.py`: `save_file`/`get_file_url`/`delete_file`, local disk under
+  `STORAGE_ROOT/tenant_id/case_id/<uuid><ext>` — the original filename is
+  never used in the path (collision/traversal safety), only stored as a
+  column for display. `get_file_url` returns an absolute path today (used
+  directly in `FileResponse`); a cloud backend swap would only touch this
+  one function's return value.
+- `plan_limits.py`: `check_plan_limit(tenant_id, resource_type, db,
+  additional=0)`, currently wired up for `"storage_bytes"` only (extensible
+  to a future lawyer-count check without touching call sites). Hardcoded
+  Free/Pro/Enterprise GB caps (1/20/100GB — CLAUDE.md didn't specify exact
+  numbers, picked reasonable defaults). Archived documents still count
+  against quota (sums every `Document.file_size` regardless of
+  `archived_at`) — only a permanent delete actually frees it.
+
+**Changed — backend, `client_api`** (primary owner of upload/lawyer/client
+document interaction):
+- `core/file_validation.py`: `detect_file_type()` — stdlib-only magic-byte
+  sniffing (no `python-magic`/`filetype` dependency): fixed signatures for
+  PDF/PNG/JPEG, and for DOCX (a zip file, so a bare `PK\x03\x04` signature
+  alone can't distinguish it from any other zip) actually opens the archive
+  and checks for `word/document.xml`. 50MB per-file cap.
+  `python-multipart==0.0.20` added to `requirements.txt` (needed for
+  FastAPI's `File`/`Form`).
+- `routers/documents.py`: `POST /cases/{id}/documents` (upload — role/folder
+  permission check, closed-case block, size/type validation, plan-quota
+  check, same-filename-conflict 409 unless `confirm_replace=true`, in which
+  case the old active document is archived and the new upload becomes
+  active), `GET` (list, folder-visibility-filtered — client forced to the
+  client folder, 403 if they explicitly ask for internal; client also 403'd
+  from `archived=true`), `GET /{id}/download` (client 404s on internal or
+  archived docs — indistinguishable from "doesn't exist" rather than a
+  403, so an unauthorized client can't even confirm such a document exists),
+  `POST /{id}/archive` (client: own uploads only; lawyer: any document on
+  the case), `POST /{id}/restore` (lawyer-only), `PATCH /{id}` (reclassify,
+  lawyer-only). Every route resolves the case through the same
+  `_get_assigned_case` helper `cases.py` already established (tenant-scoped
+  lookup, then explicit `CaseAssignment` check) — no bare id lookups.
+  `AuditLogs` written on upload/archive/restore, matching CLAUDE.md's list
+  of logged actions exactly (not on download or reclassify, which aren't in
+  that list).
+
+**Changed — backend, `admin_api`** (office_manager oversight):
+- `routers/documents.py`: same list/download/archive/restore/reclassify
+  shape, but no `CaseAssignment` check (office_manager has automatic
+  tenant-wide case access) and no folder restriction (sees both folders
+  always). Added `DELETE /{id}` — permanent delete, `office_manager`-only,
+  400s unless the document is already archived (CLAUDE.md: only reachable
+  *from inside* the archive), erases both the DB row and the on-disk file
+  via `storage.delete_file`, logs `document_permanently_deleted`.
+
+**Changed — frontend, `client/`**:
+- `api/client.js`: added `apiUpload` (multipart, no JSON `Content-Type` so
+  the browser sets its own boundary) and `apiDownload` (reads the real
+  filename off `Content-Disposition` rather than guessing it from the URL).
+- `api/documents.js`, `components/DocumentsPanel.jsx`/`.css` (new): replaces
+  the "coming soon" placeholder on `CaseDetailPage`. Client-folder tab
+  always shown, internal tab lawyer-only (display convenience — real
+  enforcement is 100% server-side per the routes above). Upload via a
+  hidden file input; same-filename 409 surfaces as a native `window.confirm`
+  (matching the existing unassign/delete confirmation pattern elsewhere in
+  this app rather than inventing a new modal), confirming resubmits with
+  `confirm_replace=true`. Archive button shown to clients on every row
+  (not just their own) — ownership is enforced server-side with a clear
+  inline error on a 403, the same pattern already used for case-level 403s,
+  rather than the frontend trying to fragile-match "is this my own upload"
+  without an owned-membership-id anywhere in its session state.
+- `utils/format.js`: added `formatFileSize`.
+
+**Changed — frontend, `admin/`**:
+- `api/documents.js`, `components/DocumentsPanel.jsx`/`.css` (new): office
+  manager's oversight panel on `CaseDetailPage` — folder filter chips
+  (הכל/לקוח/פנימי), archive toggle, and from inside the archive: restore
+  and a red "מחיקה לצמיתות" (permanent delete) button gated behind
+  `window.confirm`, matching the case-delete confirmation pattern already
+  established on this same page. No upload UI here — that's the
+  lawyer/client portal's job.
+- `utils/format.js`: added `formatFileSize`.
+
+**Environment fix, unrelated to app code**: `npm run build`/`npm run dev`
+were both failing on this machine with Windows Smart App Control rejecting
+Vite 8's native Rolldown bundler binary as unsigned (confirmed via the
+`Microsoft-Windows-CodeIntegrity/Operational` event log — Event ID 3077).
+Asked the user how to proceed rather than either silently working around it
+or blocking on it; chosen fix: downgraded `vite` (`^8.2.2` → `^7.1.12`) and
+`@vitejs/plugin-react` (`^6.1.0` → `^4.7.0`, the last major line that
+doesn't require Vite 8's Rolldown-oriented peer deps) in both `client/` and
+`admin/`, reinstalled `node_modules`. Pure tooling downgrade, zero app-code
+changes; both apps build and run cleanly afterward regardless of Smart App
+Control's state.
+
+**Bug found and fixed via real-browser verification (not caught by pytest
+or a build)**: the client-side download flow's real filename ("scan.png")
+was coming back as the fallback "download" (browser then guessed an
+extension from the blob's MIME type, e.g. "download.png") instead of the
+real name. Cause: `Content-Disposition` isn't one of the small set of
+"safe" response headers browsers expose to `fetch()`'s JS by default —
+CORS has to explicitly list it via `expose_headers`. Added
+`expose_headers=["Content-Disposition"]` to both apps' `CORSMiddleware`
+config. This is exactly the class of bug the "verify in a real browser, not
+just curl/pytest" rule exists to catch — curl sees every response header
+unconditionally, so this would never have surfaced through the API tests
+alone.
+
+**Verified**: full pytest suite (66/66 — 28 new document tests across
+`test_documents_client.py`/`test_documents_admin.py`, plus 4 new document
+cases added to `test_tenant_isolation.py`: cross-tenant upload, list,
+archive all rejected with 404). Real-browser pass (Playwright/Chromium,
+reusing the cached browser binary from a prior session's Playwright
+install; installed the `playwright` Python package fresh into `.venv`)
+against the actual running Docker stack and `demo.lvh.me`, driving three
+real sessions back-to-back:
+- **Lawyer** (a throwaway `test.lawyer.docs@example.com` account, added and
+  assigned to a real demo case via real API calls, not fixtures — cleaned
+  up afterward): uploaded a real PDF to internal and a real PNG to client,
+  downloaded the PNG (confirmed the exact right filename after the CORS
+  fix), archived it, viewed the archive, restored it, reclassified it to
+  internal, then the same-filename-replace flow end-to-end (409 on the
+  first re-upload, native confirm dialog with the exact server message,
+  `confirm_replace=true` resubmission succeeding and the old file landing
+  in the archive).
+- **Client** (the seeded demo client, already assigned to this case):
+  confirmed by direct DOM query that the internal tab and archive-toggle
+  button are both absent (count 0), uploaded their own document, archived
+  it successfully.
+- **Office manager** (seeded demo account): saw both folders' documents
+  with no assignment needed, archived one, viewed the archive (folder
+  chips, restore/permanent-delete buttons), permanently deleted one with
+  the confirm dialog, confirmed the row count dropped and it's actually
+  gone.
+- Zero console errors throughout except one expected, benign one (a logged
+  409 network response for the intentional same-filename-conflict request,
+  not a JS exception).
+- All throwaway test data (the extra lawyer identity/membership/assignment,
+  every test document row and its on-disk file, the audit log rows)
+  cleaned up directly against the dev DB afterward — the demo tenant is
+  back to exactly its pre-session state.
+
+**Learned / decided**:
+- `office_manager` restore authority: CLAUDE.md's Documents section text
+  said "any lawyer assigned to the case can restore" without mentioning
+  office_manager, but this task's brief explicitly said "restore
+  (lawyer/office_manager only)" — went with the brief (broader authority,
+  consistent with office_manager's archive/permanent-delete authority
+  already being the broadest of the three roles) and updated CLAUDE.md's
+  text to match, rather than silently building one and documenting the
+  other.
+- Closed-case blocking was scoped narrowly to uploads only, per CLAUDE.md's
+  literal text ("blocks new Documents/WorkLogs from being *added*") —
+  archive/restore/reclassify/permanent-delete on a closed case's existing
+  documents are all still allowed. `WorkLogs`' stricter "locked entirely
+  once closed" rule doesn't have an equivalent stated for Documents, so it
+  wasn't invented by analogy.
+- A client's archive button is shown for every document in their own
+  folder view, not just ones the frontend can prove they own — there's no
+  membership id anywhere in the client's session state to compare against
+  (`/auth/me` only returns identity fields), and CLAUDE.md is explicit that
+  frontend checks are UX convenience only. Simpler and equally correct to
+  let the real 403 do the work and surface it inline, same as the existing
+  case-level 403 handling elsewhere in this app.
+- The Smart App Control / Rolldown build failure was a genuine, unplanned
+  environment regression discovered mid-session (this exact machine had
+  `npm run build` working cleanly as of the 2026-09-07 session) — worth
+  remembering that a previously-green build/dev command on this machine
+  isn't guaranteed to stay green between sessions if Windows security
+  policy changes underneath it.

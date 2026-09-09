@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AssignMemberModal from '../components/AssignMemberModal'
+import DocumentsPanel from '../components/DocumentsPanel'
 import { FormError } from '../components/Form'
 import { deleteCase, getCase, listCaseAssignments, unassignFromCase, updateCaseStatus, updateCaseTitle } from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
@@ -253,6 +254,8 @@ export default function CaseDetailPage() {
             onClose={() => setAssignModalOpen(false)}
             onAssigned={handleAssigned}
           />
+
+          <DocumentsPanel caseId={caseId} />
         </>
       )}
     </AppShell>

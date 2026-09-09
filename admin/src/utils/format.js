@@ -4,6 +4,12 @@ export function formatDate(isoString) {
   return dateFormatter.format(new Date(isoString))
 }
 
+export function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 // Decorative-only: initials + a rotating tonal color, purely to make lists
 // scannable. Not derived from any real per-row data.
 const AVATAR_TONES = ['avatar1', 'avatar2', 'avatar3']

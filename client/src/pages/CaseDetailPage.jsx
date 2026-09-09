@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import DocumentsPanel from '../components/DocumentsPanel'
 import { getMyCase } from '../api/cases'
 import { getStoredRole } from '../api/session'
 import { caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
@@ -59,45 +60,17 @@ export default function CaseDetailPage() {
           </div>
 
           <div className="detail-columns">
-            <DocumentsSection showInternal={canSeeInternalFolder()} />
+            <DocumentsPanel
+              caseId={caseId}
+              role={getStoredRole()}
+              showInternalTab={canSeeInternalFolder()}
+              caseClosed={caseData.status === 'closed'}
+            />
             <WorkHoursSection />
           </div>
         </>
       )}
     </AppShell>
-  )
-}
-
-function DocumentsSection({ showInternal }) {
-  const [tab, setTab] = useState('client')
-
-  return (
-    <div className="card detail-card">
-      <div className="detail-tabs">
-        <button
-          type="button"
-          className={`detail-tab${tab === 'client' ? ' active' : ''}`}
-          onClick={() => setTab('client')}
-        >
-          מסמכי לקוח
-        </button>
-        {showInternal && (
-          <button
-            type="button"
-            className={`detail-tab${tab === 'internal' ? ' active' : ''}`}
-            onClick={() => setTab('internal')}
-          >
-            מסמכים פנימיים
-          </button>
-        )}
-      </div>
-      <div className="detail-placeholder">
-        <div className="detail-placeholder-title">ניהול מסמכים בקרוב</div>
-        <div className="detail-placeholder-sub">
-          העלאה, צפייה והורדה של מסמכי התיק תהיה זמינה כאן בשלב הבא של הפיתוח.
-        </div>
-      </div>
-    </div>
   )
 }
 

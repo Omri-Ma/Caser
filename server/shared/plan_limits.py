@@ -1,0 +1,68 @@
+from fastapi import HTTPException, status
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from shared.models import Document, Subscription
+from shared.models.enums import Plan
+
+GB = 1024**3
+
+# Hardcoded per-plan limits (CLAUDE.md: "a resource gate, not a commerce
+# system" — no billing integration, just a fixed table). Enterprise is a
+# hard ceiling for self-service; a firm needing more is a manual/negotiated
+# case outside this product's scope.
+PLAN_STORAGE_LIMIT_BYTES = {
+    Plan.FREE: 1 * GB,
+    Plan.PRO: 20 * GB,
+    Plan.ENTERPRISE: 100 * GB,
+}
+
+# In server/shared on purpose, not duplicated per app (unlike pagination.py/
+# errors.py): a plan's limit is a business invariant both apps must agree on
+# — two independently-maintained copies risk drifting apart with nothing to
+# catch it, unlike pagination's page size which can validly differ per app.
+
+
+def get_active_plan(tenant_id: int, db: Session) -> Plan:
+    """A firm's current plan is whichever Subscriptions row is active — see
+    CLAUDE.md's Tenants/Subscriptions notes on why there's no cached copy.
+    Falls back to Free if a tenant somehow has no active subscription row.
+    """
+    subscription = (
+        db.query(Subscription)
+        .filter(Subscription.tenant_id == tenant_id, Subscription.active.is_(True))
+        .first()
+    )
+    return subscription.plan if subscription else Plan.FREE
+
+
+def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional: int = 0) -> None:
+    """One reusable per-plan resource guard (CLAUDE.md's Subscriptions
+    section). Raises 400 if adding `additional` units of `resource_type`
+    would put the tenant over its active plan's limit; otherwise does
+    nothing. Only blocks *new* additions, never touches existing resources
+    (no forced downgrade cleanup, matching CLAUDE.md's grandfathering rule).
+
+    Currently only "storage_bytes" is wired up (Documents upload); more
+    resource types (e.g. lawyer count) can be added as new branches later
+    without changing any call site.
+    """
+    plan = get_active_plan(tenant_id, db)
+
+    if resource_type == "storage_bytes":
+        limit = PLAN_STORAGE_LIMIT_BYTES[plan]
+        # Archived documents still count against quota (CLAUDE.md) — only a
+        # permanent delete actually frees space — so this sums every
+        # Document row regardless of archived_at.
+        used = (
+            db.query(func.coalesce(func.sum(Document.file_size), 0))
+            .filter(Document.tenant_id == tenant_id)
+            .scalar()
+        )
+        if used + additional > limit:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Storage quota exceeded for your plan ({limit // GB}GB) — free up space or upgrade your plan",
+            )
+    else:
+        raise ValueError(f"Unknown resource_type: {resource_type}")
