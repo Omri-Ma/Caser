@@ -2761,3 +2761,54 @@ newly-searched/filtered column not already indexed.
   a later requirement can invalidate; worth re-reading past "documented
   shortcut" comments when a new requirement touches the same code, rather
   than assuming they still hold.
+
+## 2026-09-10
+
+**Asked**: Bring `README.md` up to CLAUDE.md's Git/documentation requirements
+— it had no screenshots at all, and the status banner still said "Phase 2 in
+progress" despite Phase 3's final add-on (search/filtering) already merged.
+Take real screenshots against the actual running app (not mockups) and embed
+them in the relevant sections; verify install/run steps and demo credentials
+are still accurate; fix anything stale. Docs-only, no feature code.
+
+**Changed**:
+- Found the Docker backend containers (`client_api`, `admin_api`, MySQL,
+  Redis) and both Vite dev servers already running from an earlier session —
+  used them directly rather than starting anything fresh.
+- Installed Playwright + Chromium standalone into the scratchpad directory
+  (not added to either app's `package.json` — this was a one-off capture
+  tool, not a project dependency) and wrote a script driving the real app at
+  `demo.lvh.me` to capture six screenshots: the public firm homepage
+  (logged out), client login, a client's case detail (documents panel —
+  uploaded one sample PDF as part of the same run, since the client's
+  assigned cases had no client-visible documents yet), the office_manager
+  dashboard with the billable-hours-by-month chart populated, the admin
+  cases list with a status tab and a search term both active, and the
+  audit-log browsing screen. Saved under `docs/screenshots/`.
+- Embedded all six in `README.md`'s existing Screenshots section (grouped by
+  what each demonstrates, not just dumped as a bare list), and updated the
+  top status banner to reflect Phase 1 + 2 + 3 all being done.
+- Verified the rest of `README.md` against the current app: demo credentials
+  in the table match `db/seed.sql` exactly for both seeded users (client
+  password was fixed to `Client123!` in the prior day's session — confirmed
+  here; office_manager's `OfficeManager123!` was already correct and didn't
+  need a change), and the install/run steps (`.env.example` copy targets,
+  `docker-compose.yml` port mapping, `alembic upgrade head` + seed command)
+  still match the current `docker-compose.yml`/`.env.example` files exactly
+  — no drift found there, so no edits needed beyond the status banner and
+  screenshots.
+
+**Learned / decided**:
+- Client role never renders a WorkHoursPanel or NarrativesPanel at all (not
+  just hidden by CSS — not mounted, per `client/src/pages/CaseDetailPage.jsx`),
+  so a "client case detail (documents + work logs)" screenshot request
+  actually only has a documents panel to show for that role — work logs are
+  lawyer-only by design. Captured what the client role genuinely sees rather
+  than forcing a work-logs element into a screenshot that wouldn't match
+  reality.
+- Kept Playwright as a throwaway scratchpad tool rather than adding it to
+  the repo (no `package.json`/lockfile change, no new committed tooling) —
+  this was a one-time capture task, not a recurring test-authoring need; if
+  visual regression testing becomes a real project requirement later, it
+  should be added deliberately as its own decision, not smuggled in as a
+  side effect of a docs task.
