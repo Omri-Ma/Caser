@@ -2611,3 +2611,50 @@ Docker images first — `openpyxl` is a new dependency, so the previously
   "any Excel import" — a lawyer importing their own hours is functionally
   equivalent to a manual entry (which also writes no audit row on create,
   only on later edit/delete) rather than an oversight action worth logging.
+
+## 2026-09-09 (later still, one more time again) — Demo client login credential drift, found and fixed
+
+**Asked**: while verifying the search/filtering feature (committed
+separately, right after this) in a real browser,
+`client@casehub.example.com` / `Client123!` — the demo *client* credentials
+`db/seed.sql`'s comments document as one of the two required demo users —
+failed to log in against the real running `client_api`. The user asked to
+reconcile this properly: either reset the live account's password back to
+what `db/seed.sql` documents, or, if that original password truly wasn't
+recoverable, update `db/seed.sql` to match reality — whichever was
+actually true — and confirm by logging in.
+
+**Investigated**: `git log -- db/seed.sql` showed the file's `Dor Client`
+row has never been touched since it was added — so if the seed file's own
+bcrypt hash was wrong, it's always been wrong. Checked directly with
+`bcrypt.checkpw(b"Client123!", <the exact hash stored in db/seed.sql>)` —
+**`True`**. So `db/seed.sql` was correct all along; the *live* dev
+database's password had drifted away from it, almost certainly via the
+office_manager password-reset feature being used on this account by an
+earlier manual-testing session (the same mechanism this session itself
+used minutes earlier on an unrelated, non-seeded lawyer identity) and never
+reset back.
+
+**Fixed**: no code or `db/seed.sql` change needed, since the seed file was
+already correct — reset the live account's password back to the documented
+value via the real running `admin_api`, logged in as the real seeded
+`office_manager`, calling the existing `POST
+/members/{membership_id}/reset-password` route (the same feature an
+office_manager uses by hand) against `client@casehub.example.com`'s real
+membership. Confirmed with a real login call against `client_api`:
+`POST /auth/login` with `client@casehub.example.com` / `Client123!` now
+returns 200. This is a data-only fix against the shared dev database, not a
+file change — recorded here per CLAUDE.md's "log AI usage as you go," and
+committed on its own per the user's request so it's not mixed with the
+unrelated search/filtering diff.
+
+**Learned / decided**: a password-reset action taken against the shared
+demo tenant during manual verification (in this or an earlier session) is
+easy to forget to revert, and silently breaks the *documented* demo login
+for whoever hits it next — worth treating "did I change a demo account's
+password for testing" as something to always revert, or reset back to the
+seed-documented value, before ending a verification pass. This session's
+own use of the same reset-password feature on a non-seeded lawyer identity
+(`lior.lawyer@example.com`, used later in this same session for the
+search/filtering feature's browser verification) was left as-is
+deliberately, since that identity was never a documented demo credential.
