@@ -1,0 +1,6 @@
+# Extra Python dependencies for /docs generation only (server/scripts/) —
+# not needed by client_api/admin_api at runtime, so kept out of
+# server/requirements.txt. Install with:
+#   server/.venv/Scripts/python.exe -m pip install -r server/scripts/requirements-docs.txt
+eralchemy2==1.4.1
+pygraphviz==2.0.1
