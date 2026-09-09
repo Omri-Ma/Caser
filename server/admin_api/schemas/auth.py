@@ -28,10 +28,25 @@ class PlatformLoginRequest(BaseModel):
 
 
 class AddMemberRequest(BaseModel):
-    """Office manager attaches an existing global account to their firm."""
+    """Office manager attaches an existing global account to their firm.
+
+    If this email already has a (now-inactive) Membership at this tenant —
+    i.e. someone previously removed — that row is reactivated instead of a
+    new one being inserted (the identity_id+tenant_id unique constraint
+    would reject a fresh insert while the old row still exists).
+    """
 
     email: EmailStr
     role: UserRole
+
+
+class ResetMemberPasswordRequest(BaseModel):
+    """office_manager sets a new password for a member by hand — the
+    interim stand-in for real password recovery (CLAUDE.md's Future
+    additions). They must use it next login.
+    """
+
+    new_password: str = Field(..., min_length=8)
 
 
 class IdentityResponse(BaseModel):

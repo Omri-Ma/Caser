@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
+import MembersPage from './pages/MembersPage'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         />
         <Route path="/cases" element={<CasesListPage />} />
         <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+        <Route path="/members" element={<MembersPage />} />
         <Route path="/" element={<Navigate to="/cases" replace />} />
         <Route path="*" element={<Navigate to="/cases" replace />} />
       </Routes>

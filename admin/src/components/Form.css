@@ -10,7 +10,8 @@
   color: var(--color-text-muted);
 }
 
-.form-field input {
+.form-field input,
+.form-field select {
   padding: var(--space-2);
   font-size: var(--font-size-base);
   font-family: inherit;
@@ -21,7 +22,8 @@
   text-align: right;
 }
 
-.form-field input:focus {
+.form-field input:focus,
+.form-field select:focus {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }

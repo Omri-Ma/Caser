@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   {
     key: 'members',
     label: 'אנשי צוות',
+    path: '/members',
     icon: (
       <>
         <circle cx="9" cy="8" r="3.2" />
@@ -41,8 +42,8 @@ const NAV_ITEMS = [
 // (redirects to /login if it isn't valid) and renders the sidebar shell
 // around whatever page content is passed in — same pattern as client/'s
 // AppShell, recolored navy for admin per CLAUDE.md's "two deliberately
-// different designs" rule. Members/Dashboard aren't built yet, so they're
-// disabled placeholders for now, same as client/'s not-yet-built nav items.
+// different designs" rule. Dashboard isn't built yet, so it's a disabled
+// placeholder for now, same as client/'s not-yet-built nav items.
 export default function AppShell({ activeKey, children }) {
   const navigate = useNavigate()
   const [identity, setIdentity] = useState(null)

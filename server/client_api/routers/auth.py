@@ -60,7 +60,11 @@ def login(
 
     membership = (
         db.query(Membership)
-        .filter(Membership.identity_id == identity.id, Membership.tenant_id == tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.tenant_id == tenant.id,
+            Membership.active.is_(True),
+        )
         .first()
     )
     if membership is None:

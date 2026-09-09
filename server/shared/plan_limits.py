@@ -2,8 +2,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from shared.models import Document, Subscription
-from shared.models.enums import Plan
+from shared.models import Document, Membership, Subscription
+from shared.models.enums import Plan, UserRole
 
 GB = 1024**3
 
@@ -15,6 +15,12 @@ PLAN_STORAGE_LIMIT_BYTES = {
     Plan.FREE: 1 * GB,
     Plan.PRO: 20 * GB,
     Plan.ENTERPRISE: 100 * GB,
+}
+
+PLAN_LAWYER_LIMITS = {
+    Plan.FREE: 3,
+    Plan.PRO: 15,
+    Plan.ENTERPRISE: 50,
 }
 
 # In server/shared on purpose, not duplicated per app (unlike pagination.py/
@@ -43,9 +49,9 @@ def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional
     nothing. Only blocks *new* additions, never touches existing resources
     (no forced downgrade cleanup, matching CLAUDE.md's grandfathering rule).
 
-    Currently only "storage_bytes" is wired up (Documents upload); more
-    resource types (e.g. lawyer count) can be added as new branches later
-    without changing any call site.
+    Two resource types are wired up: "storage_bytes" (Documents upload) and
+    "lawyer_count" (adding/reactivating a lawyer membership); more can be
+    added as new branches later without changing any call site.
     """
     plan = get_active_plan(tenant_id, db)
 
@@ -64,5 +70,22 @@ def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Storage quota exceeded for your plan ({limit // GB}GB) — free up space or upgrade your plan",
             )
+    elif resource_type == "lawyer_count":
+        limit = PLAN_LAWYER_LIMITS[plan]
+        used = count_active_lawyers(tenant_id, db)
+        if used + additional > limit:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Lawyer limit reached for your plan ({limit}) — remove a lawyer or upgrade your plan",
+            )
     else:
         raise ValueError(f"Unknown resource_type: {resource_type}")
+
+
+def count_active_lawyers(tenant_id: int, db: Session) -> int:
+    return (
+        db.query(Membership)
+        .filter(Membership.tenant_id == tenant_id, Membership.role == UserRole.LAWYER, Membership.active.is_(True))
+        .count()
+    )
+

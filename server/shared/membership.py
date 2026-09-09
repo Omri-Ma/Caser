@@ -19,10 +19,18 @@ def get_current_membership(
     """
     membership = (
         db.query(Membership)
-        .filter(Membership.identity_id == identity.id, Membership.tenant_id == tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.tenant_id == tenant.id,
+            Membership.active.is_(True),
+        )
         .first()
     )
     if membership is None:
+        # A deactivated membership (CLAUDE.md's Memberships.active) is
+        # indistinguishable from no membership at all here — deactivation
+        # has to actually revoke access, not just hide the row from list
+        # views, or it wouldn't be a real removal from the firm.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have access to this firm",
