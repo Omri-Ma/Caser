@@ -1487,6 +1487,170 @@
         }
       }
     },
+    "/platform/tenants": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Tenants",
+        "description": "Every Tenant, regardless of subdomain — the cross-tenant firm list\nthe platform dashboard shows. Note this query intentionally omits the\n`active = True` filter get_current_tenant applies: a super_admin has to\nsee suspended firms too, in order to reactivate them.",
+        "operationId": "list_tenants_platform_tenants_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TenantSummaryResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{tenant_id}/suspend": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Suspend Tenant",
+        "description": "Flips Tenants.active off. get_current_tenant already filters on\nactive = True, so this alone is a full, immediate lockout for every\nrole at that firm, including its own office_manager (CLAUDE.md's\nTenants note) — reactivate_tenant below is the only way back in.",
+        "operationId": "suspend_tenant_platform_tenants__tenant_id__suspend_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenants/{tenant_id}/reactivate": {
+      "post": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Reactivate Tenant",
+        "operationId": "reactivate_tenant_platform_tenants__tenant_id__reactivate_post",
+        "parameters": [
+          {
+            "name": "tenant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Tenant Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/stats": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Platform Stats",
+        "description": "Platform-wide aggregate stats for the overview dashboard — totals\nonly, no per-firm breakdown (that's what /platform/tenants is for).",
+        "operationId": "platform_stats_platform_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health Check",
@@ -1960,6 +2124,37 @@
         ],
         "title": "Page[MemberResponse]"
       },
+      "Page_TenantSummaryResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TenantSummaryResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[TenantSummaryResponse]"
+      },
       "Page_WorkLogResponse_": {
         "properties": {
           "items": {
@@ -2039,6 +2234,34 @@
         ],
         "title": "PlatformSessionResponse",
         "description": "super_admin has no Membership/role — just a name and email."
+      },
+      "PlatformStatsResponse": {
+        "properties": {
+          "total_tenants": {
+            "type": "integer",
+            "title": "Total Tenants"
+          },
+          "active_tenants": {
+            "type": "integer",
+            "title": "Active Tenants"
+          },
+          "total_lawyers": {
+            "type": "integer",
+            "title": "Total Lawyers"
+          },
+          "total_cases": {
+            "type": "integer",
+            "title": "Total Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_tenants",
+          "active_tenants",
+          "total_lawyers",
+          "total_cases"
+        ],
+        "title": "PlatformStatsResponse"
       },
       "ReclassifyDocumentRequest": {
         "properties": {
@@ -2227,6 +2450,49 @@
           "active"
         ],
         "title": "TenantResponse"
+      },
+      "TenantSummaryResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "lawyer_count": {
+            "type": "integer",
+            "title": "Lawyer Count"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "subdomain",
+          "active",
+          "plan",
+          "lawyer_count",
+          "case_count"
+        ],
+        "title": "TenantSummaryResponse",
+        "description": "One row of the super_admin firm list — firm-level/aggregate data\nonly (name, plan, active/suspended, lawyer/case counts), never anything\nthat reaches into a firm's case or document content (CLAUDE.md's\nRoles section boundary on what super_admin may see)."
       },
       "UpdateCaseStatusRequest": {
         "properties": {

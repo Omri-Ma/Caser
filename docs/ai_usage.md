@@ -1838,3 +1838,116 @@ prior WorkLogs/Documents sessions.
   tab state — matches the sidebar's existing one-item-per-concept density
   without needing a third top-level nav slot for what's really one "office
   settings" concern.
+
+## 2026-09-09 (later still) — full super_admin role, backend + frontend (branch `feature/super-admin`)
+
+**Asked**: Build the entire `super_admin` experience in one pass — the last
+entirely-unbuilt role. Cross-tenant firm list with per-firm plan/status/
+lawyer-count/case-count, suspend/reactivate, platform-wide aggregate stats,
+and the `admin/` frontend's hostname-based branching between the tenant CMS
+and the platform dashboard. Confirm in a real browser that suspending a
+tenant locks it out and that `super_admin` can never reach case/document
+data.
+
+**Changed**:
+- `shared/platform.py` (new): `require_super_admin`, a `get_current_identity`
+  -based dependency checking `Identities.is_super_admin` directly — no
+  `Memberships` row involved at all, since `super_admin` can't be one (per
+  CLAUDE.md's Multi-tenancy architecture). This is the one gate every
+  platform route sits behind.
+- `admin_api/routers/platform.py` (new, prefix `/platform`): `GET /tenants`
+  (every `Tenant` — deliberately *not* filtered to `active = True`, since a
+  super_admin has to see suspended firms to reactivate them — each row
+  joined with its active `Subscription.plan`, active-lawyer count, and case
+  count), `POST /tenants/{id}/suspend` / `/reactivate` (flip `Tenants.active`
+  — suspend relies on `get_current_tenant`'s existing `active = True` filter
+  to do the actual lockout, no new enforcement needed), and `GET /stats`
+  (platform-wide totals: tenants, active tenants, lawyers, cases). None of
+  this goes through `get_current_tenant`/`get_tenant_scoped` — both assume
+  exactly one tenant in request scope, which doesn't apply here — plain
+  `db.query(Tenant)...` is the "clearly separate, explicitly named code
+  path" CLAUDE.md calls for. Auth routes (`/auth/platform-login`) and the
+  `platform.<BASE_DOMAIN>` host check already existed from the Phase 1 auth
+  work, so this session was purely the query/CRUD layer plus the frontend.
+- Registered the new router in `admin_api/main.py`.
+- `server/tests/test_platform_admin.py` (new, 8 tests): platform-login host/
+  role gating, an `office_manager` getting 403 on every `/platform/*` route,
+  the tenant list's per-firm aggregate numbers (including that a suspended
+  tenant still appears in the list), suspend/reactivate round-trip, **the
+  actual lockout mechanism** — suspending a tenant makes its own
+  `office_manager`'s `GET /tenant` 404 immediately — aggregate stats
+  correctness, and an OpenAPI-introspection check that no `/platform/*` path
+  mentions `case` or `document`. Also added an optional `is_super_admin`
+  param to `conftest.make_identity` (defaults `False`, so every existing
+  call site is unaffected).
+- `admin/src/utils/host.js` (new): `isPlatformHost()` — the frontend's
+  mirror of the backend's `PLATFORM_HOST` check, just comparing
+  `window.location.hostname`'s first label to `"platform"`.
+- `admin/src/App.jsx`: the route tree now branches on `isPlatformHost()` at
+  the top level into two disjoint sets of routes — platform gets
+  `/login` (→ `PlatformLoginPage`) and `/dashboard` only; every other
+  hostname keeps the existing office_manager routes unchanged. Nobody
+  cross-logs into the other's routes, matching CLAUDE.md's "each role logs
+  into exactly one frontend app" — here that boundary is hostname, not role.
+- `admin/src/pages/PlatformLoginPage.jsx` (new): mirrors `LoginPage.jsx`
+  but posts to the new `platformLogin()` call and has no signup link (no
+  self-service platform-staff signup, per CLAUDE.md).
+- `admin/src/components/PlatformAppShell.jsx` (new): structurally identical
+  to `AppShell.jsx` (same `AppShell.css` classes, reused as-is rather than
+  duplicated) but with a single "לוח בקרה" nav item instead of
+  cases/members/settings — `super_admin` only ever has the one screen.
+- `admin/src/pages/PlatformDashboardPage.jsx` + `.css` (new): a stat-card
+  row (total/active tenants, total lawyers, total cases) above a
+  paginated `DataTable` of every firm (plan chip, lawyer/case counts,
+  active/suspended chip, suspend-or-reactivate button per row) — reused
+  `DataTable`'s built-in Loading/Error/Empty handling and the existing
+  `cases-*`/`member-*` CSS classes (table card, pagination, chips) rather
+  than inventing new ones, plus one new chip class
+  (`.tenant-status-suspended`, error-toned — a suspension is a full,
+  intentional lockout, so it reads as more severe than a member's plain
+  "inactive" gray) and a `.platform-stats-grid` card row.
+- `admin/src/api/platform.js` + `auth.js`'s new `platformLogin()` (new):
+  thin wrappers over the five new/existing endpoints, same shape as every
+  other `api/*.js` file.
+- Re-ran `server/scripts/export_docs.sh` — `docs/openapi_admin.json` picked
+  up the 5 new `/platform/*` + existing `/auth/platform-login` paths (29
+  total now), both Postman collections regenerated from it.
+
+**Verified in browser** (Playwright against the already-running dev
+servers/containers, `platform.lvh.me:5174` and a scratch tenant): logged in
+as the seeded `super@casehub.example.com` super_admin at the platform
+address — dashboard renders real stats and the full firm list including the
+`Demo Firm`/`Office One` tenants created in earlier sessions. Signed up a
+brand-new firm as a control, confirmed its `office_manager` could reach
+`/cases` normally, then suspended that same tenant from the platform
+dashboard — the office_manager's page immediately broke with "Tenant not
+found" on reload (`GET /tenant` → 404, confirming `get_current_tenant`'s
+existing `active = True` filter is doing the actual lockout, not just a UI
+flag) — reactivating restored access on the next reload. Separately, reused
+the super_admin's own session cookie (scoped to `.lvh.me`, so the browser
+sends it to any tenant subdomain) to hit `demo.lvh.me:8001/cases` and
+`/documents` directly, bypassing the UI entirely: `403`
+("You don't have access to this firm") and `404` respectively — confirmed
+`super_admin` has no path to case/document content anywhere in `admin_api`,
+not just that the frontend doesn't offer one.
+
+**Learned / decided**:
+- The heaviest-looking part of this feature — the platform-vs-tenant login
+  split, the `PLATFORM_HOST` check, `Identities.is_super_admin`, and the
+  seed.sql bootstrap row — turned out to already exist from the Phase 1 auth
+  work. This session was genuinely just the query/CRUD layer
+  (`/platform/*`) plus the frontend; worth remembering next time a role
+  feels "entirely unbuilt" that its auth plumbing may already be half-built
+  as a side effect of an earlier phase.
+- Confirmed the suspend mechanism needs zero new enforcement code: because
+  `get_current_tenant` already filters `Tenant.active.is_(True)` for every
+  tenant-scoped request (Phase 1), flipping the flag from `/platform/*` is
+  sufficient on its own — no separate "is this tenant suspended" check
+  needed anywhere else in either backend. This is exactly the "single
+  source of truth" pattern CLAUDE.md already argues for elsewhere
+  (`Tenants` has no `plan` column for the same reason), just showing up
+  again for free here.
+- `/platform/tenants` deliberately omits the `active = True` filter that
+  every other tenant query in the codebase applies — the one legitimate
+  exception to "always filter by tenant status," since the whole point of
+  the list is to be able to find and reactivate a suspended firm.
