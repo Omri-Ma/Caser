@@ -1,5 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import AppShell from '../components/AppShell'
 import { FormError } from '../components/Form'
 import { exportDashboardData, getDashboardStats } from '../api/dashboard'
@@ -62,6 +72,11 @@ export default function DashboardPage() {
     label: formatMonthLabel(point.month),
     new_cases: point.new_cases,
   }))
+  const hoursChartData = stats?.monthly_billable_hours.map((point) => ({
+    label: formatMonthLabel(point.month),
+    total_hours: point.total_hours,
+  }))
+  const hasBillableHours = stats?.monthly_billable_hours.some((point) => point.total_hours > 0)
 
   return (
     <AppShell activeKey="dashboard">
@@ -109,6 +124,34 @@ export default function DashboardPage() {
                     />
                     <Bar dataKey="new_cases" fill="var(--color-primary)" radius={[6, 6, 0, 0]} />
                   </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+
+          <div className="card dashboard-card">
+            <div className="dashboard-card-title">שעות חיוב לפי חודש</div>
+            {!hasBillableHours ? (
+              <div className="dashboard-chart-empty">אין עדיין שעות עבודה רשומות להצגה במגמה.</div>
+            ) : (
+              <div className="dashboard-chart">
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={hoursChartData} margin={{ top: 8, left: 0, right: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis dataKey="label" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} />
+                    <YAxis stroke="var(--color-text-muted)" fontSize={12} tickLine={false} width={28} />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 10, border: '1px solid var(--color-border)', fontSize: 13 }}
+                      formatter={(value) => [value, 'שעות חיוב']}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="total_hours"
+                      stroke="var(--color-primary)"
+                      strokeWidth={2}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
             )}

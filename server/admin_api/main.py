@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from admin_api.routers.audit_log import router as audit_log_router
 from admin_api.routers.auth import router as auth_router
 from admin_api.routers.cases import router as cases_router
 from admin_api.routers.dashboard import router as dashboard_router
@@ -31,6 +32,7 @@ app.include_router(tenant_router)
 app.include_router(subscriptions_router)
 app.include_router(platform_router)
 app.include_router(dashboard_router)
+app.include_router(audit_log_router)
 
 # Same allow_origin_regex approach as client_api — see that app for the full
 # reasoning. Every tenant subdomain is trusted automatically (both the

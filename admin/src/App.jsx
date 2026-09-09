@@ -6,6 +6,7 @@ import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import DashboardPage from './pages/DashboardPage'
 import MembersPage from './pages/MembersPage'
+import AuditLogPage from './pages/AuditLogPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/cases" element={<CasesListPage />} />
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/members" element={<MembersPage />} />
+            <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/settings/branding" element={<BrandingPage />} />
             <Route path="/settings/subscription" element={<SubscriptionPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />

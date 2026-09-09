@@ -2370,3 +2370,84 @@ exercised the real HTTP paths):
   Resolving the env var live inside the actual running container (rather
   than reasoning about it from the Dockerfile + compose file alone) is what
   turned "should resolve to X" into "does resolve to X, confirmed."
+
+## 2026-09-09
+
+**Asked**: Build two Phase 3 reporting add-ons together: an audit-log
+browsing screen (`admin_api`, office_manager-only, read-only) and a
+billable-hours-over-time chart on the office_manager dashboard, distinct
+from the existing monthly case-activity chart.
+
+**Changed**:
+- `server/admin_api/schemas/audit_log.py` + `routers/audit_log.py`: new
+  `GET /audit-log` — tenant-scoped, paginated (reuses `PageParams`/`paginate`
+  exactly like `members.py`/`cases.py`), optional `action` filter, newest
+  first, `office_manager`-only via `require_role`. Purely a read path — no
+  new writer added; it joins the existing `AuditLog` rows against
+  `Membership`+`Identity` for a display name/email.
+- `server/admin_api/schemas/dashboard.py` + `routers/dashboard.py`: added
+  `monthly_billable_hours` to `DashboardStatsResponse`, computed by a new
+  `_monthly_billable_hours()` that mirrors the existing
+  `_monthly_case_activity()`'s trailing-6-month/Python-bucketing approach
+  (same portability reasoning documented on that function) — sums
+  `WorkLog.hours` by `(year, month)` instead of counting `Case.created_at`.
+- `admin/src/api/audit_log.js`, `admin/src/pages/AuditLogPage.jsx`: new
+  screen, built on the existing `DataTable` component and the
+  `CasesListPage`-style tab-filter + prev/next pagination pattern (action
+  tabs, not status tabs). Added `formatDateTime` to `utils/format.js`.
+  Wired into `App.jsx`'s tenant-CMS route branch and `AppShell.jsx`'s
+  `NAV_ITEMS` (new "יומן פעולות" sidebar entry).
+- `admin/src/pages/DashboardPage.jsx`: added a second chart card ("שעות
+  חיוב לפי חודש") using a Recharts `LineChart` (deliberately a different
+  chart type than the existing case-activity `BarChart`, so the two are
+  visually distinguishable at a glance), with its own empty-state check
+  (`hasBillableHours`) independent of the page-level empty state.
+- Tests: `server/tests/test_audit_log_admin.py` (new — tenant isolation,
+  action filter, newest-first ordering, lawyer-403) and an added case in
+  `test_dashboard_admin.py` for `monthly_billable_hours` tenant isolation.
+  Full suite: **124 -> 129 passed**.
+- Re-ran `bash server/scripts/export_docs.sh` — `docs/openapi_admin.json`
+  gained the `/audit-log` path and `DashboardStatsResponse.monthly_billable_hours`;
+  regenerated `docs/postman_collection_{admin,client}.json` and
+  `docs/erd.mmd.md`/`erd.png` (ERD content unchanged — the audit_logs table
+  and its relationships already existed from Phase 1's "create all tables
+  now" rule; the client-side Postman diff and a couple of relationship-line
+  reorderings in `erd.mmd.md` are just the generators' own non-deterministic
+  UUID/ordering output, not real content changes).
+
+**Verified for real** (against the already-running `docker compose` stack,
+not just re-reading code):
+- Logged in via `POST /auth/login` as the demo tenant's real
+  `office_manager@casehub.example.com` and hit `GET /audit-log` directly —
+  returned 7 real entries already sitting in the demo tenant's `AuditLogs`
+  table from prior sessions' document/narrative/member testing (document
+  upload, narrative PDF export, member password resets, member
+  deactivation, work log edit/delete) — confirms the "no excel-import writer
+  exists yet" finding from research (that action string never appears) and
+  that the join to `Membership`/`Identity` resolves real names/emails.
+  `GET /dashboard/stats` on the same session returned real
+  `monthly_billable_hours` (4.5 hours in the current month, from real
+  `WorkLogs`).
+- Drove the actual `admin/` dev server with Playwright (already available
+  via the backend venv) at `demo.lvh.me:5174`: logged in, screenshotted
+  `/audit-log` (real rows, action-filter tabs, pagination footer, RTL
+  layout, sidebar item highlighted) and `/dashboard` (both chart cards
+  present and visually distinct — bar vs. line — with real trailing-month
+  data). Zero browser console errors on either screen.
+- Full backend test suite re-run clean before adding new tests (124 passed,
+  confirming no regression from the schema/router changes), then again with
+  the new tests included (129 passed).
+
+**Learned / decided**:
+- The schema doc's "Excel import (work logs)" (Phase 3 item 1) hasn't
+  actually been built yet, even though `WorkLogSource.EXCEL_IMPORT` exists
+  as an enum value — so the audit-log screen's action-label map only covers
+  the 9 actions real code currently writes, not the full aspirational list
+  in CLAUDE.md's `AuditLogs` section; it can gain an `excel_import`-related
+  label later without any other change once that feature lands.
+- Kept the two dashboard charts' empty-states independent of each other
+  (`hasBillableHours` vs. the existing `stats.total_case_count === 0`
+  check) rather than combining them into the page-level `isEmpty` — a firm
+  can have cases but zero logged hours yet (or vice versa), and collapsing
+  them would hide a legitimately-empty chart behind a "no activity at all"
+  message that isn't true.

@@ -2,7 +2,7 @@ import csv
 import io
 from datetime import date
 
-from conftest import auth_for, make_case, make_document, make_identity, make_membership, make_tenant
+from conftest import auth_for, make_case, make_document, make_identity, make_membership, make_tenant, make_work_log
 from shared.models import Subscription
 from shared.models.enums import CaseStatus, UserRole
 
@@ -40,6 +40,34 @@ def test_dashboard_stats_scoped_to_own_tenant(admin_client, db):
     current_month = date.today().strftime("%Y-%m")
     current_point = next(p for p in body["monthly_case_activity"] if p["month"] == current_month)
     assert current_point["new_cases"] == 2
+
+
+def test_dashboard_stats_monthly_billable_hours_scoped_to_own_tenant(admin_client, db):
+    tenant_a = make_tenant(db, "acme")
+    tenant_b = make_tenant(db, "globex")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant_a.id, UserRole.OFFICE_MANAGER)
+    lawyer = make_identity(db, "lawyer@acme.com")
+    lawyer_membership = make_membership(db, lawyer.id, tenant_a.id, UserRole.LAWYER)
+    case = make_case(db, tenant_a.id, "Acme Case")
+    make_work_log(db, tenant_a.id, case.id, lawyer_membership.id, hours="3.5")
+    make_work_log(db, tenant_a.id, case.id, lawyer_membership.id, hours="1.0")
+    headers, cookies = auth_for(manager, "acme")
+
+    # Other tenant's hours must never leak into acme's monthly totals.
+    other_lawyer = make_identity(db, "lawyer@globex.com")
+    other_membership = make_membership(db, other_lawyer.id, tenant_b.id, UserRole.LAWYER)
+    other_case = make_case(db, tenant_b.id, "Globex Case")
+    make_work_log(db, tenant_b.id, other_case.id, other_membership.id, hours="99.0")
+
+    resp = admin_client.get("/dashboard/stats", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["monthly_billable_hours"]) == 6
+    current_month = date.today().strftime("%Y-%m")
+    current_point = next(p for p in body["monthly_billable_hours"] if p["month"] == current_month)
+    assert current_point["total_hours"] == 4.5
 
 
 def test_dashboard_stats_reflects_storage_usage(admin_client, db):
