@@ -16,6 +16,7 @@ export default function BrandingPage() {
   const [name, setName] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
   const [primaryColor, setPrimaryColor] = useState('')
+  const [about, setAbout] = useState('')
   const [saveError, setSaveError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -29,6 +30,7 @@ export default function BrandingPage() {
         setName(data.name)
         setLogoUrl(data.logo_url || '')
         setPrimaryColor(data.primary_color || '')
+        setAbout(data.about || '')
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
@@ -40,8 +42,14 @@ export default function BrandingPage() {
     setSaved(false)
     setSaving(true)
     try {
-      const updated = await updateTenant({ name: name.trim(), logoUrl: logoUrl.trim(), primaryColor: primaryColor.trim() })
+      const updated = await updateTenant({
+        name: name.trim(),
+        logoUrl: logoUrl.trim(),
+        primaryColor: primaryColor.trim(),
+        about: about.trim(),
+      })
       setTenant(updated)
+      setAbout(updated.about || '')
       setSaved(true)
     } catch (err) {
       setSaveError(err.message)
@@ -91,6 +99,15 @@ export default function BrandingPage() {
                   className="branding-color-text"
                 />
               </div>
+            </FormField>
+            <FormField label="על המשרד (מוצג בעמוד הציבורי)">
+              <textarea
+                value={about}
+                onChange={(event) => setAbout(event.target.value)}
+                placeholder="כמה מילים על המשרד שיוצגו לכל מבקר בעמוד הבית הציבורי…"
+                maxLength={2000}
+                rows={5}
+              />
             </FormField>
 
             <button type="submit" className="primary-button" disabled={saving || !name.trim()}>

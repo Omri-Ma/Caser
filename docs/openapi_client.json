@@ -138,6 +138,28 @@
         }
       }
     },
+    "/public/profile": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Get Public Profile",
+        "description": "Public, unauthenticated firm profile for the tenant subdomain's\nlanding page — reuses get_current_tenant with no auth dependency on top\nof it. Response is whitelisted to name/logo_url/primary_color/about\nonly; never returns cases, documents, members, or any other tenant data.",
+        "operationId": "get_public_profile_public_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTenantProfile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases": {
       "get": {
         "tags": [
@@ -1163,6 +1185,53 @@
           "page_size"
         ],
         "title": "Page[WorkLogResponse]"
+      },
+      "PublicTenantProfile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Color"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PublicTenantProfile",
+        "description": "Deliberately whitelisted to only the four fields a public,\nunauthenticated visitor may see — never case/document/user data, even\nindirectly (CLAUDE.md's public homepage requirement)."
       },
       "ReclassifyDocumentRequest": {
         "properties": {

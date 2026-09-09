@@ -11,7 +11,8 @@
 }
 
 .form-field input,
-.form-field select {
+.form-field select,
+.form-field textarea {
   padding: var(--space-2);
   font-size: var(--font-size-base);
   font-family: inherit;
@@ -22,8 +23,13 @@
   text-align: right;
 }
 
+.form-field textarea {
+  resize: vertical;
+}
+
 .form-field input:focus,
-.form-field select:focus {
+.form-field select:focus,
+.form-field textarea:focus {
   outline: 2px solid var(--color-primary);
   outline-offset: 1px;
 }

@@ -1388,7 +1388,7 @@
           "tenant"
         ],
         "summary": "Update Tenant",
-        "description": "Branding settings — direct Tenants columns, not the generic Settings\ntable (CLAUDE.md's Branding requirement).",
+        "description": "name/logo_url/primary_color are direct Tenants columns; about goes\nthrough the generic Settings table instead (CLAUDE.md's Branding\nrequirement).",
         "operationId": "update_tenant_tenant_patch",
         "requestBody": {
           "content": {
@@ -2579,6 +2579,17 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
           }
         },
         "type": "object",
@@ -2691,6 +2702,18 @@
               }
             ],
             "title": "Primary Color"
+          },
+          "about": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "About"
           }
         },
         "type": "object",
@@ -2698,7 +2721,7 @@
           "name"
         ],
         "title": "UpdateTenantRequest",
-        "description": "Direct Tenants columns only (name/logo_url/primary_color) — not the\ngeneric Settings table, per CLAUDE.md's Branding requirement. subdomain\nand active are deliberately not editable here: subdomain is fixed at\nsignup (changing it would break every existing bookmark/link), and\nactive is a super_admin-only lockout switch, not a self-service one."
+        "description": "name/logo_url/primary_color are direct Tenants columns; about is\nstored via the generic Settings table instead (CLAUDE.md's Branding\nrequirement — branding proper lives on Tenants, but the free-text public\n\"about\" blurb is a good fit for Settings's purpose). subdomain and active\nare deliberately not editable here: subdomain is fixed at signup\n(changing it would break every existing bookmark/link), and active is a\nsuper_admin-only lockout switch, not a self-service one."
       },
       "UpdateWorkLogRequest": {
         "properties": {

@@ -2041,3 +2041,104 @@ database (including a case title containing an embedded `"` that
   cascade/`var()` resolution as a `style` attribute would, so the app's
   design-token CSS variables work directly in chart fills with no extra
   plumbing needed.
+
+## 2026-09-09
+
+**Asked**: Build the public firm homepage — the last remaining Phase 2 item
+per CLAUDE.md: an unauthenticated tenant landing page (name/logo/color/about)
+with a sign-in link, plus letting office_manager set the "about" blurb from
+the existing Branding screen.
+
+**Changed**:
+- `server/shared/settings.py` (new): `get_setting`/`set_setting` helpers plus
+  an `ABOUT_KEY = "about"` constant. Added here rather than duplicated per
+  backend — both `admin_api` (writes it) and `client_api` (reads it) need the
+  exact same `Settings.key` convention against the same table, which is
+  exactly the kind of genuine cross-app invariant CLAUDE.md's Code quality
+  section calls out (same reasoning as `shared/storage.py`/`plan_limits.py`).
+- `server/admin_api/schemas/tenant.py` / `routers/tenant.py`: added
+  `about: Optional[str]` to `TenantResponse`/`UpdateTenantRequest`. `about`
+  goes through `Setting(tenant_id, key="about")` via the new helper;
+  name/logo_url/primary_color stay direct `Tenants` columns, unchanged.
+  `GET`/`PATCH /tenant` now build the response manually (`_to_response`)
+  since `about` isn't a `Tenant` attribute FastAPI can serialize by just
+  returning the ORM object.
+- `server/client_api/schemas/public.py` + `routers/public.py` (new):
+  `GET /public/profile`, depends only on `get_current_tenant` (no auth
+  dependency chained on top) — same unauthenticated-but-tenant-scoped shape
+  `POST /auth/login` already uses. Response schema (`PublicTenantProfile`) is
+  a hard whitelist of exactly 4 fields (name/logo_url/primary_color/about) —
+  no case/document/member data is reachable through this route, even
+  indirectly, since it never touches those tables at all. Registered in
+  `client_api/main.py`.
+- `client/src/api/public.js` (new): `getPublicProfile()`, `redirectOn401:
+  false` (a 401 here would be unexpected server behavior, not "please log
+  in" — this route never requires auth).
+- `client/src/pages/PublicHomePage.jsx` + `.css` (new): unauthenticated
+  landing page — logo/placeholder, name and sign-in button tinted with the
+  firm's `primary_color`, about text (or a fallback line if unset), Loading/
+  Error/Empty states.
+- `client/src/App.jsx`: added a `RootRoute` component at `/` that calls
+  `apiFetch('/auth/me', { redirectOn401: false })` directly (not `api/auth`'s
+  `me()`, which redirects to `/login` on 401 by design for protected pages —
+  wrong here, since a 401 at `/` is exactly the "show the public page" case)
+  and renders `<PublicHomePage />` if unauthenticated or redirects to
+  `/cases` if a session already exists. Login's existing `navigate('/')`
+  therefore still lands logged-in users on their cases, unchanged.
+- `admin/src/api/tenant.js`, `admin/src/pages/BrandingPage.jsx`: added an
+  `about` textarea to the existing Branding form (state, load, save,
+  revert-on-save-response). `admin/src/components/Form.css`: extended the
+  shared `.form-field` input styling to also cover `textarea` (previously
+  only `input`/`select`) — a real third input type for this reusable
+  building block, not a one-off.
+- Re-ran `server/scripts/export_openapi.py` and
+  `server/scripts/generate_postman.sh`; `docs/openapi_client.json` now has
+  16 paths (was 15), `docs/openapi_admin.json` unchanged at 31 (the `/tenant`
+  schema change doesn't add a path). Both Postman collections regenerated.
+
+**Verified in a real browser** (Python Playwright, headless Chromium, driven
+against the already-running dev servers — `client_api`:8000/`admin_api`:8001
+Docker containers with `--reload`, and the already-running Vite dev servers
+on 5173/5174 — no new servers started):
+- Set the demo tenant's about text via `PATCH /tenant` (curl, first attempt
+  via an inline shell string got mangled to literal `?` characters — a
+  Git-Bash/Windows console encoding artifact, not an app bug; a file-based
+  UTF-8 payload confirmed the real request/response round-trips Hebrew text
+  correctly, byte-for-byte, through both `admin_api` and `client_api`).
+- `http://demo.lvh.me:5173/` with **zero cookies** (fresh browser context)
+  returned HTTP 200 and rendered "Demo Firm Updated", the saved Hebrew about
+  text, and a "כניסה לפורטל" (sign in) button — confirming the route is
+  genuinely reachable unauthenticated, not just "doesn't redirect in this
+  one browser tab". Clicking it navigated to `/login` as expected.
+- Confirmed `GET /public/profile` returns only the 4 whitelisted fields —
+  checked the raw JSON response directly, no case/document/user fields
+  present at all.
+- Logged into `http://demo.lvh.me:5174/` as the seeded office_manager,
+  opened Settings → Branding: the new "about" textarea was pre-filled with
+  the exact saved text, editing it and clicking "שמירת שינויים" showed the
+  existing save-success banner and persisted, confirmed by re-fetching
+  `GET /tenant`. Reverted the demo tenant's about text back afterward.
+- Zero browser console errors from either app's own code (the console did
+  log expected 401s from the client app's own `/auth/me` probe while logged
+  out, and one `ERR_NAME_NOT_RESOLVED` from the deliberately-fake
+  `https://example.com/logo.png` seed logo URL — neither is a regression).
+
+**Learned / decided**:
+- FastAPI/Pydantic v2 response models here have no `from_attributes`
+  config anywhere in the codebase, yet existing routes freely `return` ORM
+  objects — FastAPI's own response serialization passes `from_attributes=True`
+  itself when validating against `response_model`, regardless of the model's
+  own config. That only works when the response model's fields are a subset
+  of the ORM object's actual attributes, though — adding `about` to
+  `TenantResponse` (not a real `Tenant` column) broke that assumption, hence
+  `_to_response` building the Pydantic model explicitly instead of returning
+  `tenant` directly.
+- Kept the Settings-lookup helper in `shared/` rather than inlining the same
+  query twice (once per backend) — this is a deliberate, narrow addition to
+  shared's scope in the same spirit as `storage.py`/`plan_limits.py`, not a
+  drift back toward "share everything," since it's the exact key/table pair
+  both apps must agree on.
+- The root route needed its own unauthenticated `/auth/me` check rather than
+  reusing `AppShell`'s or `api/auth.js`'s `me()` — both of those treat a 401
+  as "redirect to login," which is the right behavior for a protected page
+  but the opposite of what "/" needs to do (show the public page instead).
