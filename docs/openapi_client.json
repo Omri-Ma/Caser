@@ -618,6 +618,165 @@
         }
       }
     },
+    "/cases/{case_id}/narratives": {
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Generate Narrative",
+        "description": "Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always\ninserts a new row — never edits an existing one; the newest row for a\ncase is the current/authoritative one, older rows stay as history (same\n\"rows accumulate, newest wins\" pattern as Subscriptions).",
+        "operationId": "generate_narrative_cases__case_id__narratives_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "List Narratives",
+        "description": "Full history, newest first — the first row returned is always the\ncurrent/authoritative narrative for the case.",
+        "operationId": "list_narratives_cases__case_id__narratives_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_NarrativeResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/narratives/{narrative_id}/export-pdf": {
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Export Narrative Pdf",
+        "description": "Renders the narrative to PDF and files it as a real Document on the\ncase, internal folder by default (CLAUDE.md). This is what makes a\nnarrative reachable by the client at all — sharing it afterwards is just\nthe existing Documents reclassify-to-client-folder action, no separate\nvisibility mechanism needed here.",
+        "operationId": "export_narrative_pdf_cases__case_id__narratives__narrative_id__export_pdf_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "narrative_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Narrative Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/work-logs": {
       "post": {
         "tags": [
@@ -1093,6 +1252,47 @@
         ],
         "title": "LoginRequest"
       },
+      "NarrativeResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "case_id": {
+            "type": "integer",
+            "title": "Case Id"
+          },
+          "generated_text": {
+            "type": "string",
+            "title": "Generated Text"
+          },
+          "total_hours": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Hours"
+          },
+          "total_fee": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Fee"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "case_id",
+          "generated_text",
+          "total_hours",
+          "total_fee",
+          "created_at"
+        ],
+        "title": "NarrativeResponse"
+      },
       "Page_CaseResponse_": {
         "properties": {
           "items": {
@@ -1154,6 +1354,37 @@
           "page_size"
         ],
         "title": "Page[DocumentResponse]"
+      },
+      "Page_NarrativeResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[NarrativeResponse]"
       },
       "Page_WorkLogResponse_": {
         "properties": {

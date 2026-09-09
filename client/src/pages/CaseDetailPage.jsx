@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import DocumentsPanel from '../components/DocumentsPanel'
+import NarrativesPanel from '../components/NarrativesPanel'
 import WorkHoursPanel from '../components/WorkHoursPanel'
 import { getMyCase } from '../api/cases'
 import { getStoredRole } from '../api/session'
@@ -25,12 +26,19 @@ function canSeeWorkHours() {
   return getStoredRole() === 'lawyer'
 }
 
+// Narratives are always firm-internal too (CLAUDE.md) — same reasoning and
+// same not-rendered-at-all treatment as WorkHoursPanel.
+function canSeeNarratives() {
+  return getStoredRole() === 'lawyer'
+}
+
 export default function CaseDetailPage() {
   const { caseId } = useParams()
   const navigate = useNavigate()
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [documentsRefreshSignal, setDocumentsRefreshSignal] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -73,9 +81,16 @@ export default function CaseDetailPage() {
               role={getStoredRole()}
               showInternalTab={canSeeInternalFolder()}
               caseClosed={caseData.status === 'closed'}
+              refreshSignal={documentsRefreshSignal}
             />
             {canSeeWorkHours() && <WorkHoursPanel caseId={caseId} caseClosed={caseData.status === 'closed'} />}
           </div>
+
+          {canSeeNarratives() && (
+            <div className="detail-columns">
+              <NarrativesPanel caseId={caseId} onDocumentAdded={() => setDocumentsRefreshSignal((n) => n + 1)} />
+            </div>
+          )}
         </>
       )}
     </AppShell>
