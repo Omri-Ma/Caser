@@ -1651,6 +1651,70 @@
         }
       }
     },
+    "/dashboard/stats": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Dashboard Stats",
+        "operationId": "dashboard_stats_dashboard_stats_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard/export": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Export Data",
+        "description": "CSV export of this tenant's own cases or members. Per CLAUDE.md's\nexplicit warning, export queries are exactly the kind most likely to\naccidentally skip tenant_id filtering — both branches below filter on\n`tenant.id` from get_current_tenant the same way every other route in\nthis file does, rather than a separate one-off query written just for\nthis feature.",
+        "operationId": "export_data_dashboard_export_get",
+        "parameters": [
+          {
+            "name": "resource",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(cases|members)$",
+              "default": "cases",
+              "title": "Resource"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health Check",
@@ -1799,6 +1863,62 @@
         ],
         "title": "CreateCaseRequest",
         "description": "office_manager creates a case — it always starts life as `open`;\nstatus changes go through the dedicated status endpoint below."
+      },
+      "DashboardStatsResponse": {
+        "properties": {
+          "active_case_count": {
+            "type": "integer",
+            "title": "Active Case Count"
+          },
+          "total_case_count": {
+            "type": "integer",
+            "title": "Total Case Count"
+          },
+          "closed_case_count": {
+            "type": "integer",
+            "title": "Closed Case Count"
+          },
+          "lawyer_count": {
+            "type": "integer",
+            "title": "Lawyer Count"
+          },
+          "client_count": {
+            "type": "integer",
+            "title": "Client Count"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "storage_used_bytes": {
+            "type": "integer",
+            "title": "Storage Used Bytes"
+          },
+          "storage_limit_bytes": {
+            "type": "integer",
+            "title": "Storage Limit Bytes"
+          },
+          "monthly_case_activity": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyCaseActivityPoint"
+            },
+            "type": "array",
+            "title": "Monthly Case Activity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_case_count",
+          "total_case_count",
+          "closed_case_count",
+          "lawyer_count",
+          "client_count",
+          "plan",
+          "storage_used_bytes",
+          "storage_limit_bytes",
+          "monthly_case_activity"
+        ],
+        "title": "DashboardStatsResponse",
+        "description": "office_manager's own per-tenant dashboard — everything here is\nscoped to the current tenant only (CLAUDE.md's Roles: super_admin's\ncross-tenant /platform/stats is a separate, explicitly different path)."
       },
       "DocumentFolderType": {
         "type": "string",
@@ -1999,6 +2119,25 @@
           "role"
         ],
         "title": "MembershipResponse"
+      },
+      "MonthlyCaseActivityPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "new_cases": {
+            "type": "integer",
+            "title": "New Cases"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "new_cases"
+        ],
+        "title": "MonthlyCaseActivityPoint",
+        "description": "One point on the case-activity trend chart — the count of cases\n*created* in that calendar month, oldest to newest."
       },
       "Page_CaseAssignmentResponse_": {
         "properties": {

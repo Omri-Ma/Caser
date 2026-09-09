@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
+import DashboardPage from './pages/DashboardPage'
 import MembersPage from './pages/MembersPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/members" element={<MembersPage />} />
             <Route path="/settings/branding" element={<BrandingPage />} />
             <Route path="/settings/subscription" element={<SubscriptionPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/" element={<Navigate to="/cases" replace />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />
           </>
