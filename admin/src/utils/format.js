@@ -1,7 +1,15 @@
 const dateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: 'short', year: 'numeric' })
+const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'short', year: '2-digit' })
 
 export function formatDate(isoString) {
   return dateFormatter.format(new Date(isoString))
+}
+
+// "2026-03" -> a short localized month label ("מרץ 26") for the case-
+// activity chart's x-axis.
+export function formatMonthLabel(yyyyMm) {
+  const [year, month] = yyyyMm.split('-').map(Number)
+  return monthFormatter.format(new Date(year, month - 1, 1))
 }
 
 export function formatFileSize(bytes) {

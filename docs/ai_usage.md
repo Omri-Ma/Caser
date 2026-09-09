@@ -1951,3 +1951,93 @@ not just that the frontend doesn't offer one.
   every other tenant query in the codebase applies — the one legitimate
   exception to "always filter by tenant status," since the whole point of
   the list is to be able to find and reactivate a suspended firm.
+
+## 2026-09-09 (later still, again) — office_manager's own dashboard + CMS data export (branch `feature/admin-dashboard-export`)
+
+**Asked**: Build office_manager's own per-firm dashboard with real data
+(replacing the still-unbuilt "בקרוב" placeholder nav item) and a CMS data
+export, backend and frontend together, in one pass. Explicit call-out from
+CLAUDE.md to route the export through the same tenant-scoped query path as
+everything else, since export queries are exactly the kind most likely to
+accidentally skip `tenant_id` filtering. Verify in a real browser against
+the demo tenant's actual case/member data, not just that it renders.
+
+**Changed**:
+- `server/admin_api/routers/dashboard.py` (new), `schemas/dashboard.py`
+  (new): `GET /dashboard/stats` and `GET /dashboard/export?resource=cases|
+  members`, both `require_role(UserRole.OFFICE_MANAGER)` and both resolving
+  the tenant the normal way via `get_current_tenant` — a clearly separate
+  path from `routers/platform.py`'s cross-tenant super_admin stats, same
+  distinction CLAUDE.md draws in Roles (office_manager: own tenant only;
+  super_admin: firm-level/aggregate only, never case content). Stats:
+  active/total/closed case counts, lawyer/client counts (reusing
+  `plan_limits.count_active_lawyers`), plan + storage usage (reusing
+  `plan_limits.get_plan_usage`, the same helper `check_plan_limit` enforces
+  against and `SubscriptionPage` already reads, so this can never show a
+  different number than what's actually gated), and a 6-month new-case
+  trend grouped in Python rather than a DB date-trunc function (case volume
+  per tenant is small enough that this was simpler than a dialect-specific
+  query). Export: CSV via `csv`/`io.StringIO`, `Content-Disposition:
+  attachment` — every query in both branches filters `Case.tenant_id`/
+  `Membership.tenant_id` against `tenant.id` from `get_current_tenant`
+  explicitly, the same way every other route in this codebase does, per
+  CLAUDE.md's warning above.
+- `server/tests/test_dashboard_admin.py` (new): tenant-isolation coverage
+  for both endpoints (a second tenant's cases/lawyers never leak into the
+  numbers or the CSV rows), storage-usage correctness, role-gating
+  (lawyer gets 403 on both), and an unknown `resource` value getting
+  rejected by Pydantic (422) before it ever reaches a query.
+- `admin/package.json`: added `recharts`, per CLAUDE.md's tech stack
+  ("stats dashboard (recharts)") — not previously installed, since no
+  chart existed yet anywhere in `admin/`.
+- `admin/src/pages/DashboardPage.jsx` + `.css` (new): four stat cards, a
+  storage usage bar (same pattern as `SubscriptionPage`'s `UsageBar`, kept
+  as its own copy rather than extracted — CLAUDE.md's per-app "not shared"
+  rule plus only two occurrences so far), a `recharts` `BarChart` for the
+  monthly trend, and two CSV export buttons reusing `DocumentsPanel`'s
+  existing `triggerBrowserDownload` pattern (blob + a synthetic `<a
+  download>` click). Loading/Error states plus an explicit Empty state
+  (no cases/lawyers/clients at all) and a chart-specific empty note
+  (no cases yet, so no trend to show).
+- `admin/src/api/dashboard.js` (new): thin wrapper, same shape as every
+  other `api/*.js` file.
+- `admin/src/components/AppShell.jsx`: gave the `dashboard` nav item its
+  `path` (it was the one remaining disabled "בקרוב" placeholder) and
+  trimmed the now-stale comment about it not being built yet.
+- `admin/src/App.jsx`: registered the `/dashboard` route.
+- `admin/src/utils/format.js`: added `formatMonthLabel` (localized short
+  month label for the chart's x-axis).
+- Re-ran `server/scripts/export_docs.sh` — `docs/openapi_admin.json` picked
+  up the 2 new `/dashboard/*` paths (31 total now), both Postman
+  collections and the ERD regenerated from it.
+
+**Verified in browser** (Playwright against the already-running admin dev
+server at `demo.lvh.me:5174` and the already-running `admin_api` container,
+which auto-reloaded on the new router): logged in as the seeded demo
+office_manager (`office_manager@casehub.example.com`). The demo tenant
+already had real data from earlier sessions (7 cases: 4 open/1 in_progress/
+1 on_hold/1 closed, 1 lawyer, 2 clients, Free plan, 0 bytes stored) —
+cross-checked directly against the database first. The rendered stat cards
+showed exactly 6 active / 7 total cases, 1 lawyer, 2 clients; the monthly
+chart showed a single bar in the current month at height 7, matching every
+case's `created_at`. Clicked both export buttons: `demo-cases.csv` and
+`demo-members.csv` downloaded correctly, row counts and values matching the
+database (including a case title containing an embedded `"` that
+`csv.writer` quoted correctly). Zero browser console errors throughout.
+
+**Learned / decided**:
+- The chart's single bar was briefly hard to eyeball as "present" in a
+  fullpage screenshot — recharts renders `<path>` elements for bars (not
+  `<rect>`), so a first pass querying for `rect` elements found only the
+  cartesian-grid clip rect and wrongly looked empty. Cropping the
+  screenshot to the bar's actual `getBoundingClientRect()` confirmed it was
+  there and correctly colored the whole time — a reminder to check the
+  DOM/computed style before concluding a rendered chart is broken, since a
+  full-page screenshot can make a single-bar chart genuinely easy to miss
+  at a glance.
+- Recharts' `fill="var(--color-primary)"` on the SVG presentation attribute
+  does get resolved by the browser (confirmed via `getComputedStyle` ->
+  `oklch(0.3 0.13 258)`) — presentation attributes go through the same CSS
+  cascade/`var()` resolution as a `style` attribute would, so the app's
+  design-token CSS variables work directly in chart fills with no extra
+  plumbing needed.

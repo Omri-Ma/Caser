@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from admin_api.routers.auth import router as auth_router
 from admin_api.routers.cases import router as cases_router
+from admin_api.routers.dashboard import router as dashboard_router
 from admin_api.routers.documents import router as documents_router
 from admin_api.routers.members import router as members_router
 from admin_api.routers.platform import router as platform_router
@@ -29,6 +30,7 @@ app.include_router(work_logs_router)
 app.include_router(tenant_router)
 app.include_router(subscriptions_router)
 app.include_router(platform_router)
+app.include_router(dashboard_router)
 
 # Same allow_origin_regex approach as client_api — see that app for the full
 # reasoning. Every tenant subdomain is trusted automatically (both the

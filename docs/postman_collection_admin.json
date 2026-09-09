@@ -9,7 +9,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "4c7ee0da-521e-4b0a-9c8a-ba7ed6a70dea",
+                            "id": "6817ff4f-bef3-461c-8fda-3394d0f9a86b",
                             "name": "Signup",
                             "request": {
                                 "name": "Signup",
@@ -41,7 +41,7 @@
                                 "method": "POST",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"b\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
+                                    "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"uwrz\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -53,7 +53,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "a6c9ea7a-2ed8-4e72-8fc3-01ddff0b94c9",
+                                    "id": "2e635041-e717-46b2-b096-481fcf8af326",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -80,7 +80,7 @@
                                         "method": "POST",
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"b\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
+                                            "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"uwrz\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
                                             "options": {
                                                 "raw": {
                                                     "headerFamily": "json",
@@ -102,7 +102,7 @@
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "e54ee637-0ebf-4158-9ecf-671e6ad8a36a",
+                                    "id": "8a63ed20-cb3c-428c-89b3-22b15bb9ba54",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -129,7 +129,7 @@
                                         "method": "POST",
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"b\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
+                                            "raw": "{\n  \"firm_name\": \"<string>\",\n  \"subdomain\": \"uwrz\",\n  \"admin_name\": \"<string>\",\n  \"admin_email\": \"<email>\",\n  \"admin_password\": \"<string>\"\n}",
                                             "options": {
                                                 "raw": {
                                                     "headerFamily": "json",
@@ -163,7 +163,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "b7ddcb49-5763-418f-a389-073a255b0053",
+                            "id": "c182a502-64f4-4bbf-9338-bdb78b2926ff",
                             "name": "Login",
                             "request": {
                                 "name": "Login",
@@ -207,7 +207,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "bcb03cc9-709e-49e8-b016-26d65b16eb0a",
+                                    "id": "cc99c630-a57d-4c2c-974c-29802cb5c9c0",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -256,7 +256,7 @@
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "304cae63-2288-4385-8b2c-5cdbd9645653",
+                                    "id": "b4c04026-1312-46b9-b1f9-84531c7d56ed",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -317,7 +317,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "b83efd46-1105-434e-8e39-888990b3b25b",
+                            "id": "21d50504-b7cd-4f45-98d9-e3e6b84bd188",
                             "name": "Platform Login",
                             "request": {
                                 "name": "Platform Login",
@@ -361,7 +361,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "3d983d2d-534c-496a-99d9-c9e1e2624509",
+                                    "id": "0645470f-7276-4c06-b09b-b897c7b52573",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -410,7 +410,7 @@
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "6f9b694d-4b92-476d-87a2-4b3dda7d90b5",
+                                    "id": "986d8663-c1cc-4a4b-9db8-bbd676a081c8",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -471,7 +471,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "9c8cef2b-9160-46c9-9c40-448ebf0bcd20",
+                            "id": "d71bbbd8-75fc-485c-b5dd-89dd78417948",
                             "name": "Refresh",
                             "request": {
                                 "name": "Refresh",
@@ -493,7 +493,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "3468c32e-4c9a-4457-bc4c-94db8b5a5fef",
+                                    "id": "feb0e049-8a0e-41c8-bfc7-9a5b6f5af820",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -529,7 +529,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "1d211d16-e402-4474-b188-8662ef59f427",
+                            "id": "c35066a3-763e-4584-9747-fe6f1fd0fa41",
                             "name": "Logout",
                             "request": {
                                 "name": "Logout",
@@ -551,7 +551,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "5a5977d9-2686-4ff2-9e50-e5a225e31c3e",
+                                    "id": "a15bd62c-6306-4587-a377-dc71d709561b",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -587,7 +587,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "9cadfcab-daaa-44cb-bd30-971e5da17750",
+                            "id": "d03a3c03-1810-44ed-a3ac-a7c0b439a615",
                             "name": "Me",
                             "request": {
                                 "name": "Me",
@@ -615,7 +615,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "821b9da0-c849-473f-83e9-fa12f0ef1c45",
+                                    "id": "a8a51974-d434-4f6a-8917-529a8f78765e",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -665,7 +665,7 @@
             "description": "",
             "item": [
                 {
-                    "id": "e410f66a-261d-4a29-8214-85ff310b8f18",
+                    "id": "84a1d2e2-9098-4670-bfde-31d4a8d5b5ef",
                     "name": "List Members",
                     "request": {
                         "name": "List Members",
@@ -688,7 +688,7 @@
                                         "type": "text/plain"
                                     },
                                     "key": "role",
-                                    "value": "lawyer"
+                                    "value": "office_manager"
                                 },
                                 {
                                     "disabled": false,
@@ -732,7 +732,7 @@
                     },
                     "response": [
                         {
-                            "id": "3ba22d24-1086-4d06-9b2c-c523ae09e8b0",
+                            "id": "1b0923a6-a5c0-4690-b718-2aedb25e3b30",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -750,7 +750,7 @@
                                                 "type": "text/plain"
                                             },
                                             "key": "role",
-                                            "value": "lawyer"
+                                            "value": "office_manager"
                                         },
                                         {
                                             "disabled": false,
@@ -799,12 +799,12 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"identity_id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"role\": \"lawyer\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\",\n      \"active\": \"<boolean>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"identity_id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"role\": \"lawyer\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\",\n      \"active\": \"<boolean>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"identity_id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"role\": \"super_admin\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\",\n      \"active\": \"<boolean>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"identity_id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"role\": \"lawyer\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\",\n      \"active\": \"<boolean>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                             "cookie": [],
                             "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "4cbf7222-aacf-42ee-84c0-dd459b4957f0",
+                            "id": "70c18d04-bdea-443e-ac3c-ee386d60568e",
                             "name": "Validation Error",
                             "originalRequest": {
                                 "url": {
@@ -822,7 +822,7 @@
                                                 "type": "text/plain"
                                             },
                                             "key": "role",
-                                            "value": "lawyer"
+                                            "value": "office_manager"
                                         },
                                         {
                                             "disabled": false,
@@ -882,7 +882,7 @@
                     }
                 },
                 {
-                    "id": "b09cd851-7cca-4f63-a039-6e187965b63d",
+                    "id": "64dadc9d-9b2c-4481-ab38-d516341d0427",
                     "name": "Add Member",
                     "request": {
                         "name": "Add Member",
@@ -913,7 +913,7 @@
                         "method": "POST",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"lawyer\"\n}",
+                            "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"super_admin\"\n}",
                             "options": {
                                 "raw": {
                                     "headerFamily": "json",
@@ -925,7 +925,7 @@
                     },
                     "response": [
                         {
-                            "id": "521f427e-f021-4350-838d-2a55e0ddf6f1",
+                            "id": "e995dbce-aeb2-4fe4-9ea4-0627a233fc35",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -951,7 +951,7 @@
                                 "method": "POST",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"lawyer\"\n}",
+                                    "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"super_admin\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -968,12 +968,12 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"id\": \"<integer>\",\n  \"identity_id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"role\": \"client\"\n}",
+                            "body": "{\n  \"id\": \"<integer>\",\n  \"identity_id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"role\": \"office_manager\"\n}",
                             "cookie": [],
                             "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "3e675fbd-8fac-47e4-ae1b-8e12fbb2b1c8",
+                            "id": "b8a76aff-ef98-4ff0-b8cc-8c40274a592d",
                             "name": "Validation Error",
                             "originalRequest": {
                                 "url": {
@@ -999,7 +999,7 @@
                                 "method": "POST",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"lawyer\"\n}",
+                                    "raw": "{\n  \"email\": \"<email>\",\n  \"role\": \"super_admin\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -1035,7 +1035,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "0989cd4c-2ae1-44b5-804e-31a3dabfcfd1",
+                                    "id": "e7806d0d-936f-4184-a2f1-6d87f444de9c",
                                     "name": "Deactivate Member",
                                     "request": {
                                         "name": "Deactivate Member",
@@ -1078,7 +1078,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "34c35cab-eb4d-4028-b4f3-559f532f767e",
+                                            "id": "ced05ba3-1b8e-4f97-b882-8fdb36a7b826",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -1126,7 +1126,7 @@
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "ea77ad64-b2d1-4c81-8ba0-ff09184654ce",
+                                            "id": "57037e03-48bc-4a52-8fed-f9d6f923fff6",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -1186,7 +1186,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "08520605-0447-4080-b152-67d8e7db3a03",
+                                    "id": "d6bbe4ad-657a-4c72-b368-d75d838554f4",
                                     "name": "Reset Member Password",
                                     "request": {
                                         "name": "Reset Member Password",
@@ -1242,7 +1242,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "523e3c50-6d70-450c-b2cc-bf5031962d00",
+                                            "id": "9128444c-edfe-4ed7-a3b6-0d0f1d50740e",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -1293,7 +1293,7 @@
                                             "_postman_previewlanguage": "text"
                                         },
                                         {
-                                            "id": "a8250758-a7d6-460e-bdaf-c319ff97cf7c",
+                                            "id": "42983478-b3ce-49e9-a1c7-31a0c4985d53",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -1370,7 +1370,7 @@
             "description": "",
             "item": [
                 {
-                    "id": "cbce212d-ad37-419c-ba47-ec2528084d41",
+                    "id": "3cdbd440-96d9-4017-85c0-53bb8918cccc",
                     "name": "Create Case",
                     "request": {
                         "name": "Create Case",
@@ -1410,7 +1410,7 @@
                     },
                     "response": [
                         {
-                            "id": "53305b0f-9186-4c21-a3d4-e562cc09d44b",
+                            "id": "f998337a-2c8c-4b98-9350-530c36f1317f",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -1453,12 +1453,12 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"open\",\n  \"created_at\": \"<dateTime>\"\n}",
+                            "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"closed\",\n  \"created_at\": \"<dateTime>\"\n}",
                             "cookie": [],
                             "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "98a4792e-4dcb-490a-b5b6-4583b699d914",
+                            "id": "7f49f4aa-91ad-4554-9991-baaab351c28f",
                             "name": "Validation Error",
                             "originalRequest": {
                                 "url": {
@@ -1512,7 +1512,7 @@
                     }
                 },
                 {
-                    "id": "d603cba7-ee79-4550-bc86-c6ef9428b2f0",
+                    "id": "782923c7-b1f6-4a2f-b70f-8b486007b979",
                     "name": "List Cases",
                     "request": {
                         "name": "List Cases",
@@ -1535,7 +1535,7 @@
                                         "type": "text/plain"
                                     },
                                     "key": "status",
-                                    "value": "open"
+                                    "value": "on_hold"
                                 },
                                 {
                                     "disabled": false,
@@ -1570,7 +1570,7 @@
                     },
                     "response": [
                         {
-                            "id": "90be8c79-e87f-4a1d-802d-d67af82da01f",
+                            "id": "88589e0e-a678-4368-a880-33a64f5424ba",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -1588,7 +1588,7 @@
                                                 "type": "text/plain"
                                             },
                                             "key": "status",
-                                            "value": "open"
+                                            "value": "on_hold"
                                         },
                                         {
                                             "disabled": false,
@@ -1628,12 +1628,12 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"title\": \"<string>\",\n      \"status\": \"on_hold\",\n      \"created_at\": \"<dateTime>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"title\": \"<string>\",\n      \"status\": \"on_hold\",\n      \"created_at\": \"<dateTime>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"title\": \"<string>\",\n      \"status\": \"open\",\n      \"created_at\": \"<dateTime>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"tenant_id\": \"<integer>\",\n      \"title\": \"<string>\",\n      \"status\": \"on_hold\",\n      \"created_at\": \"<dateTime>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                             "cookie": [],
                             "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "c1ed991f-1a20-40d3-a97a-8f887832b325",
+                            "id": "21389bd5-afad-4411-8619-fe1d02dc8f84",
                             "name": "Validation Error",
                             "originalRequest": {
                                 "url": {
@@ -1651,7 +1651,7 @@
                                                 "type": "text/plain"
                                             },
                                             "key": "status",
-                                            "value": "open"
+                                            "value": "on_hold"
                                         },
                                         {
                                             "disabled": false,
@@ -1706,7 +1706,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "81e264d8-6385-4126-8bcd-e79ba2dc4493",
+                            "id": "955ea255-e8ac-4129-b4f3-13bf1c4dff12",
                             "name": "Get Case",
                             "request": {
                                 "name": "Get Case",
@@ -1745,7 +1745,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "f10d4832-de5f-4351-85bc-9f19181580a6",
+                                    "id": "3b4e9526-bd9e-4818-ba93-f56ce463936e",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -1787,12 +1787,12 @@
                                             "value": "application/json"
                                         }
                                     ],
-                                    "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"open\",\n  \"created_at\": \"<dateTime>\"\n}",
+                                    "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"closed\",\n  \"created_at\": \"<dateTime>\"\n}",
                                     "cookie": [],
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "6f7175c3-f1ab-4eb9-b587-91088307aae3",
+                                    "id": "e636f0d2-9beb-4f94-8024-b94999941c01",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -1845,7 +1845,7 @@
                             }
                         },
                         {
-                            "id": "d500560f-2b45-4bd8-8c62-4b211e184f74",
+                            "id": "61fe1854-a5a8-4037-a592-f5c21fae56c3",
                             "name": "Update Case Title",
                             "request": {
                                 "name": "Update Case Title",
@@ -1900,7 +1900,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "bcc95b47-9a1e-48a9-8390-dce284740c31",
+                                    "id": "07a4fba9-0c28-4f53-8762-308030a3bcdc",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -1955,12 +1955,12 @@
                                             "value": "application/json"
                                         }
                                     ],
-                                    "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"open\",\n  \"created_at\": \"<dateTime>\"\n}",
+                                    "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"closed\",\n  \"created_at\": \"<dateTime>\"\n}",
                                     "cookie": [],
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "27bb51fe-9b6a-4129-be7b-36728e996174",
+                                    "id": "1c2542e5-2385-4e83-8765-3dee3c17bde4",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -2026,7 +2026,7 @@
                             }
                         },
                         {
-                            "id": "657ec36b-4249-40c7-bf14-e53e1725f222",
+                            "id": "4a18e883-8689-4841-b0f5-e5a06b9afdb7",
                             "name": "Delete Case",
                             "request": {
                                 "name": "Delete Case",
@@ -2068,7 +2068,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "4dd9de17-48a2-4fbf-a955-177ee15fec6d",
+                                    "id": "e664c4e7-4086-4a3e-ad63-b250bf7d3b3c",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -2103,7 +2103,7 @@
                                     "_postman_previewlanguage": "text"
                                 },
                                 {
-                                    "id": "3170d882-52bf-42d4-b6c4-7136af55d44f",
+                                    "id": "3dbeecb9-c55f-4ff6-a29b-8286a465a72e",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -2160,7 +2160,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "8fae5f00-0c7d-4659-807f-da1da80902da",
+                                    "id": "fad85805-b836-4796-882d-3978d77634f6",
                                     "name": "Update Case Status",
                                     "request": {
                                         "name": "Update Case Status",
@@ -2216,7 +2216,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "1527e4ae-f7e1-497f-a35b-fc2ff0b0c9d7",
+                                            "id": "c6b7c3fd-2119-4205-812a-cff139c2df4b",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -2272,12 +2272,12 @@
                                                     "value": "application/json"
                                                 }
                                             ],
-                                            "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"open\",\n  \"created_at\": \"<dateTime>\"\n}",
+                                            "body": "{\n  \"id\": \"<integer>\",\n  \"tenant_id\": \"<integer>\",\n  \"title\": \"<string>\",\n  \"status\": \"closed\",\n  \"created_at\": \"<dateTime>\"\n}",
                                             "cookie": [],
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "eb9ce830-7fc7-4a63-bbcb-4fc2d0c992d7",
+                                            "id": "705f9e39-fe42-4f68-816d-8d69a71e3c5e",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -2350,7 +2350,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "d8bb116b-8bd0-44bc-9534-5060e917aaf3",
+                                    "id": "210ae27b-dee9-475e-b8d8-7e7350b4dd43",
                                     "name": "List Case Assignments",
                                     "request": {
                                         "name": "List Case Assignments",
@@ -2409,7 +2409,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "65e9a563-9572-4c42-9c4b-998c8183dee7",
+                                            "id": "4163889f-0308-41ba-9e94-06bdc08f6bcc",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -2471,12 +2471,12 @@
                                                     "value": "application/json"
                                                 }
                                             ],
-                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"membership_id\": \"<integer>\",\n      \"role\": \"office_manager\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"membership_id\": \"<integer>\",\n      \"role\": \"super_admin\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"membership_id\": \"<integer>\",\n      \"role\": \"lawyer\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"membership_id\": \"<integer>\",\n      \"role\": \"super_admin\",\n      \"identity_name\": \"<string>\",\n      \"identity_email\": \"<email>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                                             "cookie": [],
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "886f8b29-8f7c-4523-8aec-4d290fa03533",
+                                            "id": "1dee2e05-6b09-4c3b-94a4-92711ed9505f",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -2549,7 +2549,7 @@
                                     }
                                 },
                                 {
-                                    "id": "5be01f32-22cc-4eec-84b3-edec9cb605f1",
+                                    "id": "8de6508c-0db3-42e0-a860-c6c336e04242",
                                     "name": "Assign To Case",
                                     "request": {
                                         "name": "Assign To Case",
@@ -2605,7 +2605,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "882e872f-e764-4753-822b-49fbeb1c1f70",
+                                            "id": "b2f3d33d-03bf-4e4a-9b6c-e0589e69806a",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -2661,12 +2661,12 @@
                                                     "value": "application/json"
                                                 }
                                             ],
-                                            "body": "{\n  \"id\": \"<integer>\",\n  \"case_id\": \"<integer>\",\n  \"membership_id\": \"<integer>\",\n  \"role\": \"office_manager\",\n  \"identity_name\": \"<string>\",\n  \"identity_email\": \"<email>\"\n}",
+                                            "body": "{\n  \"id\": \"<integer>\",\n  \"case_id\": \"<integer>\",\n  \"membership_id\": \"<integer>\",\n  \"role\": \"lawyer\",\n  \"identity_name\": \"<string>\",\n  \"identity_email\": \"<email>\"\n}",
                                             "cookie": [],
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "c39a3bfe-bfa5-47a3-918e-acae1cff79ab",
+                                            "id": "ff8e1218-d48d-4e54-af85-5c9b8b3c34ad",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -2737,7 +2737,7 @@
                                     "description": "",
                                     "item": [
                                         {
-                                            "id": "7cba4c7f-0be4-42e8-b4fd-5cb039c79f4e",
+                                            "id": "386d1ffd-d6ab-4551-ba15-93a8a1a337aa",
                                             "name": "Unassign From Case",
                                             "request": {
                                                 "name": "Unassign From Case",
@@ -2791,7 +2791,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "367556dd-5851-4160-a9e7-f7e48c9d656c",
+                                                    "id": "21f4400a-9d73-4a85-9623-c4384d298eed",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -2838,7 +2838,7 @@
                                                     "_postman_previewlanguage": "text"
                                                 },
                                                 {
-                                                    "id": "ef82cc1d-4e4e-4312-a556-5e3eb0692538",
+                                                    "id": "ea805219-faa2-4ff0-a2fb-73d6ef589cec",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -2911,7 +2911,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "107695ef-b90e-4288-b4a0-55bca887fa3c",
+                                    "id": "9da6ed1b-4c75-4a81-96db-dd9af4f21b5a",
                                     "name": "List Documents",
                                     "request": {
                                         "name": "List Documents",
@@ -2991,7 +2991,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "7fdc8833-6488-444d-b451-3f12f4142bcc",
+                                            "id": "01243d73-687b-4319-987e-0fff4626be6a",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -3071,12 +3071,12 @@
                                                     "value": "application/json"
                                                 }
                                             ],
-                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"folder_type\": \"internal\",\n      \"original_filename\": \"<string>\",\n      \"content_type\": \"<string>\",\n      \"file_size\": \"<integer>\",\n      \"uploaded_by\": \"<integer>\",\n      \"uploader_name\": \"<string>\",\n      \"created_at\": \"<dateTime>\",\n      \"archived_at\": \"<dateTime>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"folder_type\": \"internal\",\n      \"original_filename\": \"<string>\",\n      \"content_type\": \"<string>\",\n      \"file_size\": \"<integer>\",\n      \"uploaded_by\": \"<integer>\",\n      \"uploader_name\": \"<string>\",\n      \"created_at\": \"<dateTime>\",\n      \"archived_at\": \"<dateTime>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"folder_type\": \"internal\",\n      \"original_filename\": \"<string>\",\n      \"content_type\": \"<string>\",\n      \"file_size\": \"<integer>\",\n      \"uploaded_by\": \"<integer>\",\n      \"uploader_name\": \"<string>\",\n      \"created_at\": \"<dateTime>\",\n      \"archived_at\": \"<dateTime>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"folder_type\": \"client\",\n      \"original_filename\": \"<string>\",\n      \"content_type\": \"<string>\",\n      \"file_size\": \"<integer>\",\n      \"uploaded_by\": \"<integer>\",\n      \"uploader_name\": \"<string>\",\n      \"created_at\": \"<dateTime>\",\n      \"archived_at\": \"<dateTime>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                                             "cookie": [],
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "f8494c4d-0ebc-4f4b-84ff-58f0bd8949ee",
+                                            "id": "96c572c0-9177-4679-86e0-e106aae76f05",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -3175,7 +3175,7 @@
                                             "description": "",
                                             "item": [
                                                 {
-                                                    "id": "4a9671d1-7fa1-4c77-bb78-f199effeedbb",
+                                                    "id": "fe8eff17-2e11-4398-8de4-c5bef8ea97ff",
                                                     "name": "Download Document",
                                                     "request": {
                                                         "name": "Download Document",
@@ -3227,7 +3227,7 @@
                                                     },
                                                     "response": [
                                                         {
-                                                            "id": "71190bd2-42e6-48f5-8aa9-bbcc582516a9",
+                                                            "id": "ea8c7f02-1b33-48d8-b83a-4af5cfbb7e1c",
                                                             "name": "Successful Response",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3287,7 +3287,7 @@
                                                             "_postman_previewlanguage": "json"
                                                         },
                                                         {
-                                                            "id": "be7072ed-16ca-4e12-9eb5-58ed6a316368",
+                                                            "id": "30cb7fb3-e054-4461-a07a-c294083ec8fa",
                                                             "name": "Validation Error",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3359,7 +3359,7 @@
                                             "description": "",
                                             "item": [
                                                 {
-                                                    "id": "fd6d2b01-e18a-45d2-9af6-0242ef527f8c",
+                                                    "id": "610d3994-7904-4add-be9c-7fe36ae10b8c",
                                                     "name": "Archive Document",
                                                     "request": {
                                                         "name": "Archive Document",
@@ -3414,7 +3414,7 @@
                                                     },
                                                     "response": [
                                                         {
-                                                            "id": "763f509e-e4d7-482a-92c8-d9051b02e20a",
+                                                            "id": "850b52fe-886c-48a0-94f2-314834a6ec59",
                                                             "name": "Successful Response",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3474,7 +3474,7 @@
                                                             "_postman_previewlanguage": "json"
                                                         },
                                                         {
-                                                            "id": "35545c68-c16a-40ea-9f2c-5e2a361feadc",
+                                                            "id": "0c7bcb36-ad01-4275-8c95-898da4022004",
                                                             "name": "Validation Error",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3546,7 +3546,7 @@
                                             "description": "",
                                             "item": [
                                                 {
-                                                    "id": "c910e1ef-0cf4-4313-9f4e-5b2df4f5cccc",
+                                                    "id": "edcc97b8-f6c2-42c2-b502-77d94cef2b84",
                                                     "name": "Restore Document",
                                                     "request": {
                                                         "name": "Restore Document",
@@ -3598,7 +3598,7 @@
                                                     },
                                                     "response": [
                                                         {
-                                                            "id": "f29ffc33-2843-4843-b4a7-c182257f1002",
+                                                            "id": "59c30bcf-4f9f-4a65-b12c-3a2d19233245",
                                                             "name": "Successful Response",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3658,7 +3658,7 @@
                                                             "_postman_previewlanguage": "json"
                                                         },
                                                         {
-                                                            "id": "4a690140-5c4e-4c21-8c35-1d63fc5933b6",
+                                                            "id": "a788020e-5bce-422e-990b-dcf1f6524a49",
                                                             "name": "Validation Error",
                                                             "originalRequest": {
                                                                 "url": {
@@ -3726,7 +3726,7 @@
                                             ]
                                         },
                                         {
-                                            "id": "92a945fc-489e-42f5-9794-09455ee0af22",
+                                            "id": "2d182cfe-0cf4-4fbf-82e7-0d085e4b8a89",
                                             "name": "Reclassify Document",
                                             "request": {
                                                 "name": "Reclassify Document",
@@ -3790,7 +3790,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "74a2fbba-731e-44cd-9e8c-b5df54318e33",
+                                                    "id": "f4d7a91c-e422-4a91-94fb-4774282ffb3a",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -3862,7 +3862,7 @@
                                                     "_postman_previewlanguage": "json"
                                                 },
                                                 {
-                                                    "id": "b3a6529e-1732-4547-ad39-289453633382",
+                                                    "id": "42da3a6e-afa3-4667-a852-140bb0304312",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -3940,7 +3940,7 @@
                                             }
                                         },
                                         {
-                                            "id": "90c4aa03-0471-4014-9fc1-414377b198f0",
+                                            "id": "bc27d2dd-103e-4a3f-98f5-7609df98f0f8",
                                             "name": "Permanently Delete Document",
                                             "request": {
                                                 "name": "Permanently Delete Document",
@@ -3994,7 +3994,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "d0d4fbce-9912-4113-a267-48ebe19465dc",
+                                                    "id": "0a6f00f4-74b6-43ac-9815-8e9410cc6311",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -4041,7 +4041,7 @@
                                                     "_postman_previewlanguage": "text"
                                                 },
                                                 {
-                                                    "id": "06d7702e-038c-42d5-87e7-00cd6532daea",
+                                                    "id": "39fd65e7-d090-4db2-a429-69af76039cf8",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -4114,7 +4114,7 @@
                             "description": "",
                             "item": [
                                 {
-                                    "id": "7c79a86c-2a4c-4729-b4c7-34219e6823e7",
+                                    "id": "c9384fb8-934c-40f9-88d1-8f5b6ea3d532",
                                     "name": "List Work Logs",
                                     "request": {
                                         "name": "List Work Logs",
@@ -4176,7 +4176,7 @@
                                     },
                                     "response": [
                                         {
-                                            "id": "bf7e5b0a-1cdb-4ec8-9a9e-dadea00e9fe0",
+                                            "id": "0124292b-6ced-41c7-9eb0-0f7d2abae67c",
                                             "name": "Successful Response",
                                             "originalRequest": {
                                                 "url": {
@@ -4238,12 +4238,12 @@
                                                     "value": "application/json"
                                                 }
                                             ],
-                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"lawyer_id\": \"<integer>\",\n      \"lawyer_name\": \"<string>\",\n      \"date\": \"<date>\",\n      \"hours\": \"-0015108566764549\",\n      \"source\": \"manual\",\n      \"description\": \"<string>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"lawyer_id\": \"<integer>\",\n      \"lawyer_name\": \"<string>\",\n      \"date\": \"<date>\",\n      \"hours\": \"0000000826109965\",\n      \"source\": \"manual\",\n      \"description\": \"<string>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                                            "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"lawyer_id\": \"<integer>\",\n      \"lawyer_name\": \"<string>\",\n      \"date\": \"<date>\",\n      \"hours\": \"-00055282.64\",\n      \"source\": \"manual\",\n      \"description\": \"<string>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"case_id\": \"<integer>\",\n      \"lawyer_id\": \"<integer>\",\n      \"lawyer_name\": \"<string>\",\n      \"date\": \"<date>\",\n      \"hours\": \"598850387458278\",\n      \"source\": \"manual\",\n      \"description\": \"<string>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                                             "cookie": [],
                                             "_postman_previewlanguage": "json"
                                         },
                                         {
-                                            "id": "e1e08193-2827-43dd-bc4d-e0bed082a94f",
+                                            "id": "994bb899-c1f0-4fad-8aa2-5d5bf3f3a93b",
                                             "name": "Validation Error",
                                             "originalRequest": {
                                                 "url": {
@@ -4320,7 +4320,7 @@
                                     "description": "",
                                     "item": [
                                         {
-                                            "id": "3ea20362-4c35-4348-a7b0-146a2a157997",
+                                            "id": "b3fa0358-d1d7-41c5-ba6e-a73a3c36235f",
                                             "name": "Update Work Log",
                                             "request": {
                                                 "name": "Update Work Log",
@@ -4387,7 +4387,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "d7275723-042c-45a5-b0ea-932bbfb6ddbc",
+                                                    "id": "97795093-4513-4651-ab01-02a86d22eacd",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -4454,12 +4454,12 @@
                                                             "value": "application/json"
                                                         }
                                                     ],
-                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"case_id\": \"<integer>\",\n  \"lawyer_id\": \"<integer>\",\n  \"lawyer_name\": \"<string>\",\n  \"date\": \"<date>\",\n  \"hours\": \"0000009.\",\n  \"source\": \"manual\",\n  \"description\": \"<string>\"\n}",
+                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"case_id\": \"<integer>\",\n  \"lawyer_id\": \"<integer>\",\n  \"lawyer_name\": \"<string>\",\n  \"date\": \"<date>\",\n  \"hours\": \"-02198\",\n  \"source\": \"manual\",\n  \"description\": \"<string>\"\n}",
                                                     "cookie": [],
                                                     "_postman_previewlanguage": "json"
                                                 },
                                                 {
-                                                    "id": "8c22523b-8e54-4d39-a35c-2b2fa6011b40",
+                                                    "id": "0cf92fa8-d757-47ae-be4a-3d6214b5e902",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -4537,7 +4537,7 @@
                                             }
                                         },
                                         {
-                                            "id": "ea498b45-4cd1-4041-883f-3167a6a87fb6",
+                                            "id": "bb7ac956-fe1b-4b13-991e-586e861e0e7f",
                                             "name": "Delete Work Log",
                                             "request": {
                                                 "name": "Delete Work Log",
@@ -4588,7 +4588,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "de992413-b7af-4193-afb6-f22e2a5bcba3",
+                                                    "id": "01410920-5d54-4268-8428-f8c56025e330",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -4635,7 +4635,7 @@
                                                     "_postman_previewlanguage": "text"
                                                 },
                                                 {
-                                                    "id": "a5e8d815-366e-4381-b394-b3907b00a185",
+                                                    "id": "5178d75f-b550-4db7-b690-9644773bce1c",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -4712,7 +4712,7 @@
             "description": "",
             "item": [
                 {
-                    "id": "18f36d54-4863-4a39-a4e8-795ae80ba7f4",
+                    "id": "e334d7a4-fba0-4ddc-a50f-d88b8fc60a59",
                     "name": "Get Tenant",
                     "request": {
                         "name": "Get Tenant",
@@ -4739,7 +4739,7 @@
                     },
                     "response": [
                         {
-                            "id": "2715b256-4b16-4928-9faa-67509a516163",
+                            "id": "1f8af05d-4fcc-439d-81a4-3c40e3784e48",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -4780,7 +4780,7 @@
                     }
                 },
                 {
-                    "id": "a5d10293-8ab0-4838-ab3e-0a22595c53a9",
+                    "id": "2e509b13-2c7c-4b20-8d9b-88b811eb5a2a",
                     "name": "Update Tenant",
                     "request": {
                         "name": "Update Tenant",
@@ -4811,7 +4811,7 @@
                         "method": "PATCH",
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#c3bf3a\"\n}",
+                            "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#81E8B0\"\n}",
                             "options": {
                                 "raw": {
                                     "headerFamily": "json",
@@ -4823,7 +4823,7 @@
                     },
                     "response": [
                         {
-                            "id": "ece095e9-4692-40fb-bbd7-0e1b30671bfa",
+                            "id": "351ef750-983b-480b-be21-0e140bfe8a5d",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -4849,7 +4849,7 @@
                                 "method": "PATCH",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#c3bf3a\"\n}",
+                                    "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#81E8B0\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -4871,7 +4871,7 @@
                             "_postman_previewlanguage": "json"
                         },
                         {
-                            "id": "10a6f095-22b3-49ad-843e-ab9cf0332d41",
+                            "id": "d0cd0b5d-7a61-411c-ba2f-8dd886abd022",
                             "name": "Validation Error",
                             "originalRequest": {
                                 "url": {
@@ -4897,7 +4897,7 @@
                                 "method": "PATCH",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#c3bf3a\"\n}",
+                                    "raw": "{\n  \"name\": \"<string>\",\n  \"logo_url\": \"<string>\",\n  \"primary_color\": \"#81E8B0\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -4931,7 +4931,7 @@
             "description": "",
             "item": [
                 {
-                    "id": "65f2702e-b053-4933-8ffd-641c744e29eb",
+                    "id": "7c624cf9-b310-4e2c-b057-194681f80d61",
                     "name": "Get Subscription",
                     "request": {
                         "name": "Get Subscription",
@@ -4958,7 +4958,7 @@
                     },
                     "response": [
                         {
-                            "id": "a9fb7190-45ee-4524-aa6f-85429ca1acf7",
+                            "id": "7f27c466-2f8d-4787-828b-0b2e234e3711",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -4988,7 +4988,7 @@
                                     "value": "application/json"
                                 }
                             ],
-                            "body": "{\n  \"plan\": \"enterprise\",\n  \"lawyer_count\": \"<integer>\",\n  \"lawyer_limit\": \"<integer>\",\n  \"storage_used_bytes\": \"<integer>\",\n  \"storage_limit_bytes\": \"<integer>\"\n}",
+                            "body": "{\n  \"plan\": \"free\",\n  \"lawyer_count\": \"<integer>\",\n  \"lawyer_limit\": \"<integer>\",\n  \"storage_used_bytes\": \"<integer>\",\n  \"storage_limit_bytes\": \"<integer>\"\n}",
                             "cookie": [],
                             "_postman_previewlanguage": "json"
                         }
@@ -5003,7 +5003,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "0dbd6e62-a483-4ef3-ab31-128099300905",
+                            "id": "983083f3-048b-40fc-ba36-a2549bf55800",
                             "name": "Switch Plan",
                             "request": {
                                 "name": "Switch Plan",
@@ -5035,7 +5035,7 @@
                                 "method": "POST",
                                 "body": {
                                     "mode": "raw",
-                                    "raw": "{\n  \"plan\": \"enterprise\"\n}",
+                                    "raw": "{\n  \"plan\": \"free\"\n}",
                                     "options": {
                                         "raw": {
                                             "headerFamily": "json",
@@ -5047,7 +5047,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "1826305b-ac3e-435a-916b-91014efeb5c7",
+                                    "id": "5e8669fc-5c68-44f9-9dbe-69e716d5b85d",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -5074,7 +5074,7 @@
                                         "method": "POST",
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n  \"plan\": \"enterprise\"\n}",
+                                            "raw": "{\n  \"plan\": \"free\"\n}",
                                             "options": {
                                                 "raw": {
                                                     "headerFamily": "json",
@@ -5091,12 +5091,12 @@
                                             "value": "application/json"
                                         }
                                     ],
-                                    "body": "{\n  \"plan\": \"enterprise\",\n  \"lawyer_count\": \"<integer>\",\n  \"lawyer_limit\": \"<integer>\",\n  \"storage_used_bytes\": \"<integer>\",\n  \"storage_limit_bytes\": \"<integer>\"\n}",
+                                    "body": "{\n  \"plan\": \"free\",\n  \"lawyer_count\": \"<integer>\",\n  \"lawyer_limit\": \"<integer>\",\n  \"storage_used_bytes\": \"<integer>\",\n  \"storage_limit_bytes\": \"<integer>\"\n}",
                                     "cookie": [],
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "3681eb1e-0daa-4ae3-bd99-5fc41208b1cc",
+                                    "id": "218f11b3-46d8-49c5-95bc-70ed1d153e4d",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -5123,7 +5123,7 @@
                                         "method": "POST",
                                         "body": {
                                             "mode": "raw",
-                                            "raw": "{\n  \"plan\": \"enterprise\"\n}",
+                                            "raw": "{\n  \"plan\": \"free\"\n}",
                                             "options": {
                                                 "raw": {
                                                     "headerFamily": "json",
@@ -5163,7 +5163,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "9067f257-987f-4bea-b7da-334334e51cf3",
+                            "id": "ecfc978a-77c6-4335-8add-dd2aa71da44d",
                             "name": "List Tenants",
                             "request": {
                                 "name": "List Tenants",
@@ -5213,7 +5213,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "6fb1378a-5836-4619-a819-c45f69676461",
+                                    "id": "84b63f68-d50a-4137-a9fc-78ba383d56be",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -5263,12 +5263,12 @@
                                             "value": "application/json"
                                         }
                                     ],
-                                    "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"name\": \"<string>\",\n      \"subdomain\": \"<string>\",\n      \"active\": \"<boolean>\",\n      \"plan\": \"pro\",\n      \"lawyer_count\": \"<integer>\",\n      \"case_count\": \"<integer>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"name\": \"<string>\",\n      \"subdomain\": \"<string>\",\n      \"active\": \"<boolean>\",\n      \"plan\": \"pro\",\n      \"lawyer_count\": \"<integer>\",\n      \"case_count\": \"<integer>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
+                                    "body": "{\n  \"items\": [\n    {\n      \"id\": \"<integer>\",\n      \"name\": \"<string>\",\n      \"subdomain\": \"<string>\",\n      \"active\": \"<boolean>\",\n      \"plan\": \"pro\",\n      \"lawyer_count\": \"<integer>\",\n      \"case_count\": \"<integer>\"\n    },\n    {\n      \"id\": \"<integer>\",\n      \"name\": \"<string>\",\n      \"subdomain\": \"<string>\",\n      \"active\": \"<boolean>\",\n      \"plan\": \"enterprise\",\n      \"lawyer_count\": \"<integer>\",\n      \"case_count\": \"<integer>\"\n    }\n  ],\n  \"total\": \"<integer>\",\n  \"page\": \"<integer>\",\n  \"page_size\": \"<integer>\"\n}",
                                     "cookie": [],
                                     "_postman_previewlanguage": "json"
                                 },
                                 {
-                                    "id": "ea53e4f5-1639-4756-8399-f845d008bbad",
+                                    "id": "1355d097-bdcc-40a8-a757-ecee28dc2e7e",
                                     "name": "Validation Error",
                                     "originalRequest": {
                                         "url": {
@@ -5337,7 +5337,7 @@
                                     "description": "",
                                     "item": [
                                         {
-                                            "id": "a5877243-b615-46e4-ae9b-36b68077e2c2",
+                                            "id": "a514021b-01c7-4f3d-81f7-b70768d99aaf",
                                             "name": "Suspend Tenant",
                                             "request": {
                                                 "name": "Suspend Tenant",
@@ -5381,7 +5381,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "90eed9cb-53ad-4cee-a4fd-a2cf16a7f0d6",
+                                                    "id": "9a480654-145b-4119-91ef-397236fe885c",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -5425,12 +5425,12 @@
                                                             "value": "application/json"
                                                         }
                                                     ],
-                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"name\": \"<string>\",\n  \"subdomain\": \"<string>\",\n  \"active\": \"<boolean>\",\n  \"plan\": \"free\",\n  \"lawyer_count\": \"<integer>\",\n  \"case_count\": \"<integer>\"\n}",
+                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"name\": \"<string>\",\n  \"subdomain\": \"<string>\",\n  \"active\": \"<boolean>\",\n  \"plan\": \"enterprise\",\n  \"lawyer_count\": \"<integer>\",\n  \"case_count\": \"<integer>\"\n}",
                                                     "cookie": [],
                                                     "_postman_previewlanguage": "json"
                                                 },
                                                 {
-                                                    "id": "0d38334a-1281-498c-98e1-fb78c0847d22",
+                                                    "id": "8f891ca1-185e-47de-8653-56ecde6e7bd8",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -5491,7 +5491,7 @@
                                     "description": "",
                                     "item": [
                                         {
-                                            "id": "b3de4a5b-d037-4b19-8dc1-ba49eb99e80a",
+                                            "id": "5933d298-4a87-4595-9af9-e51a0925e2a3",
                                             "name": "Reactivate Tenant",
                                             "request": {
                                                 "name": "Reactivate Tenant",
@@ -5532,7 +5532,7 @@
                                             },
                                             "response": [
                                                 {
-                                                    "id": "41832640-6b05-49ca-99a1-89304ccc30f5",
+                                                    "id": "1165bf4b-6fd1-499b-a883-01f261784c08",
                                                     "name": "Successful Response",
                                                     "originalRequest": {
                                                         "url": {
@@ -5576,12 +5576,12 @@
                                                             "value": "application/json"
                                                         }
                                                     ],
-                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"name\": \"<string>\",\n  \"subdomain\": \"<string>\",\n  \"active\": \"<boolean>\",\n  \"plan\": \"free\",\n  \"lawyer_count\": \"<integer>\",\n  \"case_count\": \"<integer>\"\n}",
+                                                    "body": "{\n  \"id\": \"<integer>\",\n  \"name\": \"<string>\",\n  \"subdomain\": \"<string>\",\n  \"active\": \"<boolean>\",\n  \"plan\": \"enterprise\",\n  \"lawyer_count\": \"<integer>\",\n  \"case_count\": \"<integer>\"\n}",
                                                     "cookie": [],
                                                     "_postman_previewlanguage": "json"
                                                 },
                                                 {
-                                                    "id": "39b35232-2fb6-420c-a1b9-7cf501e3d2a3",
+                                                    "id": "2ca3d26d-f540-4806-9e0c-9ec4fc21b7dc",
                                                     "name": "Validation Error",
                                                     "originalRequest": {
                                                         "url": {
@@ -5646,7 +5646,7 @@
                     "description": "",
                     "item": [
                         {
-                            "id": "e4c23c53-b34a-4d7f-90e6-2004335a50ee",
+                            "id": "87532105-ee5d-487d-b316-a33b5f2a44bc",
                             "name": "Platform Stats",
                             "request": {
                                 "name": "Platform Stats",
@@ -5677,7 +5677,7 @@
                             },
                             "response": [
                                 {
-                                    "id": "f6ce8488-61c0-461c-b420-51627ae9044d",
+                                    "id": "5ade2bf2-01f3-4824-ac38-5ed050b6d489",
                                     "name": "Successful Response",
                                     "originalRequest": {
                                         "url": {
@@ -5723,11 +5723,238 @@
             ]
         },
         {
+            "name": "dashboard",
+            "description": "",
+            "item": [
+                {
+                    "name": "stats",
+                    "description": "",
+                    "item": [
+                        {
+                            "id": "f1633797-ec8d-417d-b5c1-000378475fbf",
+                            "name": "Dashboard Stats",
+                            "request": {
+                                "name": "Dashboard Stats",
+                                "description": {},
+                                "url": {
+                                    "path": [
+                                        "dashboard",
+                                        "stats"
+                                    ],
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "query": [],
+                                    "variable": []
+                                },
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "method": "GET",
+                                "body": {},
+                                "auth": null
+                            },
+                            "response": [
+                                {
+                                    "id": "12f23f80-c704-46ea-af5a-f56591021c4c",
+                                    "name": "Successful Response",
+                                    "originalRequest": {
+                                        "url": {
+                                            "path": [
+                                                "dashboard",
+                                                "stats"
+                                            ],
+                                            "host": [
+                                                "{{baseUrl}}"
+                                            ],
+                                            "query": [],
+                                            "variable": []
+                                        },
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json"
+                                            }
+                                        ],
+                                        "method": "GET",
+                                        "body": {}
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "body": "{\n  \"active_case_count\": \"<integer>\",\n  \"total_case_count\": \"<integer>\",\n  \"closed_case_count\": \"<integer>\",\n  \"lawyer_count\": \"<integer>\",\n  \"client_count\": \"<integer>\",\n  \"plan\": \"pro\",\n  \"storage_used_bytes\": \"<integer>\",\n  \"storage_limit_bytes\": \"<integer>\",\n  \"monthly_case_activity\": [\n    {\n      \"month\": \"<string>\",\n      \"new_cases\": \"<integer>\"\n    },\n    {\n      \"month\": \"<string>\",\n      \"new_cases\": \"<integer>\"\n    }\n  ]\n}",
+                                    "cookie": [],
+                                    "_postman_previewlanguage": "json"
+                                }
+                            ],
+                            "event": [],
+                            "protocolProfileBehavior": {
+                                "disableBodyPruning": true
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "export",
+                    "description": "",
+                    "item": [
+                        {
+                            "id": "9f0623fa-6ad8-44ec-b33e-e015e2da10e3",
+                            "name": "Export Data",
+                            "request": {
+                                "name": "Export Data",
+                                "description": {
+                                    "content": "CSV export of this tenant's own cases or members. Per CLAUDE.md's\nexplicit warning, export queries are exactly the kind most likely to\naccidentally skip tenant_id filtering — both branches below filter on\n`tenant.id` from get_current_tenant the same way every other route in\nthis file does, rather than a separate one-off query written just for\nthis feature.",
+                                    "type": "text/plain"
+                                },
+                                "url": {
+                                    "path": [
+                                        "dashboard",
+                                        "export"
+                                    ],
+                                    "host": [
+                                        "{{baseUrl}}"
+                                    ],
+                                    "query": [
+                                        {
+                                            "disabled": false,
+                                            "description": {
+                                                "content": "",
+                                                "type": "text/plain"
+                                            },
+                                            "key": "resource",
+                                            "value": "cases"
+                                        }
+                                    ],
+                                    "variable": []
+                                },
+                                "header": [
+                                    {
+                                        "key": "Accept",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "method": "GET",
+                                "body": {},
+                                "auth": null
+                            },
+                            "response": [
+                                {
+                                    "id": "d72a8490-6225-472b-a0ab-4cdc9b2cf09e",
+                                    "name": "Successful Response",
+                                    "originalRequest": {
+                                        "url": {
+                                            "path": [
+                                                "dashboard",
+                                                "export"
+                                            ],
+                                            "host": [
+                                                "{{baseUrl}}"
+                                            ],
+                                            "query": [
+                                                {
+                                                    "disabled": false,
+                                                    "description": {
+                                                        "content": "",
+                                                        "type": "text/plain"
+                                                    },
+                                                    "key": "resource",
+                                                    "value": "cases"
+                                                }
+                                            ],
+                                            "variable": []
+                                        },
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json"
+                                            }
+                                        ],
+                                        "method": "GET",
+                                        "body": {}
+                                    },
+                                    "status": "OK",
+                                    "code": 200,
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "body": "",
+                                    "cookie": [],
+                                    "_postman_previewlanguage": "json"
+                                },
+                                {
+                                    "id": "23fbe2f5-5984-4906-aae9-e7958fc25848",
+                                    "name": "Validation Error",
+                                    "originalRequest": {
+                                        "url": {
+                                            "path": [
+                                                "dashboard",
+                                                "export"
+                                            ],
+                                            "host": [
+                                                "{{baseUrl}}"
+                                            ],
+                                            "query": [
+                                                {
+                                                    "disabled": false,
+                                                    "description": {
+                                                        "content": "",
+                                                        "type": "text/plain"
+                                                    },
+                                                    "key": "resource",
+                                                    "value": "cases"
+                                                }
+                                            ],
+                                            "variable": []
+                                        },
+                                        "header": [
+                                            {
+                                                "key": "Accept",
+                                                "value": "application/json"
+                                            }
+                                        ],
+                                        "method": "GET",
+                                        "body": {}
+                                    },
+                                    "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                                    "code": 422,
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "body": "{\n  \"detail\": [\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    },\n    {\n      \"loc\": [\n        \"<string>\",\n        \"<string>\"\n      ],\n      \"msg\": \"<string>\",\n      \"type\": \"<string>\"\n    }\n  ]\n}",
+                                    "cookie": [],
+                                    "_postman_previewlanguage": "json"
+                                }
+                            ],
+                            "event": [],
+                            "protocolProfileBehavior": {
+                                "disableBodyPruning": true
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "name": "health",
             "description": "",
             "item": [
                 {
-                    "id": "9b83225d-6be0-4b20-97b3-1d8f73b96b3b",
+                    "id": "6a7bb01d-78a5-4f5e-8e48-b888cbad94b3",
                     "name": "Health Check",
                     "request": {
                         "name": "Health Check",
@@ -5754,7 +5981,7 @@
                     },
                     "response": [
                         {
-                            "id": "48ead74f-8436-4319-9e4a-25a1eaea5b1c",
+                            "id": "fbf95b16-e0fa-425f-b2b2-6ccd14ceb21b",
                             "name": "Successful Response",
                             "originalRequest": {
                                 "url": {
@@ -5805,7 +6032,7 @@
         }
     ],
     "info": {
-        "_postman_id": "ff889225-1aa5-42c9-8f45-6883ef64c9f2",
+        "_postman_id": "b17094c2-4abb-4e1e-8745-ac19bc29c488",
         "name": "CaseHub Admin API",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
         "description": {
