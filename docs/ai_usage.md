@@ -1722,3 +1722,119 @@ prior session data):
   numeric input added later with a non-1 `step`: `min` must itself be a
   multiple of `step`, or the browser's implied valid-value sequence starts
   from the wrong base and silently rejects otherwise-sane input.
+
+## 2026-09-09 (later) — office_manager admin gaps: members lifecycle, branding, subscription/plan
+
+**Asked**: Build the remaining Phase 2 office_manager administrative
+features called out in CLAUDE.md's Build status gap list: completing member
+management (deactivate, reactivate-on-re-add, hand password reset), a
+branding settings screen (direct `Tenants` columns), and a subscription/plan
+view with usage vs. plan limits plus a self-service plan switch. Backend and
+frontend together, on a new `feature/office-admin` branch, same shape as the
+prior WorkLogs/Documents sessions.
+
+**Changed**:
+- `shared/membership.py`'s `get_current_membership` now filters on
+  `Membership.active.is_(True)` — previously a deactivated membership was
+  invisible to list views but still fully functional for every route gated
+  by `require_role`, which would have made "deactivate a member" cosmetic
+  rather than a real access revocation. Also added the same `active` filter
+  to both `client_api`'s and `admin_api`'s `/auth/login` membership lookups,
+  so a deactivated person is rejected at login too, not just after.
+- `shared/plan_limits.py`: added `PLAN_LAWYER_LIMITS` (Free 3 / Pro 15 /
+  Enterprise 50) alongside the existing storage table, a `"lawyer_count"`
+  branch in `check_plan_limit`, and a new `get_plan_usage(tenant_id, db)`
+  returning everything the subscription screen needs (plan + both
+  used/limit pairs) — kept in `shared` (not admin_api) specifically so the
+  screen's displayed numbers can never drift from what `check_plan_limit`
+  actually enforces, same one-source-of-truth reasoning already documented
+  there for storage.
+- `admin_api/routers/members.py`: `GET /members` gained an `include_inactive`
+  query param (default off, so every existing caller/picker is unaffected);
+  `POST /members` now checks for an existing *inactive* row by
+  identity+tenant before inserting and reactivates it in place (setting the
+  new role) instead of racing the unique constraint with a fresh insert —
+  this is what makes "re-add a removed person by email" work per CLAUDE.md's
+  Memberships note; added `POST /members/{id}/deactivate` (blocks
+  self-deactivation, logs an `AuditLog` row) and
+  `POST /members/{id}/reset-password` (hashes the new password, bumps
+  `token_version` so old sessions actually die, logs an `AuditLog` row).
+  Adding/reactivating a `LAWYER` role now runs through
+  `check_plan_limit(..., "lawyer_count", ..., additional=1)` first.
+- New `admin_api/routers/tenant.py` (`GET`/`PATCH /tenant`) for branding —
+  direct `name`/`logo_url`/`primary_color` columns, `subdomain`/`active`
+  deliberately not editable here (subdomain is fixed at signup, `active` is
+  the super_admin-only lockout switch).
+- New `admin_api/routers/subscriptions.py` (`GET /subscription`,
+  `POST /subscription/plan`) — the former just calls `get_plan_usage`; the
+  latter deactivates the current active `Subscription` row (`end_date` =
+  today) and inserts a new active one for the chosen plan, no payment step,
+  matching CLAUDE.md's "resource gate, not a commerce system." Rejects
+  switching to the plan already active.
+- Frontend (`admin/`): new `MembersPage` (role tabs + a "show also removed"
+  toggle reusing the existing tabs/card visual language, `AddMemberModal`,
+  `ResetPasswordModal` — both built on the existing `Modal`/`FormField`
+  pattern), new `BrandingPage` (form + live preview card) and
+  `SubscriptionPage` (usage bars + a 3-plan switch grid), both under a new
+  shared `SettingsTabs` sub-nav rather than two separate sidebar entries.
+  Enabled the previously-disabled "אנשי צוות" sidebar item and added a new
+  "הגדרות משרד" one. Extended `Form.css` to style `<select>` the same as
+  `<input>` (only inputs were styled before, and the new Add-Member/plan
+  forms are the first to need a select), and `formatFileSize` to add a GB
+  tier (previously topped out at MB, fine for per-file sizes but not a
+  100GB-cap storage-quota display).
+- Added 22 new pytest tests (`test_members_admin.py` additions,
+  `test_tenant_admin.py`, `test_subscriptions_admin.py`) covering:
+  deactivate excludes-from-list/blocks-self/actually-revokes-login-access;
+  re-add-reactivates-same-row-not-a-new-insert; lawyer-count plan-limit
+  rejection; password-reset-changes-what-future-logins-accept (verified via
+  a real `client_api` login call, old password now rejected); branding
+  get/update/tenant-isolation/role-guard/invalid-color-422; subscription
+  usage numbers, plan switch old-row-deactivated-new-row-active,
+  reject-same-plan, and the explicit "downgrade doesn't touch existing
+  lawyers" grandfathering behavior. Full suite (121 tests) green.
+- Re-ran `server/scripts/export_docs.sh` (OpenAPI ×2, ERD, Postman ×2) —
+  `admin_api` grew from 20 to 25 documented paths.
+- Browser-verified end-to-end as the seeded office_manager (Playwright
+  driving the already-running Vite dev servers, since `chromium-cli` wasn't
+  available in this environment): add member (incl. the expected
+  already-a-member 400), deactivate, toggle "show removed", re-add-by-email
+  reactivation, password reset, branding edit + reload-persists, and a full
+  Free→Pro→Free plan switch with usage bars updating live.
+
+**Learned / decided**:
+- Found and fixed a real bug during browser verification, not just a test
+  gap: `check_plan_limit(tenant.id, "lawyer_count", db)` was called without
+  `additional=1` at the one call site, so the count comparison always
+  compared *pre*-insert usage against the limit — a 4th lawyer add on Free
+  compared 3 (already added) against a limit of 3 and passed, when it
+  should have compared 3+1. The existing `storage_bytes` call site already
+  passed `additional=len(content)` correctly; this was a copy-paste gap in
+  the new call, not a design flaw in `check_plan_limit` itself. Caught by
+  the `test_add_member_rejects_lawyer_over_plan_limit` test, not the
+  browser — worth noting since it's exactly the kind of off-by-one a
+  resource-gate helper needs a test for, not just eyeballing.
+- Also found, only via the actual browser screenshot (no automated test
+  would have caught this): the subscription usage bars rendered as `"3 / 1"`
+  instead of `"1 / 3"`, and storage as `"B / 1.00 GB 0"` — a Unicode
+  bidi-reordering bug, not a logic bug. Plain digits and `/` have no strong
+  directional character, so left inside the page's `dir="rtl"` root they
+  silently reorder to match paragraph direction. Fixed by wrapping the
+  fraction in an explicit `<span dir="ltr">`. General lesson for the rest of
+  this RTL app: any place a raw "X / Y" or "X of Y" number pair gets
+  rendered needs the same explicit `dir="ltr"` treatment, not just numbers
+  mixed with Hebrew words (Hebrew words are themselves strong-RTL and
+  anchor the direction correctly; it's specifically weak/neutral runs like
+  bare numbers and slashes that are at risk). Also wrapped an interpolated
+  Latin name inside a Hebrew success message in `<bdi>` for the same class
+  of defensive reason, though that particular instance wasn't confirmed
+  broken in the screenshot.
+- Deliberately did not build a `super_admin` override for one tenant's plan
+  limits (CLAUDE.md explicitly says this is "reasonable to mention if it
+  comes up, but isn't built as a feature") — out of scope here.
+- Deliberately kept branding/subscription as two routes (`/settings/branding`,
+  `/settings/subscription`) under one new `SettingsTabs` sub-nav component
+  rather than either two separate sidebar items or one page with internal
+  tab state — matches the sidebar's existing one-item-per-concept density
+  without needing a third top-level nav slot for what's really one "office
+  settings" concern.

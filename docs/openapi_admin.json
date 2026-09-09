@@ -186,7 +186,7 @@
           "members"
         ],
         "summary": "List Members",
-        "description": "Currently-active members at this firm, optionally filtered by role —\npowers pickers like the case-assignment modal (lawyers/clients only,\nnever office managers/super_admin) as well as any future members screen.\nSame \"active = true\" convention as every other \"who currently works\nhere\" query (see CLAUDE.md's Memberships.active note).",
+        "description": "Currently-active members at this firm, optionally filtered by role —\npowers pickers like the case-assignment modal (lawyers/clients only,\nnever office managers/super_admin) as well as the members screen. Same\n\"active = true\" convention as every other \"who currently works here\"\nquery (see CLAUDE.md's Memberships.active note). `include_inactive` is\nthe one exception — the members screen itself needs to also show\ndeactivated people (to re-add them), pickers never pass it.",
         "operationId": "list_members_members_get",
         "parameters": [
           {
@@ -203,6 +203,16 @@
                 }
               ],
               "title": "Role"
+            }
+          },
+          {
+            "name": "include_inactive",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Include Inactive"
             }
           },
           {
@@ -257,7 +267,7 @@
           "members"
         ],
         "summary": "Add Member",
-        "description": "Attach an existing global account to this firm, by email — no new\npassword is created, the person logs in with their existing account.",
+        "description": "Attach an existing global account to this firm, by email — no new\npassword is created, the person logs in with their existing account.\n\nIf this identity already has an *inactive* Membership at this tenant\n(someone previously removed), that row is reactivated in place instead\nof inserting a new one — a fresh insert would fail the identity_id+\ntenant_id unique constraint while the old row still exists, active or\nnot (CLAUDE.md's Memberships.active note).",
         "operationId": "add_member_members_post",
         "requestBody": {
           "required": true,
@@ -279,6 +289,95 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members/{membership_id}/deactivate": {
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Deactivate Member",
+        "description": "Soft delete (CLAUDE.md's Memberships.active) — removes them from every\n\"who currently works here\" query and (via get_current_membership /\nthe login routes) actually revokes their access to this firm, while\nWorkLogs/Documents/CaseAssignments/AuditLogs referencing this\nmembership_id keep resolving correctly regardless.",
+        "operationId": "deactivate_member_members__membership_id__deactivate_post",
+        "parameters": [
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Membership Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members/{membership_id}/reset-password": {
+      "post": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Reset Member Password",
+        "description": "office_manager sets a new password for a member by hand — the interim\nstand-in for real password recovery (CLAUDE.md's Future additions).\nBumps token_version so any of the member's outstanding sessions are\ninvalidated too, same as a self-service password change would.",
+        "operationId": "reset_member_password_members__membership_id__reset_password_post",
+        "parameters": [
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Membership Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetMemberPasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -1264,6 +1363,130 @@
         }
       }
     },
+    "/tenant": {
+      "get": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Get Tenant",
+        "operationId": "get_tenant_tenant_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Update Tenant",
+        "description": "Branding settings — direct Tenants columns, not the generic Settings\ntable (CLAUDE.md's Branding requirement).",
+        "operationId": "update_tenant_tenant_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subscription": {
+      "get": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Get Subscription",
+        "operationId": "get_subscription_subscription_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionUsageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subscription/plan": {
+      "post": {
+        "tags": [
+          "subscription"
+        ],
+        "summary": "Switch Plan",
+        "description": "Self-service plan switch — no payment flow, just marking a new\nSubscriptions row active (CLAUDE.md: \"a resource gate, not a commerce\nsystem\"). Downgrades don't retroactively touch existing resources —\ncheck_plan_limit only ever blocks *new* additions, never deactivates\nanyone or deletes anything, so switching plans here is safe regardless\nof current usage.",
+        "operationId": "switch_plan_subscription_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionUsageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health Check",
@@ -1300,7 +1523,7 @@
           "role"
         ],
         "title": "AddMemberRequest",
-        "description": "Office manager attaches an existing global account to their firm."
+        "description": "Office manager attaches an existing global account to their firm.\n\nIf this email already has a (now-inactive) Membership at this tenant —\ni.e. someone previously removed — that row is reactivated instead of a\nnew one being inserted (the identity_id+tenant_id unique constraint\nwould reject a fresh insert while the old row still exists)."
       },
       "AssignCaseRequest": {
         "properties": {
@@ -1768,6 +1991,15 @@
         ],
         "title": "Page[WorkLogResponse]"
       },
+      "Plan": {
+        "type": "string",
+        "enum": [
+          "free",
+          "pro",
+          "enterprise"
+        ],
+        "title": "Plan"
+      },
       "PlatformLoginRequest": {
         "properties": {
           "email": {
@@ -1819,6 +2051,21 @@
           "folder_type"
         ],
         "title": "ReclassifyDocumentRequest"
+      },
+      "ResetMemberPasswordRequest": {
+        "properties": {
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "new_password"
+        ],
+        "title": "ResetMemberPasswordRequest",
+        "description": "office_manager sets a new password for a member by hand — the\ninterim stand-in for real password recovery (CLAUDE.md's Future\nadditions). They must use it next login."
       },
       "SessionResponse": {
         "properties": {
@@ -1886,6 +2133,101 @@
         "title": "SignupRequest",
         "description": "Register a brand-new firm (tenant) plus its first office_manager."
       },
+      "SubscriptionUsageResponse": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "lawyer_count": {
+            "type": "integer",
+            "title": "Lawyer Count"
+          },
+          "lawyer_limit": {
+            "type": "integer",
+            "title": "Lawyer Limit"
+          },
+          "storage_used_bytes": {
+            "type": "integer",
+            "title": "Storage Used Bytes"
+          },
+          "storage_limit_bytes": {
+            "type": "integer",
+            "title": "Storage Limit Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan",
+          "lawyer_count",
+          "lawyer_limit",
+          "storage_used_bytes",
+          "storage_limit_bytes"
+        ],
+        "title": "SubscriptionUsageResponse",
+        "description": "The firm's current plan (from the active Subscriptions row — Tenants\nitself has no plan column, CLAUDE.md) plus usage against that plan's\nhardcoded limits (shared/plan_limits.py, the same numbers\ncheck_plan_limit actually enforces)."
+      },
+      "SwitchPlanRequest": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan"
+        ],
+        "title": "SwitchPlanRequest"
+      },
+      "TenantResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "primary_color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Color"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "subdomain",
+          "active"
+        ],
+        "title": "TenantResponse"
+      },
       "UpdateCaseStatusRequest": {
         "properties": {
           "status": {
@@ -1912,6 +2254,46 @@
           "title"
         ],
         "title": "UpdateCaseTitleRequest"
+      },
+      "UpdateTenantRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "primary_color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Color"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "UpdateTenantRequest",
+        "description": "Direct Tenants columns only (name/logo_url/primary_color) — not the\ngeneric Settings table, per CLAUDE.md's Branding requirement. subdomain\nand active are deliberately not editable here: subdomain is fixed at\nsignup (changing it would break every existing bookmark/link), and\nactive is a super_admin-only lockout switch, not a self-service one."
       },
       "UpdateWorkLogRequest": {
         "properties": {
