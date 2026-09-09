@@ -5,6 +5,7 @@ import SignupPage from './pages/SignupPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import MembersPage from './pages/MembersPage'
+import BrandingPage from './pages/BrandingPage'
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/cases" element={<CasesListPage />} />
         <Route path="/cases/:caseId" element={<CaseDetailPage />} />
         <Route path="/members" element={<MembersPage />} />
+        <Route path="/settings/branding" element={<BrandingPage />} />
         <Route path="/" element={<Navigate to="/cases" replace />} />
         <Route path="*" element={<Navigate to="/cases" replace />} />
       </Routes>
