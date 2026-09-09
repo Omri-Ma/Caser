@@ -89,3 +89,28 @@ def count_active_lawyers(tenant_id: int, db: Session) -> int:
         .count()
     )
 
+
+def get_storage_used_bytes(tenant_id: int, db: Session) -> int:
+    # Archived documents still count (see check_plan_limit above).
+    return (
+        db.query(func.coalesce(func.sum(Document.file_size), 0))
+        .filter(Document.tenant_id == tenant_id)
+        .scalar()
+    )
+
+
+def get_plan_usage(tenant_id: int, db: Session) -> dict:
+    """Everything the office_manager's subscription/plan screen needs in one
+    call: current plan plus usage against both hardcoded limits above. Kept
+    here rather than in admin_api so the numbers it reports can never drift
+    from the numbers check_plan_limit actually enforces.
+    """
+    plan = get_active_plan(tenant_id, db)
+    return {
+        "plan": plan,
+        "lawyer_count": count_active_lawyers(tenant_id, db),
+        "lawyer_limit": PLAN_LAWYER_LIMITS[plan],
+        "storage_used_bytes": get_storage_used_bytes(tenant_id, db),
+        "storage_limit_bytes": PLAN_STORAGE_LIMIT_BYTES[plan],
+    }
+

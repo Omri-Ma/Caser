@@ -8,6 +8,7 @@ from admin_api.routers.auth import router as auth_router
 from admin_api.routers.cases import router as cases_router
 from admin_api.routers.documents import router as documents_router
 from admin_api.routers.members import router as members_router
+from admin_api.routers.subscriptions import router as subscriptions_router
 from admin_api.routers.tenant import router as tenant_router
 from admin_api.routers.work_logs import router as work_logs_router
 from shared.errors import register_error_handlers
@@ -25,6 +26,7 @@ app.include_router(cases_router)
 app.include_router(documents_router)
 app.include_router(work_logs_router)
 app.include_router(tenant_router)
+app.include_router(subscriptions_router)
 
 # Same allow_origin_regex approach as client_api — see that app for the full
 # reasoning. Every tenant subdomain is trusted automatically (both the
