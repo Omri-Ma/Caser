@@ -2142,3 +2142,131 @@ on 5173/5174 — no new servers started):
   reusing `AppShell`'s or `api/auth.js`'s `me()` — both of those treat a 401
   as "redirect to login," which is the right behavior for a protected page
   but the opposite of what "/" needs to do (show the public page instead).
+
+## 2026-09-09 (later still, yet again) — Narrative generation + PDF export, built as one connected flow (branch `feature/narratives`)
+
+**Asked**: Build CLAUDE.md's Phase 3 items 2+3 together — fixed-template
+narrative generation from a case's WorkLogs, and PDF export that files the
+result as a real internal `Document` on the case, per CLAUDE.md's explicit
+"narratives are never directly client-visible; sharing one is just the
+existing Documents reclassify-to-client-folder action" design.
+
+**Changed**:
+- `server/client_api/core/narratives.py` (new): `HOURLY_RATE = 450.00`
+  (flat-rate stand-in — CLAUDE.md: "no real AI/LLM needed, this is
+  intentionally simple"), `compute_case_totals()` (sums every `WorkLog.hours`
+  on the case into `total_hours`, derives `total_fee` at the flat rate),
+  `generate_narrative_text()` (fixed-template body, no LLM call), and
+  `build_narrative_pdf()` (plain `reportlab` canvas drawing — case title,
+  narrative id/date, totals, then the wrapped narrative body; paginates if
+  the text overflows one page).
+- `server/client_api/routers/narratives.py` (new), mounted at
+  `/cases/{case_id}/narratives`, mirroring `work_logs.py`'s shape:
+  - `POST ""` — generates and inserts a new `Narrative` row (never edits an
+    existing one — same "rows accumulate, newest wins" pattern as
+    `Subscriptions`). Lawyer-only via `require_role(LAWYER)`, same as
+    `work_logs.py` — any lawyer assigned to the case, not
+    office_manager-gated, per CLAUDE.md, even though it produces a fee
+    figure. No case-status restriction: unlike WorkLogs/Documents, a closed
+    case doesn't block generating or exporting a narrative — closing a case
+    is what CLAUDE.md says protects billing integrity *after* a case has
+    been narrated/invoiced, which implies the narrative/export step needs to
+    keep working on (or after) close, not get blocked by it.
+  - `GET ""` — full history, paginated, newest first (the first row returned
+    is always the current/authoritative narrative).
+  - `POST "/{narrative_id}/export-pdf"` — renders the PDF, runs it through
+    the existing `check_plan_limit("storage_bytes", ...)` gate (a PDF is
+    real bytes on disk, same quota as any other upload), saves it via the
+    existing `shared.storage.save_file()`, and inserts a real `Document` row
+    (`folder_type=internal`) plus an `AuditLog` row
+    (`action="narrative_pdf_exported"`) — returns the same `DocumentResponse`
+    shape `documents.py` already returns, so the frontend's existing
+    Documents panel needs zero new response-parsing logic. No new
+    visibility mechanism built for narratives at all, exactly as scoped —
+    sharing one with the client is the pre-existing reclassify-to-`client`
+    action, verified working end-to-end below.
+  - `_get_case_narrative()` 404s if the narrative exists but belongs to a
+    *different* case at the same tenant (not just a different tenant) —
+    covered by `test_export_pdf_rejects_narrative_from_other_case`.
+- `server/client_api/schemas/narratives.py` (new): `NarrativeResponse`
+  (id, case_id, generated_text, total_hours, total_fee, created_at).
+- `server/client_api/main.py`: registered the new router.
+- `server/requirements.txt`: added `reportlab==4.2.5`.
+- `server/tests/test_narratives_client.py` (new, 9 tests): generate from
+  real WorkLogs (asserts the exact computed hours/fee), lawyer-only
+  generate/list/export (client 403s on all three), unassigned-lawyer 403,
+  generating twice keeps both rows with newest-first ordering, export-pdf
+  creates the internal Document + AuditLog row, export-pdf rejects a
+  narrative id that belongs to a different case, and the full
+  reclassify-then-client-sees-it chain (asserts `total == 0` for the client
+  before reclassifying, `total == 1` with the right document id after).
+- `client/src/api/narratives.js` (new): `listNarratives`/`generateNarrative`/
+  `exportNarrativePdf`, same shape/PAGE_SIZE convention as `work_logs.js`.
+- `client/src/components/NarrativesPanel.jsx` + `.css` (new): lawyer-only
+  panel (not rendered/mounted at all for a client, same treatment as
+  `WorkHoursPanel` — CLAUDE.md: narratives are always firm-internal), mirrors
+  its Loading/Error/Empty handling. Shows the current (newest) narrative's
+  meta line, full text, and an export button; a collapsible history list
+  below it for older rows, each with its own export button (any narrative
+  version can be exported, not just the current one).
+- `client/src/pages/CaseDetailPage.jsx`: renders `NarrativesPanel` (lawyer
+  only, new `canSeeNarratives()` gate, same pattern as
+  `canSeeWorkHours()`/`canSeeInternalFolder()`) in its own full-width row
+  below the existing Documents/WorkHours columns. Passes
+  `onDocumentAdded` → bumps a `documentsRefreshSignal` counter state, so a
+  PDF export makes the internal document show up in `DocumentsPanel`
+  immediately without a manual page reload.
+- `client/src/components/DocumentsPanel.jsx`: accepts an optional
+  `refreshSignal` prop, added to its existing `load` effect's dependency
+  array — the only change needed to let a sibling panel (Narratives) trigger
+  a re-fetch from outside.
+
+**Verified in a real browser** (Playwright/Chromium, same throwaway-real-data
+approach as the 2026-09-08 Documents/WorkLogs browser verification — real
+HTTP calls against the running `demo.lvh.me` containers, not fixtures):
+registered a fresh lawyer + client identity, added both as `demo`-tenant
+members via `admin_api` (as the seeded office_manager), created and assigned
+a case to both, then logged 5.5 hours (2 entries: 3.5h + 2h) as the lawyer.
+Against the real Vite dev server:
+- Narratives panel loads on the case-detail page for the lawyer; generating
+  shows the correct computed total — **5.50 hours, ₪2,475.00** (5.5 × the
+  450 flat rate) — matching the actual logged WorkLogs, not a hardcoded
+  number.
+- Exporting to PDF, then switching to the internal Documents tab, shows
+  `narrative-1.pdf` there immediately (no manual reload) — confirms the
+  `onDocumentAdded`/`refreshSignal` wiring actually works, not just that the
+  backend created the row.
+- Reclassifying that document to the client folder (existing action, no new
+  code), then logging in as the assigned client: the client's Documents
+  panel goes from 0 documents to 1 — `narrative-1.pdf` — confirming the
+  narrative's real end-to-end reachability path (generate → export → file as
+  internal Document → reclassify → client sees it) with zero new visibility
+  code, exactly as CLAUDE.md specifies.
+- Zero browser console/page errors across every step, both the lawyer and
+  client sessions.
+- Full backend suite (124 tests, all apps) still green after the change.
+
+**Learned / decided**:
+- Confirmed via direct DB inspection (`STORAGE_ROOT` doubling — see below)
+  that no case-status restriction was needed on either narratives route
+  before writing the tests, rather than defaulting to copying WorkLogs'
+  "closed blocks new rows" rule out of habit — CLAUDE.md's own reasoning for
+  that rule ("protect billing integrity once a case has been
+  narrated/invoiced") only makes sense if narrating/exporting is expected to
+  still work right up to (and arguably after) the close, so blocking it
+  there would have been the wrong default.
+- **Discovered, not caused by this session's changes, and not fixed here
+  (out of scope for a narratives feature)**: `STORAGE_ROOT=./server/storage`
+  in `.env` resolves inside the `client_api`/`admin_api` containers relative
+  to their `WORKDIR /app`, which is itself the *host's* `./server` directory
+  (bind-mounted per `docker-compose.yml`) — so every file ever uploaded
+  through the real running containers has actually been landing on the host
+  at `server/server/storage/...`, one level deeper than `.gitignore`'s
+  `server/storage/` pattern covers, meaning every previously-uploaded demo
+  file has been an untracked-but-uncommitted directory this whole time
+  (`git status` just never happened to surface it until this session wrote
+  a new file there). Left untouched/unstaged deliberately rather than
+  silently fixing `STORAGE_ROOT` or the Dockerfile `WORKDIR` as a drive-by —
+  flagged to the user instead, since fixing it is either a `.env` value
+  change or a `.gitignore` pattern fix, either way a call for whoever owns
+  that decision, not an unrelated narratives PR.
