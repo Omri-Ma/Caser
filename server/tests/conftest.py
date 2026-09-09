@@ -28,8 +28,8 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from admin_api.main import app as admin_app  # noqa: E402
 from client_api.main import app as client_app  # noqa: E402
 from shared.database import Base, get_db  # noqa: E402
-from shared.models import Case, CaseAssignment, Identity, Membership, Tenant  # noqa: E402, F401
-from shared.models.enums import CaseStatus, UserRole  # noqa: E402, F401
+from shared.models import Case, CaseAssignment, Document, Identity, Membership, Tenant, WorkLog  # noqa: E402, F401
+from shared.models.enums import CaseStatus, DocumentFolderType, UserRole, WorkLogSource  # noqa: E402, F401
 from shared.security import ACCESS_COOKIE_NAME, create_access_token, hash_password  # noqa: E402
 from shared.tenant import BASE_DOMAIN  # noqa: E402
 
@@ -114,6 +114,38 @@ def make_assignment(db, tenant_id: int, case_id: int, membership_id: int) -> Cas
     db.commit()
     db.refresh(assignment)
     return assignment
+
+
+def make_work_log(db, tenant_id: int, case_id: int, lawyer_id: int, hours: str = "2.5") -> WorkLog:
+    from datetime import date
+
+    work_log = WorkLog(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        lawyer_id=lawyer_id,
+        date=date.today(),
+        hours=hours,
+        description="Test entry",
+        source=WorkLogSource.MANUAL,
+    )
+    db.add(work_log)
+    db.commit()
+    db.refresh(work_log)
+    return work_log
+
+
+def make_document(db, tenant_id: int, case_id: int, uploaded_by: int) -> Document:
+    document = Document(
+        tenant_id=tenant_id,
+        case_id=case_id,
+        uploaded_by=uploaded_by,
+        file_url="/files/test.pdf",
+        folder_type=DocumentFolderType.INTERNAL,
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+    return document
 
 
 def auth_for(identity: Identity, subdomain: str) -> tuple[dict, dict]:

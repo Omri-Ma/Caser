@@ -1075,3 +1075,216 @@ scope. Zero console errors throughout.
   one-time `grep -r "oklch("` sweep across both apps' CSS if another
   color-family cleanup happens later, rather than trusting that all colors
   route through named tokens.
+
+## 2026-09-08 (4) — office_manager Cases screens in `admin/` (branch `feature/admin-case-screens`)
+
+**Asked**: Build the office_manager-facing Cases screens in `admin/` — list
+(paginated, status filter, "new case"), create-case modal, and a
+detail/edit view (title edit, status change including reopen, assign/
+unassign lawyers and clients) — wired to the real, already-tested
+`admin_api` case endpoints. Told to extend `admin/`'s existing Members and
+Dashboard screens' look (navy anchor, sidebar, DataTable/chip/card
+conventions, "add member" modal pattern) since no design canvas exists for
+this screen, and to stop and ask rather than guess on anything ambiguous.
+
+**Found before writing any code**: neither a Members nor a Dashboard
+screen actually exists yet in `admin/` — the app only had Login/Signup/a
+placeholder Landing page, behind a plain header (`Layout.jsx`), no sidebar.
+The navy design tokens, `DataTable`, `Modal`, and `Form` components did
+exist and were reusable as-is; the sidebar-shell and "add member modal"
+patterns the brief pointed to only exist in `client/`'s `AppShell`
+(forest-themed). Separately, `admin_api` had no `GET /members` — only
+`POST /members` (add-by-email) — so an assign-from-existing-members picker
+had no data source. Flagged both gaps and asked rather than guessing:
+confirmed introducing an admin `AppShell` (navy recolor of `client/`'s)
+now, and adding a minimal `GET /members`, both following existing
+conventions exactly.
+
+**Changed — backend** (`server/admin_api`):
+- `routers/members.py`: added `GET /members` (tenant-scoped, paginated,
+  `active = true` only, optional `role` filter) returning a new
+  `MemberResponse` schema (`schemas/auth.py`) that joins `Identity` for
+  name/email — same join pattern `cases.py`'s assignments endpoint already
+  uses. Needed for the assignment picker to list real lawyers/clients
+  instead of free text.
+- `routers/cases.py`: added an optional `status` query param to
+  `GET /cases` (backward-compatible — existing calls without it are
+  unaffected) so the admin case list can offer a real, server-paginated
+  status filter instead of only ever filtering whichever single page of up
+  to 200 happened to be fetched (the shortcut `client/`'s "my cases" list
+  uses, which doesn't hold up once a list is genuinely paginated at 50/page
+  with a firm-wide case count that can exceed that).
+- `tests/test_members_admin.py` (new) and additions to
+  `tests/test_cases_admin.py`: role filtering, `active=false` exclusion,
+  role-guard (403 for lawyer), tenant isolation for the new members list,
+  and the new status-filter behavior. Full suite (32 tests) passes against
+  the real `casehub_test` MySQL database via the running `admin_api`
+  container.
+
+**Changed — frontend** (`admin/src`):
+- `index.css`: added `--color-sidebar`/`-active`/`-text` and
+  `--color-avatar1/2/3(-bg)` tokens in the navy hue (258) — `client/`'s
+  `AppShell`/avatar CSS references these var *names*, so the port only
+  needed navy values, no selector changes.
+- `components/AppShell.jsx`/`.css` (new): sidebar shell ported from
+  `client/`'s, recolored — nav items are Cases (active), plus Members and
+  Dashboard rendered as disabled "coming soon" placeholders, same
+  convention `client/`'s AppShell uses for its own not-yet-built sections.
+- `components/NewCaseModal.jsx` and `components/AssignMemberModal.jsx`
+  (+ `.css`) (new): create-case and assign-to-case flows, both the existing
+  `Modal` + `FormField`/`FormError` pattern. The assign modal has
+  lawyer/client tabs and a real picker list (radio-style rows) sourced from
+  `GET /members`, filtered to exclude already-assigned membership ids —
+  never free text.
+- `api/cases.js`, `api/members.js` (new): thin wrappers, same shape as
+  `client/`'s `api/cases.js`.
+- `utils/caseStatus.js`, `utils/format.js` (ported from `client/`, same
+  status-color/avatar-tone logic — CSS var *names* already matched between
+  the two apps' design systems, only the underlying navy values differ).
+- `pages/CasesListPage.jsx`/`.css`, `pages/CaseDetailPage.jsx`/`.css`
+  (new): list page has real page/page_size=50 pagination plus the new
+  server-side status filter tabs; detail page has inline title editing, a
+  status `<select>` (all four statuses always enabled, including reopening
+  a closed case, per CLAUDE.md's no-timing-restriction rule), and two
+  assignment columns (lawyers/clients) with per-row "remove" (native
+  `window.confirm` before unassigning, since CLAUDE.md calls unassignment
+  an immediate, full loss of access).
+- `App.jsx`: added `/cases` and `/cases/:caseId` routes; root now redirects
+  to `/cases` instead of rendering the old identity-dump Landing page —
+  removed `pages/LandingPage.jsx`, mirroring what `client/` already did
+  when its own Cases screens superseded its landing page.
+- `components/DataTable.css`: added the clickable-row hover style
+  `client/`'s copy already had (`onRowClick` support existed on the
+  component already; the CSS for it didn't).
+
+**Verified in a real browser** (no project `run` skill existed yet for
+this repo, and `chromium-cli` wasn't available in this Windows
+environment — used `puppeteer-core` pointed at the system-installed Chrome
+instead, scripted from `scratchpad/browsercheck/check.js`): logged in as
+the seeded `office_manager@casehub.example.com` demo account at
+`demo.lvh.me:5174` against the real running `admin_api`/MySQL dev stack
+(not mocks), then drove the full flow — status-filter tabs, created a real
+case via the modal, edited its title, cycled its status including
+closed→reopened, opened the assign modal, assigned the seeded demo lawyer
+("Lior Lawyer"), unassigned them (confirm dialog auto-accepted), reloaded
+the page to confirm the title/status changes actually persisted
+server-side rather than only in local state, and confirmed the new case
+appears back in the list. Zero console errors throughout. (Note: this left
+two real "בדיקת דפדפן" test cases in the shared demo tenant's dev
+database — there's no case-delete feature to clean them up with, by
+design, since cases are treated as permanent records; flagged to the user
+rather than reaching for a raw DB delete.)
+
+**Learned / decided**:
+- Don't trust a task brief's description of "existing" UI to extend
+  without checking the actual files first — the brief's mental model of
+  the app (Members/Dashboard screens, an "add member" modal) had drifted
+  from what was actually built. Checking first and asking about the two
+  real gaps (no admin sidebar shell, no members-list endpoint) up front
+  avoided guessing wrong on a screen with no design-canvas reference to
+  fall back on.
+- Porting a themed component between the two apps is easy specifically
+  because both design systems were built with the *same CSS variable
+  names* and different values (per the earlier design-system session) —
+  copying `client/`'s `AppShell.jsx`/`.css` verbatim and only adding
+  navy-valued tokens with matching names in `admin/`'s `index.css` was
+  enough; no selector or markup changes were needed.
+- A list endpoint that's genuinely paginated (not the "fetch up to 200 and
+  slice in the browser" shortcut used for a bounded per-person list) can't
+  also support a client-side-only filter without breaking pagination math
+  — surfaced by actually trying to build the status filter tabs against
+  real page/page_size, not just by reading the requirement. Adding a
+  small, backward-compatible optional query param to an already-tested
+  endpoint (covered by a new test) was the correct fix, not a workaround.
+- No Playwright/`chromium-cli` browser automation was preinstalled in this
+  Windows dev environment; `puppeteer-core` against the already-installed
+  system Chrome worked as a lightweight substitute (no ~150MB browser
+  download) for driving a real verification pass. Worth recommending
+  `/run-skill-generator` if browser verification becomes a recurring need
+  in this repo, so the setup doesn't get re-derived each time.
+
+## 2026-09-08 (5) — case permanent-delete, per the new CLAUDE.md deletion policy (same branch)
+
+**Asked**: CLAUDE.md's Cases section had just been updated with a deletion
+policy (office_manager can permanently delete a case, but only if it has
+zero `WorkLogs`/`Documents` attached — otherwise rejected outright, close
+the case instead, no override). Told to first commit the already-finished
+Cases-screens work as its own commit (done in the prior session — commit
+`8860be9`), then add this as a new feature on the same branch: a
+`DELETE /cases/{id}` in `admin_api`, a confirm-then-delete action on
+`CaseDetailPage` that surfaces the backend's rejection clearly, verify both
+the happy path and the guard in a real browser, and use the happy-path
+verification to clean up the two leftover test cases (#8/#9) from the
+previous session's browser testing.
+
+**Changed — backend** (`server/admin_api/routers/cases.py`):
+- `DELETE /cases/{case_id}` — office_manager-only, looks the case up via
+  the existing `get_tenant_scoped` (same as every other case route). Checks
+  for any `WorkLog`/`Document` row referencing the case; if either exists,
+  rejects with `400` and the message "This case has work logs or documents
+  attached and can't be deleted — close it instead" (surfaces verbatim
+  through the shared `{"error": ...}` response shape, same as every other
+  endpoint). Otherwise deletes the case's `CaseAssignment` rows first (not
+  "content" under the policy, just access grants — same reasoning
+  `unassign` already uses) then the `Case` row itself, in one transaction.
+- `server/tests/conftest.py`: added `make_work_log`/`make_document` fixture
+  helpers (no route creates either yet — Phase 3/2 add-ons not built — so
+  tests construct rows directly, same as every other fixture helper here).
+- `server/tests/test_cases_admin.py`: empty-case delete succeeds and is
+  actually gone (`404` on re-fetch); deleting a case with an assignment
+  also succeeds (assignments aren't blocking content); a case with a
+  `WorkLog` or a `Document` is rejected with `400` and stays fully intact
+  (`200` on re-fetch); a lawyer gets `403`. `server/tests/
+  test_tenant_isolation.py`: added the delete-across-tenants case (`404`,
+  case B untouched). Full suite: 38/38 passing against the real
+  `casehub_test` MySQL database.
+
+**Changed — frontend** (`admin/src`):
+- `api/cases.js`: added `deleteCase(caseId)`.
+- `pages/CaseDetailPage.jsx`/`.css`: a "מחיקת תיק" danger-styled button
+  (red outline, same `--color-error` token used elsewhere) in the detail
+  header area. Click → `window.confirm` naming the case and stating the
+  action is irreversible and content-gated (same confirmation mechanism
+  already used for unassign, kept consistent rather than introducing a new
+  pattern for one button) → on confirm, calls the endpoint and navigates
+  back to `/cases` on success, or renders the backend's exact rejection
+  text in the existing `FormError` banner and leaves the page untouched on
+  failure.
+
+**Verified in a real browser** (same `puppeteer-core` + system Chrome setup
+as the previous session), against the live `demo.lvh.me` tenant, logged in
+as the seeded office_manager:
+- Happy path *and* cleanup in one motion: navigated to the two leftover
+  test cases from last session (#8, #9 — both had zero work logs/documents
+  by construction, since no upload/log-entry feature exists yet to have
+  put anything on them), deleted each through the real UI, confirmed both
+  redirect to `/cases` and are gone from the list (final count back to the
+  original 7 seeded cases).
+- Guard path: created a fresh case through the UI, then — since no
+  work-log/document creation endpoint exists yet in either backend to do
+  this through the app itself — inserted one `WorkLogs` row directly into
+  the dev database via `mysql` in the `db` container (tenant/case ids read
+  from the running app's own data first, not guessed). Clicked delete in
+  the browser: the request came back `400`, the page stayed put, and the
+  exact backend message rendered in the error banner. Then removed that
+  one `WorkLogs` row the same way and deleted the case through the UI
+  again — this time it succeeded, proving the guard reopens once the
+  blocker is actually gone rather than being stuck permanently. Confirmed
+  via direct DB query afterward that `work_logs` is empty and the case
+  list is back to exactly the original 7 seeded cases — no test artifacts
+  left behind on either side of this session's work.
+
+**Learned / decided**:
+- `CaseAssignment` has a plain (non-cascading) foreign key to `cases.id`,
+  so a case with active assignments would fail at the database level on a
+  bare `DELETE` — confirmed by reading the model rather than discovering
+  it by trial and error, and handled by explicitly deleting the case's
+  assignment rows first, consistent with the policy treating assignments
+  as access grants rather than blocking "content."
+- Verifying a rejection guard for a feature with no creation UI yet
+  (work-log entry / document upload are both unbuilt Phase 3 items) still
+  doesn't require waiting for those features — inserting one row directly
+  against the real dev database (not the test database) to set up the
+  precondition, then driving the actual guarded action through the real
+  browser/API, tests the thing that's actually being built (the delete
+  guard) without needing to fake or skip the verification.
