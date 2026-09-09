@@ -496,17 +496,31 @@ README.md
   apps, only `/server/shared`'s narrow scope (table definitions, tenant/auth
   logic) is actually shared — everything else stays genuinely separate per
   app, on purpose (see Multi-tenancy architecture for why only that one slice
-  is worth the shared-code discipline). Two narrow, deliberate extensions to
-  that scope, added with the Documents feature: `shared/storage.py`
-  (`save_file`/`get_file_url`) and `shared/plan_limits.py`
-  (`check_plan_limit`). Both are genuine cross-app invariants rather than
-  per-app presentation choices like pagination's page size — `admin_api` has
-  to resolve the exact storage key `client_api` wrote to serve a download, and
-  a plan's GB/lawyer limits must be one number both apps enforce identically,
-  not two independently-maintained copies that could silently drift apart.
-  Request-level upload handling (multipart parsing, magic-byte file-type
-  validation) stays `client_api`-only, since `admin_api` never receives an
-  upload.
+  is worth the shared-code discipline). Three narrow, deliberate extensions
+  to that scope so far: `shared/storage.py` (`save_file`/`get_file_url`,
+  added with the Documents feature), `shared/plan_limits.py`
+  (`check_plan_limit`, same feature), and `shared/worklog_import.py`
+  (row-parsing/validation for the Excel import feature — see WorkLogs' Excel
+  import paragraph above). All three are genuine cross-app invariants rather
+  than per-app presentation choices like pagination's page size:
+  `admin_api` has to resolve the exact storage key `client_api` wrote to
+  serve a download; a plan's GB/lawyer limits must be one number both apps
+  enforce identically; and an imported work-log row must be validated by the
+  exact same rules (lawyer assigned+active, case not closed, hours/date
+  sanity) whether the upload came from a lawyer's self-import (`client_api`)
+  or an office_manager's bulk, on-someone-else's-behalf import (`admin_api`)
+  — none of these are things two independently-maintained per-app copies
+  could be trusted to stay identical over time. Kept narrow the same way the
+  first two are: only the parsing/validation logic lives in `shared/worklog_import.py`,
+  never the upload handling itself — each app still does its own
+  request-level multipart parsing and its own magic-byte file-type check
+  (`client_api/core/file_validation.py` for Documents + the Excel import;
+  `admin_api/core/file_validation.py`, new, for the Excel import only) before
+  handing the raw bytes to the shared functions. This is a narrower reading
+  of "admin_api never receives an upload" than before — that was only ever
+  true for Documents (still is: Documents upload handling stays
+  `client_api`-only), not a blanket rule against admin_api ever parsing a
+  multipart request.
 - Frontend: within *each* of `client/` and `admin/` — separately, not shared
   between them — one reusable data-table component, one reusable form
   component, one reusable modal/dialog pattern, one reusable

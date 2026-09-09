@@ -11,6 +11,7 @@ const ACTION_LABELS = {
   document_permanently_deleted: 'מחיקת מסמך לצמיתות',
   work_log_edited: 'עריכת רישום שעות',
   work_log_deleted: 'מחיקת רישום שעות',
+  work_log_excel_imported: 'ייבוא שעות מאקסל',
   member_deactivated: 'הסרת איש צוות',
   member_password_reset: 'איפוס סיסמה לאיש צוות',
   narrative_pdf_exported: 'ייצוא PDF של נרטיב',

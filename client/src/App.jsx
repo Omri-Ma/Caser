@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
+import WorkLogImportPage from './pages/WorkLogImportPage'
 import PublicHomePage from './pages/PublicHomePage'
 import { apiFetch } from './api/client'
 
@@ -59,6 +60,7 @@ export default function App() {
         />
         <Route path="/cases" element={<CasesListPage />} />
         <Route path="/cases/:caseId" element={<CaseDetailPage />} />
+        <Route path="/work-logs/import" element={<WorkLogImportPage />} />
         <Route path="/" element={<RootRoute />} />
         <Route path="*" element={<Navigate to="/cases" replace />} />
       </Routes>

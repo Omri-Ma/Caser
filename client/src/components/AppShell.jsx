@@ -1,38 +1,46 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
+import { getStoredRole } from '../api/session'
 import './AppShell.css'
 
-const NAV_ITEMS = [
-  {
-    key: 'cases',
-    label: 'תיקים',
-    path: '/cases',
-    icon: (
-      <path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
-    ),
-  },
-  {
-    key: 'documents',
-    label: 'מסמכים',
-    icon: (
-      <>
-        <path d="M6 3h9l5 5v13H6z" />
-        <path d="M15 3v5h5" />
-      </>
-    ),
-  },
-  {
-    key: 'hours',
-    label: 'שעות עבודה',
-    icon: (
-      <>
-        <circle cx="12" cy="12" r="8.5" />
-        <path d="M12 7.5V12l3 2" />
-      </>
-    ),
-  },
-]
+function navItems(role) {
+  return [
+    {
+      key: 'cases',
+      label: 'תיקים',
+      path: '/cases',
+      icon: (
+        <path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
+      ),
+    },
+    {
+      key: 'documents',
+      label: 'מסמכים',
+      icon: (
+        <>
+          <path d="M6 3h9l5 5v13H6z" />
+          <path d="M15 3v5h5" />
+        </>
+      ),
+    },
+    {
+      key: 'hours',
+      label: 'ייבוא שעות מאקסל',
+      // WorkLogs are never client-visible (CLAUDE.md) — only a lawyer gets a
+      // real path here; a client sees the same disabled "coming soon" state
+      // the whole nav uses for not-yet-built items, since this screen would
+      // just 403 them.
+      path: role === 'lawyer' ? '/work-logs/import' : undefined,
+      icon: (
+        <>
+          <circle cx="12" cy="12" r="8.5" />
+          <path d="M12 7.5V12l3 2" />
+        </>
+      ),
+    },
+  ]
+}
 
 // Wraps every authenticated screen: resolves the session once (redirects to
 // /login if it isn't valid) and renders the sidebar shell around whatever
@@ -42,6 +50,7 @@ export default function AppShell({ activeKey, children }) {
   const navigate = useNavigate()
   const [identity, setIdentity] = useState(null)
   const [checking, setChecking] = useState(true)
+  const items = useMemo(() => navItems(getStoredRole()), [identity])
 
   useEffect(() => {
     me()
@@ -74,7 +83,7 @@ export default function AppShell({ activeKey, children }) {
           <span className="wordmark">CaseHub</span>
         </div>
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map((item) =>
+          {items.map((item) =>
             item.path ? (
               <button
                 key={item.key}

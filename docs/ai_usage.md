@@ -2451,3 +2451,163 @@ not just re-reading code):
   can have cases but zero logged hours yet (or vice versa), and collapsing
   them would hide a legitimately-empty chart behind a "no activity at all"
   message that isn't true.
+
+## 2026-09-09 (later still, one more time) — Excel import for work logs (branch `feature/worklog-excel-import`)
+
+**Asked**: Phase 3 item 1 — Excel import for work logs, following CLAUDE.md's
+"Excel import (work logs)" paragraph and the `WorkLogs` data-model section
+exactly: a downloadable template restricted to the lawyer's own
+assigned+open cases, an office_manager bulk variant with a lawyer-email
+column, whole-file validation (any bad row rejects the entire file), and
+`AuditLogs` recording who triggered an on-someone-else's-behalf import.
+
+**Changed**:
+- `server/shared/worklog_import.py` (new) — a **third** narrow extension to
+  `server/shared`, alongside `storage.py`/`plan_limits.py` (added with the
+  user's explicit sign-off first, since CLAUDE.md previously named exactly
+  two): `build_template_workbook()` (openpyxl, a hidden `Cases` sheet +
+  `DataValidation` dropdown on the visible `Case` column — not a hardcoded
+  comma-list formula, which has a ~255-char cap) and
+  `parse_and_validate_import()` (the row rules: lawyer resolved either as
+  the fixed self-membership or by email+tenant+role=LAWYER+active=true,
+  must be `CaseAssignment`-assigned to the row's case, case not `CLOSED`,
+  hours `0 < h <= 24` matching `CreateWorkLogRequest`'s existing bound, a
+  real `YYYY-MM-DD` date). Returns `(results, errors)` — any error empties
+  `results` entirely, enforcing "reject the whole file, no partial imports"
+  at the one place both callers share.
+- `server/client_api/routers/work_log_import.py` + `schemas/work_log_import.py`
+  (new): `GET /work-logs/import/template` (lawyer's own assigned, non-closed
+  cases) and `POST /work-logs/import` (self-import, `source=EXCEL_IMPORT`,
+  no `AuditLog` — CLAUDE.md's audit requirement is specifically for
+  on-someone-else's-behalf imports). Deliberately **not** nested under
+  `/cases/{case_id}` like the manual work-logs router — one uploaded file
+  can carry rows for more than one of the lawyer's cases.
+- `server/admin_api/routers/work_log_import.py` + `schemas/work_log_import.py`
+  (new): same shape, office_manager-only, template adds every non-closed
+  case at the tenant (can't scope the dropdown per-lawyer in a single static
+  sheet) plus a Lawyer Email column; import resolves the lawyer per-row by
+  email and writes **one** `AuditLog` row per batch (`action:
+  "work_log_excel_imported"`, `target` = row count + filename) — same
+  one-row-per-action granularity as `document_uploaded`, not one row per
+  imported entry.
+- `client_api/core/file_validation.py`: added `is_xlsx_file()` (same
+  zip-signature + inner-file-check pattern already used for DOCX, checking
+  for `xl/workbook.xml`) and `MAX_IMPORT_FILE_SIZE_BYTES` (5MB, separate
+  from Documents' 50MB cap — an Excel import file is inherently small).
+  `admin_api/core/file_validation.py` (new) — its own small duplicate of the
+  same check, since this app now receives its own upload (the bulk import)
+  for the first time; kept per-app rather than promoted to `shared/`, unlike
+  the row-validation logic, since it doesn't need to be byte-identical
+  across apps, just "is this really .xlsx" answered the same way twice.
+- `client/src/pages/WorkLogImportPage.jsx` + `.css` (new), wired into
+  `App.jsx` and `AppShell.jsx`'s previously-disabled "שעות עבודה" nav slot
+  (now "ייבוא שעות מאקסל", real path, lawyer-only — computed from
+  `getStoredRole()` per-render via `useMemo`, not a module-level constant,
+  so a role change mid-session isn't stale). Its own top-level screen, not
+  inside `WorkHoursPanel`/`CaseDetailPage`, since one file's rows can span
+  multiple cases. Three real Loading/Error/Empty states: the page's own
+  "your assigned open cases" list (via `listMyCases`, filtered non-closed —
+  doubles as a lawyer-facing sanity check of what the dropdown will offer),
+  the template-download button/error, and the upload button/error
+  (including a per-row error list rendered from the 422 response body).
+- `admin/src/pages/WorkLogImportPage.jsx` + `.css` (new), same structure,
+  wired into `App.jsx` and a new `AppShell.jsx` sidebar item. `admin/src/api/client.js`
+  gained `apiUpload()` (didn't exist there before — Documents uploads are
+  `client_api`-only, so this is admin_api's first real file upload).
+- `client/src/api/client.js` + `admin/src/api/client.js`: `ApiError` gained
+  an optional `rowErrors` field, populated from the 422 response's
+  `row_errors` array — both apps' `apiFetch`/`apiUpload` now pass
+  `data?.row_errors` through unchanged.
+- `admin/src/pages/AuditLogPage.jsx`: added the
+  `work_log_excel_imported: 'ייבוא שעות מאקסל'` label — closes the gap this
+  file itself flagged as pending two sessions ago (see the "Learned /
+  decided" note right above this entry).
+- `server/requirements.txt`: added `openpyxl==3.1.5` (neither pandas nor
+  openpyxl was present before; openpyxl alone was enough for
+  parsing+writing xlsx with data-validation dropdowns, no need for pandas'
+  extra weight for a single-sheet feature like this).
+- `CLAUDE.md`'s Code quality section: documented the third `shared/`
+  extension (see above) — the user was asked first via a clarifying
+  question, since it changes an explicit "two extensions" statement in the
+  doc, and chose the shared-module option over per-app duplication, citing
+  the same "must stay identical across apps" reasoning already established
+  for `storage.py`/`plan_limits.py`.
+- Tests: `server/tests/test_work_logs_import_client.py` (9 tests — template
+  scoping, successful self-import with `source=excel_import`, whole-file
+  rejection with correct row numbering, unassigned-case/closed-case/
+  non-positive-hours rejections, non-xlsx rejection, client-role 403) and
+  `test_work_logs_import_admin.py` (6 tests — template's email column +
+  full-tenant case list, successful bulk import + its `AuditLog` row,
+  unknown-email/cross-tenant-email/inactive-lawyer rejections, lawyer-role
+  403 on the admin route). Full suite: **129 -> 143 passed**.
+- Re-ran `bash server/scripts/export_docs.sh` — `docs/openapi_client.json`
+  gained the client-side `/work-logs/import` + `/work-logs/import/template`
+  paths (20 total), `docs/openapi_admin.json` gained the admin-side
+  equivalents (34 total); regenerated both Postman collections and
+  `docs/erd.mmd.md`/`erd.png` (ERD content unchanged — no new tables, Excel
+  import only adds routes/logic on top of the existing `WorkLogs`/
+  `AuditLogs` tables).
+
+**Verified for real** (rebuilt and restarted the `client_api`/`admin_api`
+Docker images first — `openpyxl` is a new dependency, so the previously
+-running containers didn't have it yet; confirmed with a failing
+`import openpyxl` inside the old container before rebuilding):
+- Registered a fresh `verify.lawyer@example.com` identity through the real
+  running `client_api`, added as `lawyer` at the `demo` tenant and assigned
+  to two real open cases (one Hebrew-titled) via the real `admin_api`, all
+  through actual HTTP calls against `demo.lvh.me` — not fixtures.
+- Downloaded the self-import template as that lawyer: confirmed via
+  `openpyxl.load_workbook` on the real response bytes that the hidden
+  `Cases` sheet listed exactly those two assigned cases and no others (a
+  third, unassigned case at the same tenant was absent).
+- Uploaded a real 2-row `.xlsx` (built with real `openpyxl`, not a fixture
+  helper) — got `{"imported_count": 2}`, then confirmed via `GET
+  /cases/{id}/work-logs` that both rows landed with `source: "excel_import"`
+  alongside the case's pre-existing `manual` entries.
+- Uploaded a real 2-row file with one bad date — got HTTP 422 with
+  `row_errors: [{"row": 3, "message": "..."}]` (row 3 = header + good row +
+  bad row), then confirmed via the same list endpoint that the *good* row
+  from that rejected file was never persisted either — true whole-file
+  rejection, not best-effort.
+- Uploaded a plain `.txt` file renamed with a fake content-type — got HTTP
+  400 "Unsupported file type," confirming the magic-byte check (not the
+  claimed `Content-Type` header) is what actually gates this.
+- Downloaded the office_manager bulk template as the real seeded
+  `office_manager@casehub.example.com` — confirmed the `Lawyer Email` column
+  and all 7 non-closed cases at the tenant (both Hebrew- and English-titled)
+  in the hidden `Cases` sheet.
+- Uploaded a real bulk-import row for `verify.lawyer@example.com` as the
+  office_manager — got `{"imported_count": 1}`; confirmed via `GET
+  /audit-log` a real `work_log_excel_imported` entry attributed to `Noa
+  Manager` (who triggered it), and via `GET /cases/{id}/work-logs` that the
+  created `WorkLog.lawyer_id` resolved to the *lawyer*, not the manager —
+  the who-triggered-it/whose-hours-they-are separation CLAUDE.md calls for.
+  Also confirmed a real 422 for an unknown lawyer email on the same
+  endpoint.
+- Full backend test suite re-run clean before adding the new test files
+  (129 passed), then again with them included (143 passed).
+- Cleaned up every piece of throwaway verification data afterward (deleted
+  the 3 real `WorkLog` rows created above, unassigned the test lawyer from
+  both cases, deactivated their membership) so the `demo` tenant's data is
+  back to its pre-verification state.
+- `npm run build` succeeded in both `client/` and `admin/` with the new
+  pages/components included (no new build errors; admin's pre-existing
+  >500KB chunk-size warning is unrelated to this change).
+
+**Learned / decided**:
+- A hardcoded Excel `DataValidation` list formula (`formula1='"a,b,c"'`) has
+  a real ~255-character cap — discovered while designing the template, not
+  from a bug report. Used a hidden second sheet + range reference instead
+  (`Cases!$A$1:$A$N`), which scales to however many cases a real firm has.
+- `admin_api` receiving its own file upload for the first time (the bulk
+  import) meant CLAUDE.md's blanket "admin_api never receives an upload"
+  line was no longer accurate — it was only ever true for Documents.
+  Narrowed the wording in CLAUDE.md's Code quality section rather than
+  silently contradicting it in code while the doc still read as absolute.
+- Self-import writes no `AuditLog` row at all — only the office_manager's
+  on-someone-else's-behalf bulk import does. CLAUDE.md's `AuditLogs`
+  section specifically calls out "an admin-driven Excel import performed on
+  someone else's behalf," which reads as scoped to that case, not blanket
+  "any Excel import" — a lawyer importing their own hours is functionally
+  equivalent to a manual entry (which also writes no audit row on create,
+  only on later edit/delete) rather than an oversight action worth logging.

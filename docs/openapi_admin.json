@@ -1363,6 +1363,68 @@
         }
       }
     },
+    "/work-logs/import/template": {
+      "get": {
+        "tags": [
+          "work-logs"
+        ],
+        "summary": "Download Import Template",
+        "description": "office_manager's bulk variant — adds the Lawyer Email column. The\nCase dropdown can't be scoped per-lawyer the way the self-import\ntemplate is (a single sheet can't know ahead of time which lawyer's\nemail ends up in a given row), so it offers every non-closed case at the\ntenant instead — row validation below still rejects a case the resolved\nlawyer isn't actually assigned to.",
+        "operationId": "download_import_template_work_logs_import_template_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/work-logs/import": {
+      "post": {
+        "tags": [
+          "work-logs"
+        ],
+        "summary": "Import Work Logs",
+        "description": "Bulk, on-someone-else's-behalf import across multiple lawyers at\nonce. `WorkLogs.lawyer_id` still records whose billable hours each row\nis (resolved per-row by email), kept separate from who performed the\nimport — that's recorded here as a single AuditLogs entry for the whole\nbatch (CLAUDE.md: \"that's recorded in AuditLogs — who actually triggered\nthe import\").",
+        "operationId": "import_work_logs_work_logs_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_work_logs_work_logs_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkLogImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tenant": {
       "get": {
         "tags": [
@@ -1879,6 +1941,20 @@
         ],
         "title": "AuditLogEntryResponse",
         "description": "One AuditLog row for the office_manager's browsing screen — read-only,\nno write path here (see shared/models/audit_log.py's writers: document\narchive/restore/permanent-delete, work log edit/delete, member\ndeactivate/password-reset, narrative PDF export)."
+      },
+      "Body_import_work_logs_work_logs_import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_work_logs_work_logs_import_post"
       },
       "CaseAssignmentResponse": {
         "properties": {
@@ -2977,6 +3053,19 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "WorkLogImportResponse": {
+        "properties": {
+          "imported_count": {
+            "type": "integer",
+            "title": "Imported Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "imported_count"
+        ],
+        "title": "WorkLogImportResponse"
       },
       "WorkLogResponse": {
         "properties": {

@@ -1,4 +1,4 @@
-import { apiFetch } from './client'
+import { apiDownload, apiFetch, apiUpload } from './client'
 
 // Bounded by one case's realistic work-log count, same shortcut documents.js
 // already takes for a single case's list.
@@ -21,4 +21,14 @@ export function updateWorkLog(caseId, workLogId, { date, hours, description }) {
 
 export function deleteWorkLog(caseId, workLogId) {
   return apiFetch(`/cases/${caseId}/work-logs/${workLogId}`, { method: 'DELETE' })
+}
+
+export function downloadWorkLogImportTemplate() {
+  return apiDownload('/work-logs/import/template')
+}
+
+export function importWorkLogs(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return apiUpload('/work-logs/import', formData)
 }

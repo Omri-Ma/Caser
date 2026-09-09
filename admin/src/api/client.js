@@ -11,10 +11,13 @@ function apiBaseUrl() {
 }
 
 export class ApiError extends Error {
-  constructor(message, { status, field } = {}) {
+  constructor(message, { status, field, rowErrors } = {}) {
     super(message)
     this.status = status
     this.field = field
+    // Only set for the Excel import endpoints' 422 response shape
+    // ({error, field, row_errors}) — undefined everywhere else.
+    this.rowErrors = rowErrors
   }
 }
 
@@ -41,7 +44,46 @@ export async function apiFetch(path, { method = 'GET', body, redirectOn401 = tru
   }
 
   if (!response.ok) {
-    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', { status: response.status, field: data?.field })
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', {
+      status: response.status,
+      field: data?.field,
+      rowErrors: data?.row_errors,
+    })
+  }
+
+  return data
+}
+
+// Multipart upload variant — apiFetch always JSON-encodes its body, which a
+// file upload can't use. No Content-Type header is set here on purpose; the
+// browser sets its own (including the multipart boundary) when the body is
+// a FormData instance. First real admin_api upload: the office_manager
+// bulk work-log Excel import (documents uploads are client_api-only).
+export async function apiUpload(path, formData) {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  })
+
+  let data = null
+  try {
+    data = await response.json()
+  } catch {
+    data = null
+  }
+
+  if (response.status === 401) {
+    window.location.assign('/login')
+    throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
+  }
+
+  if (!response.ok) {
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', {
+      status: response.status,
+      field: data?.field,
+      rowErrors: data?.row_errors,
+    })
   }
 
   return data
