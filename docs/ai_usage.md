@@ -2270,3 +2270,103 @@ Against the real Vite dev server:
   flagged to the user instead, since fixing it is either a `.env` value
   change or a `.gitignore` pattern fix, either way a call for whoever owns
   that decision, not an unrelated narratives PR.
+
+## 2026-09-09 (later still, once more) — Fixed the STORAGE_ROOT double-resolution bug (branch `fix/storage-root-path`)
+
+**Asked**: Fix the `STORAGE_ROOT` bug flagged during the narratives session —
+find the actual mechanism first, don't guess at a fix; on its own branch off
+latest `master`, unrelated to narratives; decide explicitly whether to
+migrate the files already sitting at the wrong path; add the corrected
+nested path to `.gitignore` as a safety net; verify for real (rebuild
+containers, fresh upload, download it back, confirm pre-existing files still
+resolve); log it here; ask before commit/push/PR.
+
+**Confirmed mechanism** (via `docker compose exec client_api pwd` +
+resolving the env var live inside the running container, not by reading
+code and guessing):
+- `docker-compose.yml` bind-mounts this repo's `./server` directory onto
+  `/app` inside both the `client_api` and `admin_api` containers
+  (`volumes: - ./server:/app`), and each container's `WORKDIR` is `/app`.
+- `.env`'s `STORAGE_ROOT=./server/storage` is read by
+  `shared/storage.py`'s `Path(os.getenv("STORAGE_ROOT", ...)).resolve()` —
+  which resolves relative to whatever process's cwd actually is. Inside the
+  containers that's `/app`, so `./server/storage` resolves to
+  `/app/server/storage`, which — because `/app` **is** the host's
+  `./server` — lands on the host's disk at `./server/server/storage`, one
+  level nested deeper than intended.
+- Confirmed `shared/storage.py` is the *only* runtime consumer of
+  `STORAGE_ROOT` (grepped for it repo-wide) — `server/tests/conftest.py`
+  always monkeypatches it to a pytest `tmp_path` before any test runs, so
+  the buggy default was never hit there; the containers are the only place
+  it was ever actually exercised, which is exactly why it went unnoticed as
+  "consistently wrong" rather than surfacing as flaky.
+
+**Changed**:
+- `.env` / `.env.example`: `STORAGE_ROOT=./server/storage` →
+  `STORAGE_ROOT=./storage`, with a comment explaining it's relative to the
+  containers' `WORKDIR`/bind-mount (`./server` on the host), not the repo
+  root — so it now resolves to `/app/storage` inside the containers, i.e.
+  the host's `./server/storage`, matching what `.gitignore` already
+  expected.
+- **Migrated existing files, did not leave them behind**: the buggy path
+  held exactly one file on disk (`server/server/storage/3/11/<uuid>.pdf`),
+  matching the *only* `Documents` row in the dev DB (`id=7`, the narrative
+  PDF exported during the narratives session's browser verification —
+  earlier Documents/WorkLogs browser-testing sessions' demo data, per the
+  2026-09-08 log entries, evidently didn't persist across a DB reset since
+  then). Moved it to `server/storage/3/11/<uuid>.pdf` with a plain `mv`,
+  then removed the now-empty `server/server/` tree. **Chose migration over
+  "leave pre-existing files where they are"** because: (1) it was one file,
+  zero risk; (2) `Documents.file_url` stores the storage key as a path
+  *relative to* `STORAGE_ROOT` (e.g. `"3/11/<uuid>.pdf"`), never a path that
+  embeds `STORAGE_ROOT` itself, so the move needed no DB update — the
+  existing row's `file_url` already resolves correctly once the file sits
+  under the corrected root; and (3) leaving it split across two roots would
+  have meant `shared/storage.py` (a single, simple path-join function by
+  design) needing to know about a second legacy root forever, which is
+  exactly the kind of special-case creep the module was built to avoid.
+- `.gitignore`: added `server/server/` as an explicit safety-net pattern
+  alongside the existing `server/storage/`/`server/uploads/` entries — nothing
+  was ever tracked there (confirmed via `git status`/`git log` before this
+  fix), but there's no reason to leave that nested depth uncovered if a
+  stale `.env` (an old checkout, a forgotten local override) ever
+  regenerates it.
+
+**Verified for real** (not just re-reading the code — rebuilt containers and
+exercised the real HTTP paths):
+- `docker compose up -d --force-recreate client_api admin_api`, then
+  `docker compose exec client_api python -c "...Path(os.getenv('STORAGE_ROOT')).resolve()..."`
+  printed `/app/storage` (was `/app/server/storage` before the fix) —
+  confirmed the env change actually took effect inside the container, not
+  just in the file.
+- Downloaded the pre-existing narrative PDF (`document id 7`, moved during
+  migration) via the real `GET /cases/11/documents/7/download` route as the
+  assigned lawyer — `200`, full byte count, confirming the migrated file
+  resolves correctly through the actual download code path, not just "the
+  file exists on disk somewhere."
+- Uploaded a brand-new file via the real `POST /cases/11/documents` route —
+  landed on the host filesystem at `server/storage/3/11/<new-uuid>.pdf`
+  (confirmed with `find`), *not* a regenerated `server/server/`, then
+  downloaded it back via `GET .../download` and diffed the bytes against
+  the original upload — identical.
+- Full backend suite re-run after the fix — **124 passed** (tests never
+  actually exercised the buggy path, since `conftest.py` monkeypatches
+  `STORAGE_ROOT` per-test regardless, but re-ran anyway as a sanity check
+  that nothing else references the old value). One earlier run showed
+  spurious failures (`sqlalchemy` errors across many unrelated tests) —
+  traced to a second pytest invocation launched in parallel against the
+  *same* `TEST_DATABASE_URL`, both racing on `conftest.py`'s per-test
+  `Base.metadata.drop_all`/`create_all`; not a real regression, confirmed
+  by re-running the suite alone.
+
+**Learned / decided**:
+- "Find the mechanism first" was worth doing literally, not just as due
+  diligence — the fix is a one-line env value change (`./server/storage` →
+  `./storage`), but getting that line wrong in either direction (e.g.
+  changing the Dockerfile `WORKDIR` instead, or making the path absolute)
+  would have either not fixed anything or broken the bind-mount's whole
+  point (host and container agreeing on where uploaded files live for
+  `docker compose down`/`up` persistence across container recreation).
+  Resolving the env var live inside the actual running container (rather
+  than reasoning about it from the Dockerfile + compose file alone) is what
+  turned "should resolve to X" into "does resolve to X, confirmed."
