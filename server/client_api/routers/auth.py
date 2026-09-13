@@ -195,7 +195,10 @@ def change_my_password(
     try:
         change_password(identity, payload.current_password, payload.new_password, db)
     except WrongPasswordError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+        # 400, not 401 — see admin_api's identical route for the full
+        # reasoning (a 401 here collided with apiFetch's generic
+        # "401 == expired session" handling and bounced the user to /login).
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     set_session_cookies(response, identity.id, identity.token_version)
 

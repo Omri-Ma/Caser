@@ -270,7 +270,14 @@ def change_my_password(
     try:
         change_password(identity, payload.current_password, payload.new_password, db)
     except WrongPasswordError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+        # 400, not 401: this is a form-validation error (wrong value typed in
+        # a field on an already-authenticated request), not an auth/session
+        # failure. Returning 401 here made the frontend's generic apiFetch
+        # 401-handler (which assumes 401 == expired session) silently retry
+        # via /auth/refresh and then redirect to /login on the second
+        # failure — so mistyping the current password looked exactly like
+        # being logged out, with no visible error message.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     set_session_cookies(response, identity.id, identity.token_version)
 

@@ -3058,3 +3058,40 @@ invite/accept flow, public-page team section) — worked on the branch
 - Ran the full backend suite after the rename (cookie-name change is the one
   edit here with real behavioral surface, since it affects every authenticated
   request) — all 171 existing tests passed unchanged.
+
+**Investigated and fixed (item 2, super_admin password-change bug)**:
+- Reproduced live with a Playwright-driven headless Chromium session against
+  the real running `docker-compose` stack (`platform.lvh.me:5174` /
+  `:8001`), capturing the full request/response/cookie trace — static code
+  reading alone hadn't found it in a prior session.
+- First reproduction attempt (correct current password, single click)
+  succeeded cleanly with no logout — ruled out a cookie-domain/scoping issue
+  on `platform.lvh.me` specifically, and ruled out the race hypothesis (no
+  other request fires around the change-password call on this page).
+- Root cause found by then deliberately submitting a *wrong* current
+  password and watching the trace: `POST /auth/change-password` correctly
+  rejects it, but with **HTTP 401** (`server/admin_api/routers/auth.py` and
+  `server/client_api/routers/auth.py`, both wrapping the shared
+  `WrongPasswordError`). Both frontends' `apiFetch` treats *any* 401 as
+  "session expired" — it calls `POST /auth/refresh` (which succeeds, since
+  the real session is still valid), retries the original request once, gets
+  401 again (still the wrong password), and — since it's already retried —
+  falls through to `window.location.assign(loginRedirectUrl())`. The user
+  is bounced straight to `/login` with no visible error message, which
+  looks exactly like being logged out. A correctly-typed current password
+  was never actually broken; the bug only shows up on a typo, which is
+  presumably what happened during the original walkthrough.
+- Fix: changed both routes' `WrongPasswordError` handler from
+  `HTTPException(401, ...)` to `HTTPException(400, ...)` — a wrong-password
+  value on an already-authenticated request is a form-validation error, not
+  an auth/session failure, so it shouldn't be able to trigger the generic
+  401-means-expired-session handling at all. Updated
+  `test_auth_self_service.py`'s assertion to match (400, not 401).
+  Re-verified live: the same wrong-password submission now shows "Current
+  password is incorrect" inline and stays on `/profile`.
+- Also reset the already-seeded `super_admin` row's password back to the
+  documented demo credential (`SuperAdmin123!`) and `token_version` to 0,
+  and its display name to "Caser Platform" — both were left in a
+  post-testing state by this same debugging session (password changed
+  mid-repro; name was seeded before the rename and the already-existing DB
+  row doesn't pick up a `seed.sql` text change retroactively).

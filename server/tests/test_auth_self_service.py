@@ -22,7 +22,11 @@ def test_change_password_requires_correct_current_password(admin_client, db):
         headers=headers,
         cookies=cookies,
     )
-    assert resp.status_code == 401
+    # 400, not 401 — a wrong current-password value is a form error on an
+    # already-authenticated request, not a session/auth failure. A 401 here
+    # collides with the frontend's generic 401-means-"session expired"
+    # handling and silently redirects to login instead of showing an error.
+    assert resp.status_code == 400
 
 
 def test_change_password_succeeds_and_invalidates_other_sessions(client_client, db):
