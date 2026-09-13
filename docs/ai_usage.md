@@ -2812,3 +2812,86 @@ are still accurate; fix anything stale. Docs-only, no feature code.
   visual regression testing becomes a real project requirement later, it
   should be added deliberately as its own decision, not smuggled in as a
   side effect of a docs task.
+
+## 2026-09-13
+
+**Asked**: Build the "lobby" (`www.<BASE_DOMAIN>`) signup/multi-firm-login
+address just documented in CLAUDE.md's Multi-tenancy architecture section —
+`admin/`'s lobby gets signup (moved to be reachable there) plus a new
+office_manager multi-firm login; `client/`'s lobby gets the lawyer/client
+equivalent. `platform.lvh.me` untouched.
+
+**Changed**:
+- Backend: added `POST /auth/lobby-login` to both `admin_api` and
+  `client_api` (`routers/auth.py` + `schemas/auth.py` in each). Both reuse
+  `shared.security.verify_password` for the password check (no
+  reimplementation) and differ only in which roles they resolve
+  (`admin_api`: `office_manager`; `client_api`: `lawyer`/`client`) and that
+  `client_api`'s response includes each match's `role` (needed by the
+  frontend nav, which differs lawyer vs. client — `admin_api` has no such
+  branching so it doesn't need to carry role). Both exclude inactive
+  memberships and suspended tenants, matching every other tenant-scoped
+  query's existing `active` filtering.
+- Frontend (`admin/`): added `isLobbyHost()`/`redirectToTenant()`/
+  `lobbySignupUrl()` to `utils/host.js`; `App.jsx` now branches three ways
+  on hostname (platform / lobby / tenant) instead of two — `/signup` moved
+  out of the tenant branch entirely (founding a firm from an existing
+  tenant subdomain never made sense; it was only ever reachable there
+  because the lobby didn't exist yet) and into the new lobby branch
+  alongside a new `LobbyLoginPage.jsx`. The tenant `LoginPage`'s "found a
+  firm" link now points at the lobby's `/signup` via a plain `<a>` (cross-
+  origin, so not a router `Link`).
+- Frontend (`client/`): added the same `isLobbyHost()`/`redirectToTenant()`
+  pair to a new `utils/host.js` (client/ has no platform host case, so no
+  `lobbySignupUrl()` — there's no client-side firm founding). `App.jsx`
+  branches lobby vs. tenant; new `LobbyLoginPage.jsx` mirrors admin's but
+  redirects with `?role=<role>` in the URL and picker button, since a
+  lobby-login redirect crosses origins (lobby → tenant subdomain) and
+  `sessionStorage` (where role normally lives, see `api/session.js`) is
+  per-origin — added a small bootstrap in `App.jsx` that reads `?role=` on
+  mount, calls the existing `setStoredRole()`, and strips the param via
+  `history.replaceState`.
+- Both `LobbyLoginPage`s render three states (form / submitting / picker or
+  inline error) — no separate fetch-on-mount, so no loading spinner is
+  needed beyond the existing submit-button "…" state already used
+  elsewhere; the zero-match case reuses the existing `FormError` component.
+- Tests: `server/tests/test_auth_lobby.py`, 11 cases covering both apps —
+  wrong password, unknown email, zero matches (wrong-app role, e.g. a
+  lawyer at the admin lobby), single match (redirect), multiple matches
+  (picker), inactive membership excluded, suspended tenant excluded, and
+  (client_api only) that role is correctly reported per tenant including a
+  mixed lawyer-at-one-firm/client-at-another identity.
+- Re-ran `server/scripts/export_docs.sh` (OpenAPI + Postman + ERD) before
+  committing — `docs/openapi_{admin,client}.json` and both Postman
+  collections now include the two new `/auth/lobby-login` routes.
+
+**Verified manually** (Playwright script against the already-running Docker
+backend + Vite dev servers, screenshots in scratchpad, not committed):
+founded a brand-new firm at `www.lvh.me:5174/signup` and landed logged into
+its own subdomain's CMS with no second login; logged in at the admin lobby
+with an identity holding two office_manager memberships and got the picker,
+clicked one and landed there logged in; logged in at the admin lobby with an
+identity holding zero office_manager memberships (a client account) and got
+a clear inline error, not a crash; logged in at the client lobby with a
+single-membership client identity and landed on that tenant's `/cases` with
+the correct (client, not lawyer) nav state, confirming the `?role=` bootstrap
+actually works end-to-end; confirmed the existing per-tenant admin login
+(`demo.lvh.me:5174/login`) still works unchanged. Cleaned up the two test
+tenants created during this (`secondfirm`, `browsertest1`) from the dev DB
+afterward.
+
+**Learned / decided**:
+- The role-across-origins problem (client/'s nav needs to know lawyer vs.
+  client, but a lobby→tenant redirect is a hard navigation to a different
+  origin, so nothing client-side survives it) doesn't have a clean answer
+  within "cookie-based session, no bearer token" — went with a one-time
+  `?role=` query param read once on mount and immediately stripped, rather
+  than reaching for something heavier (e.g. baking role into the JWT, which
+  CLAUDE.md already explicitly rejected for the same-identity-different-
+  role-per-firm reason). `admin_api` doesn't have this problem at all since
+  `office_manager` is its only lobby-relevant role.
+- `SignupPage.jsx`'s hard-redirect-to-new-subdomain and the 401→refresh-
+  retry logic in both apps' `api/client.js` were already sitting uncommitted
+  in the working tree from a prior session when this one started — kept
+  them (they're consistent with, and partly prerequisite to, this feature)
+  and built on top rather than reverting.

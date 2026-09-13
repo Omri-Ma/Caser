@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { login } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
+import { lobbySignupUrl } from '../utils/host'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -43,7 +44,7 @@ export default function LoginPage() {
         </button>
       </form>
       <p className="auth-switch">
-        עדיין אין לך משרד? <Link to="/signup">הקמת משרד חדש</Link>
+        עדיין אין לך משרד? <a href={lobbySignupUrl()}>הקמת משרד חדש</a>
       </p>
     </div>
   )

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
+import LobbyLoginPage from './pages/LobbyLoginPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import DashboardPage from './pages/DashboardPage'
@@ -12,16 +13,19 @@ import SubscriptionPage from './pages/SubscriptionPage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
-import { isPlatformHost } from './utils/host'
+import { isPlatformHost, isLobbyHost } from './utils/host'
 
-// This bundle serves two entirely different logins depending on the
+// This bundle serves three entirely different route trees depending on the
 // hostname it's reached at (CLAUDE.md's Multi-tenancy architecture):
-// platform.<BASE_DOMAIN> is super_admin's fixed, non-tenant address, every
-// other subdomain is a real firm's office_manager CMS. Nobody cross-logs
-// into the other's routes, so the route tree itself branches on hostname
-// rather than trying to make one set of routes cover both.
+// platform.<BASE_DOMAIN> is super_admin's fixed, non-tenant address,
+// www.<BASE_DOMAIN> is the reserved, non-tenant lobby (signup + multi-firm
+// login, neither of which has a subdomain to resolve yet), and every other
+// subdomain is a real firm's office_manager CMS. Nobody cross-logs into
+// another tree's routes, so the route tree itself branches on hostname
+// rather than trying to make one set of routes cover all three.
 export default function App() {
   const platform = isPlatformHost()
+  const lobby = isLobbyHost()
 
   return (
     <BrowserRouter>
@@ -40,7 +44,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
-        ) : (
+        ) : lobby ? (
           <>
             <Route
               path="/signup"
@@ -50,6 +54,19 @@ export default function App() {
                 </Layout>
               }
             />
+            <Route
+              path="/login"
+              element={
+                <Layout>
+                  <LobbyLoginPage />
+                </Layout>
+              }
+            />
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </>
+        ) : (
+          <>
             <Route
               path="/login"
               element={

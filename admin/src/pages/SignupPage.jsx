@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { signup } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
+import { redirectToTenant } from '../utils/host'
 
 export default function SignupPage() {
-  const navigate = useNavigate()
   const [form, setForm] = useState({
     firmName: '',
     subdomain: '',
@@ -25,7 +25,7 @@ export default function SignupPage() {
     setSubmitting(true)
     try {
       await signup(form)
-      navigate('/')
+      redirectToTenant(form.subdomain)
     } catch (err) {
       setError(err.message)
     } finally {

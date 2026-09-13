@@ -11,6 +11,16 @@ export async function login({ email, password }) {
   return session
 }
 
+// lawyer/client login from the lobby (www.<BASE_DOMAIN>) — see
+// LobbyLoginPage. Doesn't call setStoredRole itself: which tenant's role
+// applies isn't known until the picker (if any) resolves to one, and the
+// redirect crosses origins anyway (see utils/host.js's redirectToTenant),
+// so the role travels via a query param instead — read back on the landing
+// page's next mount.
+export function lobbyLogin({ email, password }) {
+  return apiFetch('/auth/lobby-login', { method: 'POST', body: { email, password }, redirectOn401: false })
+}
+
 export function me() {
   return apiFetch('/auth/me')
 }

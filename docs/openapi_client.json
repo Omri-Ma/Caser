@@ -89,6 +89,48 @@
         }
       }
     },
+    "/auth/lobby-login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Lobby Login",
+        "description": "lawyer/client login from the lobby (www.<BASE_DOMAIN>) — CLAUDE.md's\nMulti-tenancy architecture. Mirrors admin_api's lobby-login: same\npassword check, but resolves active LAWYER/CLIENT memberships (at active\ntenants) instead of OFFICE_MANAGER ones. role is included per option\nsince it's needed to redirect straight into the right nav on the tenant\nsubdomain landing page — that page is a different origin, so it can't\nread anything stored here.",
+        "operationId": "lobby_login_auth_lobby_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LobbyLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LobbyLoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/refresh": {
       "post": {
         "tags": [
@@ -1360,6 +1402,80 @@
           "email"
         ],
         "title": "IdentityResponse"
+      },
+      "LobbyLoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LobbyLoginRequest",
+        "description": "lawyer/client login from the lobby (www.<BASE_DOMAIN>) — no tenant\nsubdomain known yet, unlike LoginRequest's per-tenant version."
+      },
+      "LobbyLoginResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "tenants": {
+            "items": {
+              "$ref": "#/components/schemas/LobbyTenantOption"
+            },
+            "type": "array",
+            "title": "Tenants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "tenants"
+        ],
+        "title": "LobbyLoginResponse"
+      },
+      "LobbyTenantOption": {
+        "properties": {
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "firm_name": {
+            "type": "string",
+            "title": "Firm Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "subdomain",
+          "firm_name",
+          "role"
+        ],
+        "title": "LobbyTenantOption"
       },
       "LoginRequest": {
         "properties": {

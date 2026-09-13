@@ -18,6 +18,30 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class LobbyLoginRequest(BaseModel):
+    """office_manager login from the lobby (www.<BASE_DOMAIN>) — no tenant
+    subdomain known yet, unlike LoginRequest's per-tenant version.
+    """
+
+    email: EmailStr
+    password: str
+
+
+class LobbyTenantOption(BaseModel):
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+
+
+class LobbyLoginResponse(BaseModel):
+    name: str
+    email: EmailStr
+    # Every active office_manager Membership this identity holds, across
+    # every active tenant — one entry redirects straight there, more than one
+    # means the frontend shows a "choose your firm" picker.
+    tenants: list[LobbyTenantOption]
+
+
 class PlatformLoginRequest(BaseModel):
     """super_admin login at the fixed platform address — no tenant/subdomain
     involved, just Identity + Identities.is_super_admin.
