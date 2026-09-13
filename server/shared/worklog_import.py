@@ -5,6 +5,7 @@ from io import BytesIO
 from typing import Optional
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy.orm import Session
@@ -30,8 +31,14 @@ MAX_HOURS_PER_ROW = Decimal("24")
 # enormous, hard-to-review insert.
 MAX_IMPORT_ROWS = 500
 
-HEADER_SELF = ["Case", "Date (YYYY-MM-DD)", "Hours", "Description"]
-HEADER_WITH_LAWYER_EMAIL = ["Lawyer Email", "Case", "Date (YYYY-MM-DD)", "Hours", "Description"]
+# Hebrew header labels (CLAUDE.md's RTL UI copy rule — the sheet a
+# Hebrew-speaking lawyer/office_manager actually fills in should read like
+# the rest of the product, same as every frontend screen). Column *position*
+# is what parse_and_validate_import actually keys off of below, never the
+# header text itself — these constants only gate "did you use the right
+# template layout" (wrong column count/order) via a whole-row equality check.
+HEADER_SELF = ["תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
+HEADER_WITH_LAWYER_EMAIL = ["אימייל עורך/ת דין", "תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
 
 
 @dataclass
@@ -64,10 +71,24 @@ def build_template_workbook(cases: list[Case], include_lawyer_email: bool) -> by
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Import"
+    # Sheet-level RTL — Hebrew header/description text and right-aligned
+    # columns read correctly, matching the rest of the product's RTL UI.
+    sheet.sheet_view.rightToLeft = True
     headers = HEADER_WITH_LAWYER_EMAIL if include_lawyer_email else HEADER_SELF
     sheet.append(headers)
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+    sheet.freeze_panes = "A2"
 
-    case_column_letter = get_column_letter(headers.index("Case") + 1)
+    # Position, not header text, is what actually locates each column — the
+    # Case column is always second-to-last-but-one before Date, i.e. right
+    # after Lawyer Email when that column is present, first otherwise.
+    case_column_index = 2 if include_lawyer_email else 1
+    date_column_index = case_column_index + 1
+    hours_column_index = date_column_index + 1
+    case_column_letter = get_column_letter(case_column_index)
+    date_column_letter = get_column_letter(date_column_index)
+    hours_column_letter = get_column_letter(hours_column_index)
 
     # A hardcoded comma-list DataValidation formula has a ~255-char limit —
     # a hidden sheet + range reference has no such cap, so it scales to
@@ -87,6 +108,14 @@ def build_template_workbook(cases: list[Case], include_lawyer_email: bool) -> by
         validation.errorTitle = "Invalid case"
         sheet.add_data_validation(validation)
         validation.add(f"{case_column_letter}2:{case_column_letter}1000")
+
+    # Proper date + hours column layout: real date-formatted cells (so
+    # Excel's own date picker/validation kicks in when someone types into
+    # them) and a fixed decimal format for hours, instead of both columns
+    # looking like plain, unformatted text.
+    for row in range(2, 1001):
+        sheet.cell(row=row, column=date_column_index).number_format = "yyyy-mm-dd"
+        sheet.cell(row=row, column=hours_column_index).number_format = "0.##"
 
     for column_index in range(1, len(headers) + 1):
         sheet.column_dimensions[get_column_letter(column_index)].width = 28

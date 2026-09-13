@@ -163,7 +163,13 @@ def test_add_member_rejects_lawyer_over_plan_limit(admin_client, db):
     assert resp.status_code == 400
 
 
-def test_reset_member_password_lets_them_log_in_with_new_password(admin_client, client_client, db):
+def test_office_manager_has_no_reset_password_route_for_members(admin_client, client_client, db):
+    """Security fix: office_manager's authority over a member is strictly
+    Membership-level (role/active/case assignment) — never that person's
+    actual account. There is no route left for an office_manager to set or
+    see another identity's password; the old admin-driven reset endpoint is
+    gone entirely, and the member's original password still works untouched.
+    """
     tenant = make_tenant(db, "acme")
     manager = make_identity(db, "manager@acme.com")
     make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
@@ -177,18 +183,11 @@ def test_reset_member_password_lets_them_log_in_with_new_password(admin_client, 
         headers=headers,
         cookies=cookies,
     )
-    assert resp.status_code == 204
+    assert resp.status_code == 404
 
     login_resp = client_client.post(
-        "/auth/login",
-        json={"email": "lawyer@acme.com", "password": "BrandNewPass123"},
-        headers={"Host": "acme.lvh.me"},
-    )
-    assert login_resp.status_code == 200
-
-    old_password_resp = client_client.post(
         "/auth/login",
         json={"email": "lawyer@acme.com", "password": "password123"},
         headers={"Host": "acme.lvh.me"},
     )
-    assert old_password_resp.status_code == 401
+    assert login_resp.status_code == 200

@@ -6,7 +6,7 @@ from conftest import auth_for, make_assignment, make_case, make_identity, make_m
 from shared.models import AuditLog, WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 
-HEADER = ["Lawyer Email", "Case", "Date (YYYY-MM-DD)", "Hours", "Description"]
+HEADER = ["אימייל עורך/ת דין", "תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
 
 
 def _office_manager(db, tenant):
@@ -57,7 +57,7 @@ def test_download_template_lists_every_open_case_and_has_email_column(admin_clie
 
     workbook = load_workbook(BytesIO(resp.content))
     header_row = next(workbook["Import"].iter_rows(values_only=True))
-    assert header_row[0] == "Lawyer Email"
+    assert header_row[0] == "אימייל עורך/ת דין"
 
     options = [cell[0] for cell in workbook["Cases"].iter_rows(values_only=True)]
     assert any("Case A" in opt for opt in options)

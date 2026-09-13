@@ -185,6 +185,16 @@ cross-logs into the other app (see Multi-tenancy architecture for how
     clear error rather than a confusing dead end (e.g. a lawyer landing on
     `admin/`'s lobby by mistake). `super_admin`'s separate `platform.lvh.me`
     login is untouched by any of this — it was never part of this problem.
+  - The lobby is the **only** login entry point, on purpose — there is no
+    separate per-subdomain `/login` page anymore. Logging out, or a session
+    simply expiring, always sends the browser back to the lobby
+    (`www.lvh.me/login`), not to a login page on the tenant subdomain it was
+    just on. Keeping two different login screens (one that resolves "which
+    firm" and one that already assumes it) is duplicate logic to maintain
+    and a duplicate flow to explain — not worth it for what it'd save a
+    single-firm user, which is one extra hop that still lands them right
+    back in immediately since the lobby resolves a one-firm identity
+    automatically anyway.
 - `super_admin` is the only role allowed to query across tenants — this goes
   through a clearly separate, explicitly named code path (never the default
   tenant-filtered query functions), so it can't accidentally leak into normal
@@ -401,6 +411,20 @@ are built — avoids painful migrations later.
   the only step in the Documents trash lifecycle that's actually
   irreversible, so it's the one place a durable "who did this and when"
   record is non-negotiable, not just nice to have.
+- `PasswordResetTokens` (id, identity_id, token_hash, expires_at, used_at) —
+  backs the self-service forgot-password flow (see Roles / office manager,
+  above, for why this exists instead of an admin-driven reset). `token_hash`
+  is a hash of the actual token, never the raw value, same reasoning as
+  `password_hash` — the raw token only ever exists in the one-time link
+  itself. Tenant-less on purpose: a forgotten password is an `Identities`-
+  level problem, not a per-firm one, same as the password itself. Requesting
+  a reset always returns the same generic response regardless of whether the
+  email matched a real account (never reveal which emails are registered).
+  A token is single-use (`used_at` set on redemption) and short-lived
+  (e.g. 30 minutes); redeeming one sets a new `password_hash` and bumps
+  `token_version` (see Identities), invalidating any session that was open
+  under the old password. The "email" step writes the reset link to a
+  dev-only outbox instead of actually sending mail — see Future additions.
 
 ## Folder structure (do not restructure later — this is part of the grade)
 ```
@@ -592,11 +616,19 @@ frontend form → verified working, before starting the next)
   the Phase 1 tenant-isolation pytest test (a request on tenant A's subdomain
   cannot retrieve tenant B's case) — do not move on to the next slice without it.
 - Office manager: manage lawyers/clients, branding settings, subscription/plan
-  view. Includes resetting a member's password by hand (sets a new one they
-  must use next login) — the interim stand-in for real password recovery
-  until email infrastructure exists (see Future additions), and reuses the
-  same "office manager manages their people" authority already established
-  for adding members.
+  view. `office_manager`'s authority over a member is strictly relationship-
+  level — add/remove/reactivate a Membership, assign/unassign to cases,
+  nothing more. It never extends to that person's actual account: no editing
+  name/bio/photo, and no resetting their password. Both are `Identities`
+  columns, not `Memberships` columns — the account belongs to the person
+  globally (see Identity vs. membership), and a person can hold that same
+  account at more than one firm, so a firm's own staff having a lever over
+  it would let one firm reach into a completely different firm's
+  relationship with that same person. The real-world analogy: an Amazon
+  seller can manage their own shop, but never gets a button that resets a
+  customer's actual Amazon password — that login isn't the shop's to touch.
+  Password changes/resets are entirely self-service instead — see the
+  forgot-password flow under Data model / Future additions.
 - Public firm homepage: each tenant subdomain (e.g. `office1.lvh.me`) has a public,
   unauthenticated landing page showing only non-sensitive firm profile info (name,
   logo, an "about" blurb stored via the existing `Settings` table) with a sign-in
@@ -626,13 +658,15 @@ Real, worthwhile ideas that came up but aren't worth the scope/risk of building
 before the core and add-ons above are fully working. Park them here instead of
 either building them early or forgetting them — also a ready answer for the
 defense's "what would you do with one more week" question.
-- Real email-based password reset. Today there's no password-recovery path
-  at all and no email-sending infrastructure anywhere in the project; the
-  interim answer is `office_manager` (or `super_admin`, one level up)
-  manually resetting a member's password by hand, reusing the existing
-  "admin manages their people" pattern — no new infrastructure needed for
-  that part. A real forgot-password-email flow is the upgrade, once
-  everything else is solid.
+- Real email delivery for password resets. The forgot-password flow itself
+  is real (see Data model: `PasswordResetTokens`) — expiring, single-use
+  tokens, a real reset-password page, nothing faked about the security
+  properties. The one piece that's a stand-in is the "email" — there's no
+  SMTP account/provider set up (a real cost/infrastructure decision outside
+  this exercise's scope), so the reset link is written to a dev-only outbox
+  instead of actually emailed. Swapping in real SMTP later only touches that
+  one sending module, same pattern as `storage.py` standing in for cloud
+  storage.
 
 ## Git, documentation, and delivery requirements
 - Meaningful commits at least once per work day — never one commit at the end.

@@ -5,19 +5,13 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from admin_api.core.pagination import Page, PageParams, paginate
-from admin_api.schemas.auth import (
-    AddMemberRequest,
-    MemberResponse,
-    MembershipResponse,
-    ResetMemberPasswordRequest,
-)
+from admin_api.schemas.auth import AddMemberRequest, MemberResponse, MembershipResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Identity, Membership, Tenant
 from shared.models.enums import UserRole
 from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
-from shared.security import hash_password
 from shared.tenant import get_current_tenant
 
 router = APIRouter(prefix="/members", tags=["members"])
@@ -160,32 +154,3 @@ def deactivate_member(
 
     identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
     return _to_member_response(membership, identity)
-
-
-@router.post("/{membership_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
-def reset_member_password(
-    membership_id: int,
-    payload: ResetMemberPasswordRequest,
-    tenant: Tenant = Depends(get_current_tenant),
-    db: Session = Depends(get_db),
-    office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
-):
-    """office_manager sets a new password for a member by hand — the interim
-    stand-in for real password recovery (CLAUDE.md's Future additions).
-    Bumps token_version so any of the member's outstanding sessions are
-    invalidated too, same as a self-service password change would.
-    """
-    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, "Member not found")
-    identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
-
-    identity.password_hash = hash_password(payload.new_password)
-    identity.token_version += 1
-    db.add(
-        AuditLog(
-            tenant_id=tenant.id,
-            user_id=office_manager.id,
-            action="member_password_reset",
-            target=f"membership:{membership.id}",
-        )
-    )
-    db.commit()

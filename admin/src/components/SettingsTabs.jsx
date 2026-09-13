@@ -22,6 +22,13 @@ export default function SettingsTabs({ active }) {
       >
         מנוי ותוכנית
       </button>
+      <button
+        type="button"
+        className={`settings-tab${active === 'profile' ? ' active' : ''}`}
+        onClick={() => navigate('/settings/profile')}
+      >
+        פרופיל אישי
+      </button>
     </div>
   )
 }

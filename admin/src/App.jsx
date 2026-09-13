@@ -1,8 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import DevOutboxPage from './pages/DevOutboxPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import DashboardPage from './pages/DashboardPage'
@@ -10,9 +12,11 @@ import MembersPage from './pages/MembersPage'
 import AuditLogPage from './pages/AuditLogPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import ProfilePage from './pages/ProfilePage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
+import PlatformProfilePage from './pages/PlatformProfilePage'
 import { isPlatformHost, isLobbyHost } from './utils/host'
 
 // This bundle serves three entirely different route trees depending on the
@@ -41,6 +45,7 @@ export default function App() {
               }
             />
             <Route path="/dashboard" element={<PlatformDashboardPage />} />
+            <Route path="/profile" element={<PlatformProfilePage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
@@ -62,19 +67,41 @@ export default function App() {
                 </Layout>
               }
             />
+            <Route
+              path="/forgot-password"
+              element={
+                <Layout>
+                  <ForgotPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <Layout>
+                  <ResetPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dev-outbox"
+              element={
+                <Layout>
+                  <DevOutboxPage />
+                </Layout>
+              }
+            />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
+          // No tenant-subdomain /login here anymore — office_manager only
+          // ever logs in via the lobby now (CLAUDE.md's Multi-tenancy
+          // architecture: the lobby is the one login entry point per app).
+          // An unauthenticated visitor lands here (via the catch-all below)
+          // only via a direct/stale URL; AppShell's own session check is
+          // what actually sends them to the lobby (see AppShell.jsx).
           <>
-            <Route
-              path="/login"
-              element={
-                <Layout>
-                  <LoginPage />
-                </Layout>
-              }
-            />
             <Route path="/cases" element={<CasesListPage />} />
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/members" element={<MembersPage />} />
@@ -82,6 +109,7 @@ export default function App() {
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />
             <Route path="/settings/branding" element={<BrandingPage />} />
             <Route path="/settings/subscription" element={<SubscriptionPage />} />
+            <Route path="/settings/profile" element={<ProfilePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/" element={<Navigate to="/cases" replace />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />

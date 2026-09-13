@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
 import './AppShell.css'
 
@@ -12,6 +12,7 @@ import './AppShell.css'
 // super_admin or a regular Membership holder.
 export default function PlatformAppShell({ children }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const [identity, setIdentity] = useState(null)
   const [checking, setChecking] = useState(true)
 
@@ -46,14 +47,29 @@ export default function PlatformAppShell({ children }) {
           <span className="wordmark">CaseHub · פלטפורמה</span>
         </div>
         <nav className="sidebar-nav">
-          <div className="sidebar-nav-item active">
+          <button
+            type="button"
+            className={`sidebar-nav-item${location.pathname === '/dashboard' ? ' active' : ''}`}
+            onClick={() => navigate('/dashboard')}
+          >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
               <path d="M4 13h4v7H4z" />
               <path d="M10 8h4v12h-4z" />
               <path d="M16 4h4v16h-4z" />
             </svg>
             לוח בקרה
-          </div>
+          </button>
+          <button
+            type="button"
+            className={`sidebar-nav-item${location.pathname === '/profile' ? ' active' : ''}`}
+            onClick={() => navigate('/profile')}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="8.5" r="3.2" />
+              <path d="M5.5 19.5c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2" />
+            </svg>
+            פרופיל אישי
+          </button>
         </nav>
       </aside>
       <div className="app-content">

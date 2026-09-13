@@ -33,6 +33,7 @@ from shared.models.enums import CaseStatus, DocumentFolderType, UserRole, WorkLo
 from shared.security import ACCESS_COOKIE_NAME, create_access_token, hash_password  # noqa: E402
 from shared.tenant import BASE_DOMAIN  # noqa: E402
 import shared.storage as storage  # noqa: E402
+import shared.dev_outbox as dev_outbox  # noqa: E402
 
 test_engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
@@ -47,6 +48,7 @@ def _isolated_storage_root(tmp_path, monkeypatch):
     instead, cleaned up automatically by pytest.
     """
     monkeypatch.setattr(storage, "STORAGE_ROOT", tmp_path)
+    monkeypatch.setattr(dev_outbox, "DEV_OUTBOX_PATH", tmp_path / "dev_outbox.jsonl")
 
 
 @pytest.fixture()

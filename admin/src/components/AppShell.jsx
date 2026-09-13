@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
+import { getTenant } from '../api/tenant'
+import { lobbyLoginUrl } from '../utils/host'
 import './AppShell.css'
 
 const NAV_ITEMS = [
@@ -73,7 +75,7 @@ const NAV_ITEMS = [
 ]
 
 // Wraps every authenticated admin screen: resolves the session once
-// (redirects to /login if it isn't valid) and renders the sidebar shell
+// (redirects to the lobby's login if it isn't valid) and renders the sidebar shell
 // around whatever page content is passed in — same pattern as client/'s
 // AppShell, recolored navy for admin per CLAUDE.md's "two deliberately
 // different designs" rule.
@@ -81,17 +83,31 @@ export default function AppShell({ activeKey, children }) {
   const navigate = useNavigate()
   const [identity, setIdentity] = useState(null)
   const [checking, setChecking] = useState(true)
+  // Which firm this office_manager is currently managing — shown in the
+  // header since a person can hold this same role at more than one firm
+  // (CLAUDE.md's Identity vs. membership), so it isn't otherwise obvious
+  // from the chrome alone. Best-effort: failing to load it is a display
+  // nicety, not worth blocking the rest of the shell over.
+  const [tenant, setTenant] = useState(null)
+  const [logoFailed, setLogoFailed] = useState(false)
 
   useEffect(() => {
     me()
       .then(setIdentity)
-      .catch(() => navigate('/login', { replace: true }))
+      // A hard, cross-origin redirect, not react-router navigation — this
+      // tenant subdomain has no /login of its own anymore, office_manager
+      // only ever logs in via the lobby (CLAUDE.md's Multi-tenancy
+      // architecture).
+      .catch(() => window.location.assign(lobbyLoginUrl()))
       .finally(() => setChecking(false))
+    getTenant()
+      .then(setTenant)
+      .catch(() => {})
   }, [navigate])
 
   async function handleLogout() {
     await logout()
-    navigate('/login')
+    window.location.assign(lobbyLoginUrl())
   }
 
   if (checking) {
@@ -139,11 +155,32 @@ export default function AppShell({ activeKey, children }) {
       </aside>
       <div className="app-content">
         <header className="content-topbar">
-          <div className="topbar-user">
-            <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
-            <div className="user-name">{identity.name}</div>
+          <div className="topbar-start">
+            {tenant && (
+              <div className="topbar-tenant">
+                {tenant.logo_url && !logoFailed ? (
+                  <img
+                    src={tenant.logo_url}
+                    alt=""
+                    className="topbar-tenant-logo"
+                    onError={() => setLogoFailed(true)}
+                  />
+                ) : (
+                  <div className="topbar-tenant-logo-placeholder">{tenant.name.trim().slice(0, 2)}</div>
+                )}
+                <span className="topbar-tenant-name">{tenant.name}</span>
+              </div>
+            )}
+            <div className="topbar-user">
+              <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
+              <div className="user-name">{identity.name}</div>
+            </div>
           </div>
           <button type="button" className="topbar-logout" onClick={handleLogout}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 4.5H8a2 2 0 00-2 2v11a2 2 0 002 2h7" strokeLinecap="round" />
+              <path d="M10 12h10.5M17.5 8.5L21 12l-3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             התנתקות
           </button>
         </header>

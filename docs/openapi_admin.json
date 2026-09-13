@@ -222,6 +222,172 @@
         }
       }
     },
+    "/auth/change-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change My Password",
+        "description": "Self-service, for every role — office_manager included — since a\npassword is an Identities-level thing, never a Memberships-level lever\nanother party at a firm gets to pull (CLAUDE.md's office_manager\nauthority boundary). Re-issues this request's own session cookies with\nthe bumped token_version so the current session isn't logged out by its\nown password change, while every *other* outstanding session is.",
+        "operationId": "change_my_password_auth_change_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/forgot-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Forgot Password",
+        "description": "Always the same generic response regardless of whether the email\nmatched a real account (CLAUDE.md's PasswordResetTokens note — never\nreveal which emails are registered). The \"email\" step writes to a\ndev-only outbox instead of actually sending mail (no SMTP infra in this\nexercise — see CLAUDE.md's Future additions).",
+        "operationId": "forgot_password_auth_forgot_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/reset-password": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "operationId": "reset_password_auth_reset_password_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenericMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/dev-outbox": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Dev Outbox",
+        "description": "Dev-only stand-in for real email delivery (see forgot_password above\nand CLAUDE.md's Future additions) — lets a developer (or the grader)\nfind a reset link without digging through server logs.",
+        "operationId": "dev_outbox_auth_dev_outbox_get",
+        "parameters": [
+          {
+            "name": "email",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/members": {
       "get": {
         "tags": [
@@ -374,52 +540,6 @@
                 }
               }
             }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/members/{membership_id}/reset-password": {
-      "post": {
-        "tags": [
-          "members"
-        ],
-        "summary": "Reset Member Password",
-        "description": "office_manager sets a new password for a member by hand — the interim\nstand-in for real password recovery (CLAUDE.md's Future additions).\nBumps token_version so any of the member's outstanding sessions are\ninvalidated too, same as a self-service password change would.",
-        "operationId": "reset_member_password_members__membership_id__reset_password_post",
-        "parameters": [
-          {
-            "name": "membership_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Membership Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ResetMemberPasswordRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "204": {
-            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -2115,6 +2235,26 @@
         ],
         "title": "CaseStatus"
       },
+      "ChangePasswordRequest": {
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "title": "Current Password"
+          },
+          "new_password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "New Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_password",
+          "new_password"
+        ],
+        "title": "ChangePasswordRequest",
+        "description": "Self-service \"change my password\" while logged in — every role can\ndo this for their own account. Never touches another person's account\n(see CLAUDE.md's office_manager authority boundary)."
+      },
       "CreateCaseRequest": {
         "properties": {
           "title": {
@@ -2267,6 +2407,33 @@
           "created_at"
         ],
         "title": "DocumentResponse"
+      },
+      "ForgotPasswordRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordRequest"
+      },
+      "GenericMessageResponse": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "GenericMessageResponse"
       },
       "HTTPValidationError": {
         "properties": {
@@ -2809,8 +2976,12 @@
         ],
         "title": "ReclassifyDocumentRequest"
       },
-      "ResetMemberPasswordRequest": {
+      "ResetPasswordRequest": {
         "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
           "new_password": {
             "type": "string",
             "minLength": 8,
@@ -2819,10 +2990,10 @@
         },
         "type": "object",
         "required": [
+          "token",
           "new_password"
         ],
-        "title": "ResetMemberPasswordRequest",
-        "description": "office_manager sets a new password for a member by hand — the\ninterim stand-in for real password recovery (CLAUDE.md's Future\nadditions). They must use it next login."
+        "title": "ResetPasswordRequest"
       },
       "SessionResponse": {
         "properties": {

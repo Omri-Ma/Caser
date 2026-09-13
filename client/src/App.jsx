@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import DevOutboxPage from './pages/DevOutboxPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
+import ProfilePage from './pages/ProfilePage'
 import PublicHomePage from './pages/PublicHomePage'
 import { apiFetch } from './api/client'
 import { isLobbyHost } from './utils/host'
@@ -76,10 +79,40 @@ export default function App() {
                 </Layout>
               }
             />
+            <Route
+              path="/forgot-password"
+              element={
+                <Layout>
+                  <ForgotPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <Layout>
+                  <ResetPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dev-outbox"
+              element={
+                <Layout>
+                  <DevOutboxPage />
+                </Layout>
+              }
+            />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
+          // No tenant-subdomain /login here anymore — lawyer/client only
+          // ever logs in via the lobby now (CLAUDE.md's Multi-tenancy
+          // architecture: the lobby is the one login entry point per app).
+          // AppShell's own session check is what sends an unauthenticated
+          // visitor to the lobby (see AppShell.jsx); "/" still shows the
+          // public homepage for a logged-out visitor, unchanged.
           <>
             <Route
               path="/register"
@@ -89,17 +122,10 @@ export default function App() {
                 </Layout>
               }
             />
-            <Route
-              path="/login"
-              element={
-                <Layout>
-                  <LoginPage />
-                </Layout>
-              }
-            />
             <Route path="/cases" element={<CasesListPage />} />
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/" element={<RootRoute />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />
           </>

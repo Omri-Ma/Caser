@@ -6,7 +6,7 @@ from conftest import auth_for, make_assignment, make_case, make_identity, make_m
 from shared.models import WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 
-HEADER = ["Case", "Date (YYYY-MM-DD)", "Hours", "Description"]
+HEADER = ["תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
 
 
 def _lawyer_on_case(db, tenant, case, email="lawyer@acme.com", name="Lior Lawyer"):

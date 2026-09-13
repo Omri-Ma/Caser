@@ -3,6 +3,8 @@
 // office1.lvh.me) and only takes protocol/port from env — that's what makes
 // login work against whichever firm's subdomain the page is actually on,
 // without hardcoding a specific tenant.
+import { loginRedirectUrl } from '../utils/host'
+
 const API_PROTOCOL = import.meta.env.VITE_API_PROTOCOL || 'http'
 const API_PORT = import.meta.env.VITE_API_PORT
 
@@ -64,7 +66,7 @@ export async function apiFetch(path, { method = 'GET', body, redirectOn401 = tru
     if (!_retried && (await refreshSession())) {
       return apiFetch(path, { method, body, redirectOn401, _retried: true })
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
   }
 
@@ -97,7 +99,7 @@ export async function apiUpload(path, formData, _retried = false) {
     if (!_retried && (await refreshSession())) {
       return apiUpload(path, formData, true)
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
   }
 
@@ -122,7 +124,7 @@ export async function apiDownload(path, _retried = false) {
     if (!_retried && (await refreshSession())) {
       return apiDownload(path, true)
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError('ההתחברות פגה', { status: 401 })
   }
 

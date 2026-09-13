@@ -5,6 +5,7 @@ from shared.models.document import Document
 from shared.models.identity import Identity
 from shared.models.membership import Membership
 from shared.models.narrative import Narrative
+from shared.models.password_reset_token import PasswordResetToken
 from shared.models.setting import Setting
 from shared.models.subscription import Subscription
 from shared.models.tenant import Tenant
@@ -18,6 +19,7 @@ __all__ = [
     "Identity",
     "Membership",
     "Narrative",
+    "PasswordResetToken",
     "Setting",
     "Subscription",
     "Tenant",

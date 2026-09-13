@@ -6,8 +6,9 @@ import { FormField, FormError } from '../components/Form'
 // super_admin's own login screen at the fixed platform address — never a
 // signup link here (CLAUDE.md: "no self-service platform-staff signup",
 // the first super_admin is a fixed seed.sql row), and it posts to
-// /auth/platform-login, not /auth/login (see LoginPage for the
-// office_manager equivalent).
+// /auth/platform-login, not /auth/login (see LobbyLoginPage for the
+// office_manager equivalent — the lobby, not a per-tenant page, since
+// there is no per-tenant /login anymore).
 export default function PlatformLoginPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '' })

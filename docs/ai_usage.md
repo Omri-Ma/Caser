@@ -2895,3 +2895,127 @@ afterward.
   in the working tree from a prior session when this one started — kept
   them (they're consistent with, and partly prerequisite to, this feature)
   and built on top rather than reverting.
+
+## 2026-09-13
+
+**Asked**: CLAUDE.md's Roles/Build order/Data model sections were updated
+first (by the user, before this session) to remove office_manager's
+admin-driven "reset a member's password by hand" and replace it with a real
+self-service change-password + forgot-password flow (`PasswordResetTokens`).
+Session scope: (1) remove the old admin-driven reset entirely, confirm
+office_manager's member screens only ever touch Membership fields, add
+self-service change-password for every role; (2) build the real
+forgot-password flow (token table/migration, `/auth/forgot-password`,
+`/auth/reset-password`, dev-only outbox standing in for real email); (3) a
+batch of small UI fixes found during an earlier walkthrough (tracked in this
+session's own scratch memory, not this file): admin cases list rows not
+clickable, admin header missing firm branding, logout button not
+discoverable, header/table spacing too tight, Excel import template not
+RTL/Hebrew. Branch: `feature/self-service-password-reset`.
+
+**Changed** (7 commits, each scoped to one fix per the user's explicit ask):
+
+1. **Removed the admin-driven password reset** — deleted
+   `POST /members/{id}/reset-password` (route + schema) from `admin_api`,
+   deleted `admin/src/components/ResetPasswordModal.jsx` and its wiring in
+   `MembersPage.jsx`/`api/members.js`. Rewrote the corresponding test to
+   assert the route is gone (404) and the member's own password is
+   untouched. Confirmed (no code change needed) that `MembersPage.jsx`/
+   `AddMemberModal.jsx` already only ever touch `Membership` fields
+   (role/active), never `Identity` fields.
+2. **Self-service change-password + real forgot-password flow.** New
+   `server/shared/password_reset.py` (a 4th narrow `server/shared`
+   extension, alongside `storage.py`/`plan_limits.py`/`worklog_import.py`):
+   `change_password()`, `create_reset_token()`, `redeem_reset_token()`.
+   New `PasswordResetTokens` table + migration
+   (`b2c3d4e5f6a7_password_reset_tokens.py`) — tenant-less, hashed token,
+   single-use, 30-minute expiry, exactly per CLAUDE.md's Data model spec.
+   `shared/dev_outbox.py` stands in for real email: writes/reads a
+   gitignored `server/dev_outbox.jsonl` (both containers share it — same
+   `WORKDIR /app` bind-mount that caused the earlier `STORAGE_ROOT`
+   double-resolution bug works in this module's favor here, since both
+   apps need to see the same file). Both `admin_api` and `client_api` get
+   their own thin routes on top of the shared logic:
+   `POST /auth/change-password`, `POST /auth/forgot-password`,
+   `POST /auth/reset-password`, `GET /auth/dev-outbox`. Frontend:
+   `ForgotPasswordPage`/`ResetPasswordPage`/`DevOutboxPage` on both apps'
+   lobbies, linked from each `LobbyLoginPage`; self-service
+   change-password screens for every role — `admin/`'s `ProfilePage`
+   (office_manager, new "פרופיל אישי" settings tab) and
+   `PlatformProfilePage` (super_admin, new platform sidebar item),
+   `client/`'s `ProfilePage` (lawyer/client, new nav item). 8 new backend
+   tests (`test_auth_self_service.py`).
+3. **Fixed admin cases list rows not being clickable** — `DataTable.css`
+   already had `.data-table-row-clickable` styles defined and
+   `CasesListPage.jsx` already passed `onRowClick`, but `DataTable.jsx`
+   never accepted the prop or wired it to the `<tr>`. One-line-ish fix.
+4. **Added tenant branding to the admin header** — `AppShell.jsx` now
+   fetches the tenant via the existing `GET /tenant` route and shows its
+   logo (falling back to initials if the logo URL fails to load) plus its
+   name in the topbar, since an office_manager's Identity can hold a
+   Membership at more than one firm and the chrome gave no indication of
+   which one you were in.
+5. **Made the logout button actually discoverable** — it was plain,
+   borderless text in the muted/secondary gray token, low-contrast enough
+   against the page background to be easy to miss entirely. Gave it real
+   button styling (border, background, icon, red hover state).
+6. **Fixed header/table spacing** — `.cases-header` (shared by
+   `CasesListPage` and `MembersPage`) had no `margin-bottom`, so the
+   "add case"/"add lawyer" button sat flush against the card beneath it.
+7. **Made the Excel work-log import template RTL/Hebrew** —
+   `sheet.sheet_view.rightToLeft = True`, Hebrew column headers (parsing
+   stays keyed by column *position*, never header text, so this doesn't
+   touch validation logic), bolded + frozen header row, and real
+   `yyyy-mm-dd`/`0.##` number formats on the Date/Hours columns instead of
+   plain unformatted cells.
+
+**Verified live**, not just via tests — against the already-running Docker
+stack + Vite dev servers, using a one-off Playwright script (not committed;
+`playwright-core` installed to the scratchpad dir, not the project):
+- Screenshotted the admin cases list, confirmed row click navigates to
+  `/cases/:caseId`, screenshotted the header (tenant name + logo fallback
+  chip visible, logout button now visible with real contrast), and the
+  members list (spacing, and confirmed no reset-password button remains).
+- Screenshotted the client app (cases list + new profile page) to confirm
+  no regression from the admin-only changes.
+- Downloaded the *real* Excel template from the running `admin_api`,
+  inspected it programmatically (`rightToLeft=True`, `freeze_panes='A2'`,
+  Hebrew headers in order, bold, correct number formats), filled in a real
+  row for a real lawyer/case pair from the dev DB, and imported it through
+  the actual running endpoint (201, `imported_count: 1`) — then deleted
+  that test WorkLog + AuditLog row afterward to keep the dev DB clean.
+- Triggered a real `/auth/forgot-password` request for the seeded demo
+  client, found the link in the dev outbox, redeemed it via
+  `/auth/reset-password`, confirmed login worked with the new password and
+  that a session token minted before the reset was invalidated — then
+  reset the password back to the documented demo credential (`Client123!`)
+  afterward so the required demo login still works.
+- Full backend suite: 171/171 passed (run serially — an earlier attempt
+  where two full-suite runs were accidentally kicked off in parallel
+  produced flaky, non-reproducible failures from both processes
+  resetting/dropping the same test database at once; not a real
+  regression, confirmed by immediately re-running serially).
+- Both `admin/` and `client/` production builds (`npm run build`) succeed
+  with no errors after every change.
+
+**Learned / decided**:
+- The user caught that an early summary of this session's work covered
+  only the password-reset pieces and omitted the small-UI-fixes item
+  entirely, and separately asked to confirm (not assume) whether the
+  per-tenant `/login` page and logout/expired-session redirect target had
+  changed — they hadn't, and were never asked to; that pre-existing
+  behavior (per-tenant login stays as a direct-URL entry point, lobby is
+  an *additional* one, per the already-merged lobby-login feature) was
+  confirmed directly from the code (`grep` on the actual redirect calls)
+  rather than assumed from memory, and reported as unchanged rather than
+  silently left ambiguous.
+- No project-level "run" skill existed for driving this app in a browser;
+  used the generic Playwright/chromium-cli pattern from Claude Code's
+  bundled `run` skill instead, adapted for `playwright-core` (no
+  `chromium-cli` binary available on this Windows machine) since Chromium
+  was already installed locally from a prior `npx playwright install`.
+- Split the `AppShell.jsx`/`AppShell.css` diff into two separate commits
+  (tenant branding vs. logout-button styling) by temporarily reverting one
+  half, committing, then reapplying the other — `git add -p` couldn't
+  cleanly split them since both edits landed in the same contiguous JSX
+  hunk.

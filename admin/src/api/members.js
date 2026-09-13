@@ -19,10 +19,3 @@ export function addMember(email, role) {
 export function deactivateMember(membershipId) {
   return apiFetch(`/members/${membershipId}/deactivate`, { method: 'POST' })
 }
-
-export function resetMemberPassword(membershipId, newPassword) {
-  return apiFetch(`/members/${membershipId}/reset-password`, {
-    method: 'POST',
-    body: { new_password: newPassword },
-  })
-}
