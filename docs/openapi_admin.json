@@ -89,6 +89,48 @@
         }
       }
     },
+    "/auth/lobby-login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Lobby Login",
+        "description": "office_manager login from the lobby (www.<BASE_DOMAIN>) — CLAUDE.md's\nMulti-tenancy architecture. Unlike /auth/login above, no subdomain is\nknown yet, so instead of checking one tenant's Membership this resolves\nevery active office_manager Membership the identity holds (at active\ntenants): zero means this email has no firm to manage here, exactly one\nredirects straight to it, more than one needs a \"choose your firm\"\npicker — all three are the frontend's job, this route only reports which\ncase it is. Password check reuses the exact same verify_password\n/auth/login already uses; nothing about authentication itself changes.",
+        "operationId": "lobby_login_auth_lobby_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LobbyLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LobbyLoginResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/platform-login": {
       "post": {
         "tags": [
@@ -2262,6 +2304,76 @@
           "email"
         ],
         "title": "IdentityResponse"
+      },
+      "LobbyLoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LobbyLoginRequest",
+        "description": "office_manager login from the lobby (www.<BASE_DOMAIN>) — no tenant\nsubdomain known yet, unlike LoginRequest's per-tenant version."
+      },
+      "LobbyLoginResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "tenants": {
+            "items": {
+              "$ref": "#/components/schemas/LobbyTenantOption"
+            },
+            "type": "array",
+            "title": "Tenants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "tenants"
+        ],
+        "title": "LobbyLoginResponse"
+      },
+      "LobbyTenantOption": {
+        "properties": {
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "firm_name": {
+            "type": "string",
+            "title": "Firm Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "subdomain",
+          "firm_name"
+        ],
+        "title": "LobbyTenantOption"
       },
       "LoginRequest": {
         "properties": {

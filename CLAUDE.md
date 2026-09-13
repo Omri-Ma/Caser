@@ -155,6 +155,36 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   just self-service. This is what makes "one login, many firms" hold up in
   practice: the same lawyer who's a member of one firm can found their own
   firm without a second account.
+- Signup and login both need one thing subdomains can't provide on their own:
+  a place to go *before* you know (or have) a subdomain. Founding a new firm
+  has no subdomain yet by definition, and a person who belongs to more than
+  one firm (see Identity vs. membership, above) may not remember or know
+  which one to type. Solved with a reserved, non-tenant **lobby** address —
+  `www` (already on the reserved blocklist above) — served locally as
+  `www.lvh.me` on each app's own port (`www.lvh.me:5173` = `client/`'s
+  lobby, `www.lvh.me:5174` = `admin/`'s lobby), and as `www.casehub.com` /
+  `www-admin.casehub.com` in production, matching the existing per-app
+  suffix convention exactly (`admin/` already never uses `client/`'s
+  addressing, lobby included). `/login` and `/signup` are ordinary paths
+  *within* the lobby, not separate subdomains — this doesn't reintroduce
+  path-based tenant routing, since the lobby itself carries no tenant.
+  - **Signup** (`admin/`'s lobby only — founding a firm is always an
+    `office_manager` action): works exactly as `POST /auth/signup` already
+    does today, since that route never required an existing tenant. On
+    success, redirect the browser to the new tenant's real subdomain
+    (`levi.casehub.com/cases`) — the session cookie already works there
+    without a second login, since it's scoped to the base domain, not to
+    `www` specifically.
+  - **Login** (both lobbies): a login route on the lobby takes email +
+    password, verifies via the same shared password-check `/server/shared`
+    auth already uses, then looks up that identity's *active* Memberships
+    restricted to whichever roles that app cares about (`admin/`'s lobby:
+    `office_manager` only; `client/`'s lobby: `lawyer`/`client`) — exactly
+    one match redirects straight to that tenant's subdomain, more than one
+    shows a small "choose your firm" picker first, and zero matches shows a
+    clear error rather than a confusing dead end (e.g. a lawyer landing on
+    `admin/`'s lobby by mistake). `super_admin`'s separate `platform.lvh.me`
+    login is untouched by any of this — it was never part of this problem.
 - `super_admin` is the only role allowed to query across tenants — this goes
   through a clearly separate, explicitly named code path (never the default
   tenant-filtered query functions), so it can't accidentally leak into normal

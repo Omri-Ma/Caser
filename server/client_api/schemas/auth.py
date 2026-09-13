@@ -19,6 +19,32 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class LobbyLoginRequest(BaseModel):
+    """lawyer/client login from the lobby (www.<BASE_DOMAIN>) — no tenant
+    subdomain known yet, unlike LoginRequest's per-tenant version.
+    """
+
+    email: EmailStr
+    password: str
+
+
+class LobbyTenantOption(BaseModel):
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+    # Included here (unlike admin_api's version) because client/'s nav
+    # differs by role (lawyer vs client) — the lobby redirect needs to carry
+    # it across, since the tenant subdomain it lands on is a different origin
+    # and can't read anything the lobby page stored client-side.
+    role: UserRole
+
+
+class LobbyLoginResponse(BaseModel):
+    name: str
+    email: EmailStr
+    tenants: list[LobbyTenantOption]
+
+
 class IdentityResponse(BaseModel):
     id: int
     name: str

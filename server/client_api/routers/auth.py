@@ -3,7 +3,15 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from client_api.schemas.auth import IdentityResponse, LoginRequest, RegisterRequest, SessionResponse
+from client_api.schemas.auth import (
+    IdentityResponse,
+    LobbyLoginRequest,
+    LobbyLoginResponse,
+    LobbyTenantOption,
+    LoginRequest,
+    RegisterRequest,
+    SessionResponse,
+)
 from shared.database import get_db
 from shared.identity import get_current_identity
 from shared.models import Identity, Membership, Tenant
@@ -77,6 +85,50 @@ def login(
 
     set_session_cookies(response, identity.id, identity.token_version)
     return SessionResponse(name=identity.name, email=identity.email, role=membership.role)
+
+
+@router.post("/lobby-login", response_model=LobbyLoginResponse)
+def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = Depends(get_db)):
+    """lawyer/client login from the lobby (www.<BASE_DOMAIN>) — CLAUDE.md's
+    Multi-tenancy architecture. Mirrors admin_api's lobby-login: same
+    password check, but resolves active LAWYER/CLIENT memberships (at active
+    tenants) instead of OFFICE_MANAGER ones. role is included per option
+    since it's needed to redirect straight into the right nav on the tenant
+    subdomain landing page — that page is a different origin, so it can't
+    read anything stored here.
+    """
+    identity = db.query(Identity).filter(Identity.email == payload.email).first()
+    if identity is None or not verify_password(payload.password, identity.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+
+    memberships = (
+        db.query(Membership, Tenant)
+        .join(Tenant, Membership.tenant_id == Tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.role.in_([UserRole.LAWYER, UserRole.CLIENT]),
+            Membership.active.is_(True),
+            Tenant.active.is_(True),
+        )
+        .all()
+    )
+    if not memberships:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No lawyer or client account found for this email at any firm",
+        )
+
+    set_session_cookies(response, identity.id, identity.token_version)
+    return LobbyLoginResponse(
+        name=identity.name,
+        email=identity.email,
+        tenants=[
+            LobbyTenantOption(
+                tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role
+            )
+            for membership, tenant in memberships
+        ],
+    )
 
 
 @router.post("/refresh", status_code=status.HTTP_204_NO_CONTENT)

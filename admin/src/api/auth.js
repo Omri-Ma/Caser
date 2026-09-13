@@ -18,6 +18,11 @@ export function login({ email, password }) {
   return apiFetch('/auth/login', { method: 'POST', body: { email, password }, redirectOn401: false })
 }
 
+// office_manager login from the lobby (www.<BASE_DOMAIN>) — see LobbyLoginPage.
+export function lobbyLogin({ email, password }) {
+  return apiFetch('/auth/lobby-login', { method: 'POST', body: { email, password }, redirectOn401: false })
+}
+
 // super_admin login at the fixed platform address — see PlatformLoginPage.
 export function platformLogin({ email, password }) {
   return apiFetch('/auth/platform-login', { method: 'POST', body: { email, password }, redirectOn401: false })
