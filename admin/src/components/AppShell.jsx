@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
+import { getTenant } from '../api/tenant'
 import './AppShell.css'
 
 const NAV_ITEMS = [
@@ -81,12 +82,22 @@ export default function AppShell({ activeKey, children }) {
   const navigate = useNavigate()
   const [identity, setIdentity] = useState(null)
   const [checking, setChecking] = useState(true)
+  // Which firm this office_manager is currently managing — shown in the
+  // header since a person can hold this same role at more than one firm
+  // (CLAUDE.md's Identity vs. membership), so it isn't otherwise obvious
+  // from the chrome alone. Best-effort: failing to load it is a display
+  // nicety, not worth blocking the rest of the shell over.
+  const [tenant, setTenant] = useState(null)
+  const [logoFailed, setLogoFailed] = useState(false)
 
   useEffect(() => {
     me()
       .then(setIdentity)
       .catch(() => navigate('/login', { replace: true }))
       .finally(() => setChecking(false))
+    getTenant()
+      .then(setTenant)
+      .catch(() => {})
   }, [navigate])
 
   async function handleLogout() {
@@ -139,9 +150,26 @@ export default function AppShell({ activeKey, children }) {
       </aside>
       <div className="app-content">
         <header className="content-topbar">
-          <div className="topbar-user">
-            <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
-            <div className="user-name">{identity.name}</div>
+          <div className="topbar-start">
+            {tenant && (
+              <div className="topbar-tenant">
+                {tenant.logo_url && !logoFailed ? (
+                  <img
+                    src={tenant.logo_url}
+                    alt=""
+                    className="topbar-tenant-logo"
+                    onError={() => setLogoFailed(true)}
+                  />
+                ) : (
+                  <div className="topbar-tenant-logo-placeholder">{tenant.name.trim().slice(0, 2)}</div>
+                )}
+                <span className="topbar-tenant-name">{tenant.name}</span>
+              </div>
+            )}
+            <div className="topbar-user">
+              <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
+              <div className="user-name">{identity.name}</div>
+            </div>
           </div>
           <button type="button" className="topbar-logout" onClick={handleLogout}>
             התנתקות
