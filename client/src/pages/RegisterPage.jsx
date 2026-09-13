@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { register } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
+import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -38,10 +40,14 @@ export default function RegisterPage() {
         <FormField label="אימייל">
           <input type="email" value={form.email} onChange={updateField('email')} required />
         </FormField>
-        <FormField label="סיסמה (8 תווים לפחות)">
-          <input type="password" value={form.password} onChange={updateField('password')} required minLength={8} />
-        </FormField>
-        <button type="submit" className="primary-button" disabled={submitting}>
+        <PasswordConfirmFields
+          password={form.password}
+          onPasswordChange={updateField('password')}
+          confirmPassword={confirmPassword}
+          onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
+          passwordLabel="סיסמה (8 תווים לפחות)"
+        />
+        <button type="submit" className="primary-button" disabled={submitting || !passwordsValid(form.password, confirmPassword)}>
           {submitting ? 'נרשם…' : 'הרשמה'}
         </button>
       </form>

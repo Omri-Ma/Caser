@@ -3095,3 +3095,41 @@ invite/accept flow, public-page team section) — worked on the branch
   post-testing state by this same debugging session (password changed
   mid-repro; name was seeded before the rename and the already-existing DB
   row doesn't pick up a `seed.sql` text change retroactively).
+- Per the user's follow-up ask, audited every other route for the same
+  "401 used for something that isn't an expired session" mistake before
+  committing: login routes (`/auth/login`, `/auth/lobby-login`,
+  `/auth/platform-login`) also return 401 for wrong credentials, but are
+  safe because the frontend calls them with `redirectOn401: false` — the
+  generic refresh-and-redirect logic never applies. Confirmed live (a wrong
+  lobby-login password shows an inline error and stays on `/login`, no
+  redirect loop). The forgot/reset-password route already correctly used
+  400 for an invalid/expired/used token. Invite accept/decline routes don't
+  exist yet (item 4, not built this session) — noted to get this right
+  (400/404, not 401) when they're built.
+
+**Changed (item 3, confirm-password field everywhere a new password is
+typed)**:
+- New shared component per app — `admin/src/components/PasswordConfirmFields.jsx`
+  and `client/src/components/PasswordConfirmFields.jsx` (not shared across
+  apps, per CLAUDE.md's frontend-code-quality rule) — rendering the new-
+  password field plus a second "אימות סיסמה" (confirm password) field, an
+  inline mismatch message, and an exported `passwordsValid(password,
+  confirmPassword)` helper each page's submit button is gated on. Extracted
+  as a component rather than repeated inline, since it's used 4 times in
+  `admin/` and 3 times in `client/` (CLAUDE.md's "extract before a third
+  copy" rule).
+- Wired into every password-entry screen: `admin/`'s
+  `ProfilePage`/`PlatformProfilePage` (change-password, office_manager and
+  super_admin), `ResetPasswordPage` (forgot-password flow), `SignupPage`
+  (founding a firm); `client/`'s `ProfilePage` (change-password),
+  `ResetPasswordPage`, `RegisterPage` (accepting an invite/registering).
+- Verified live: submit button stays disabled while the two fields
+  mismatch (with the inline "הסיסמאות אינן תואמות" message showing), then
+  enables once they match; a real change-password submission with matching
+  fields still succeeds end-to-end. Screenshotted the signup and register
+  forms directly to confirm the confirm-password field renders correctly
+  with the right label in both.
+- `npx oxlint` on every touched file: clean except one expected
+  fast-refresh warning on each `PasswordConfirmFields.jsx` (exporting a
+  helper function alongside the component) — not an error, and the
+  standard tradeoff for the "extract before a third copy" call above.

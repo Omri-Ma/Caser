@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { resetPassword } from '../api/auth'
-import { FormField, FormError } from '../components/Form'
+import { FormError } from '../components/Form'
+import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 
 // Lobby-only (www.<BASE_DOMAIN>) — the page a reset link (from the dev
 // outbox, standing in for a real email) actually points at. token comes
@@ -11,6 +12,7 @@ export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') || ''
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [done, setDone] = useState(false)
@@ -58,17 +60,14 @@ export default function ResetPasswordPage() {
       <h1>איפוס סיסמה</h1>
       <form onSubmit={handleSubmit}>
         <FormError message={error} />
-        <FormField label="סיסמה חדשה">
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-            minLength={8}
-            required
-            autoFocus
-          />
-        </FormField>
-        <button type="submit" className="primary-button" disabled={submitting || newPassword.length < 8}>
+        <PasswordConfirmFields
+          password={newPassword}
+          onPasswordChange={(event) => setNewPassword(event.target.value)}
+          confirmPassword={confirmPassword}
+          onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
+          autoFocus
+        />
+        <button type="submit" className="primary-button" disabled={submitting || !passwordsValid(newPassword, confirmPassword)}>
           {submitting ? 'מעדכן…' : 'עדכון סיסמה'}
         </button>
       </form>
