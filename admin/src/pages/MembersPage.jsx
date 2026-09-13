@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import DataTable from '../components/DataTable'
 import AddMemberModal from '../components/AddMemberModal'
-import ResetPasswordModal from '../components/ResetPasswordModal'
 import { FormError } from '../components/Form'
 import { deactivateMember, listMembers } from '../api/members'
 import { me } from '../api/auth'
@@ -30,7 +29,6 @@ export default function MembersPage() {
   const [rowError, setRowError] = useState(null)
   const [actioningId, setActioningId] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
-  const [resetTarget, setResetTarget] = useState(null)
   const [myEmail, setMyEmail] = useState(null)
 
   useEffect(() => {
@@ -103,9 +101,6 @@ export default function MembersPage() {
         const isSelf = row.identity_email === myEmail
         return row.active ? (
           <div className="member-actions">
-            <button type="button" className="member-action" onClick={() => setResetTarget(row)} disabled={actioningId === row.id}>
-              איפוס סיסמה
-            </button>
             <button
               type="button"
               className="member-action member-action-danger"
@@ -168,12 +163,6 @@ export default function MembersPage() {
       )}
 
       <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={handleAdded} />
-      <ResetPasswordModal
-        open={!!resetTarget}
-        member={resetTarget}
-        onClose={() => setResetTarget(null)}
-        onDone={() => setResetTarget(null)}
-      />
     </AppShell>
   )
 }

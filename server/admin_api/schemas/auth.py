@@ -64,15 +64,6 @@ class AddMemberRequest(BaseModel):
     role: UserRole
 
 
-class ResetMemberPasswordRequest(BaseModel):
-    """office_manager sets a new password for a member by hand — the
-    interim stand-in for real password recovery (CLAUDE.md's Future
-    additions). They must use it next login.
-    """
-
-    new_password: str = Field(..., min_length=8)
-
-
 class IdentityResponse(BaseModel):
     id: int
     name: str
