@@ -172,6 +172,10 @@ export default function AppShell({ activeKey, children }) {
             </div>
           </div>
           <button type="button" className="topbar-logout" onClick={handleLogout}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 4.5H8a2 2 0 00-2 2v11a2 2 0 002 2h7" strokeLinecap="round" />
+              <path d="M10 12h10.5M17.5 8.5L21 12l-3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             התנתקות
           </button>
         </header>

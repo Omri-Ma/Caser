@@ -142,15 +142,22 @@
 }
 
 .topbar-logout {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 8px 14px;
+  color: var(--color-text);
   font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .topbar-logout:hover {
-  color: var(--color-primary);
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
 
 .content-body {
