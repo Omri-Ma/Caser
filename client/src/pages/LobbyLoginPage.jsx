@@ -4,13 +4,14 @@ import { lobbyLogin } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
 import { redirectToTenant } from '../utils/host'
 
-// lawyer/client login from the lobby (www.<BASE_DOMAIN>:5173) — the one
-// entry point for someone who doesn't know (or hasn't yet typed) their
-// firm's subdomain (CLAUDE.md's Multi-tenancy architecture). Unlike the
-// per-tenant LoginPage, this doesn't know a subdomain up front: the backend
-// resolves every firm this identity is a lawyer/client at and this screen
-// reacts to however many come back — one redirects straight there, more
-// than one shows a picker, zero is a clear inline error.
+// lawyer/client login from the lobby (www.<BASE_DOMAIN>:5173) — the only
+// login entry point for a tenant subdomain now (there's no per-tenant
+// /login anymore), and specifically the one that works before you know
+// (or have typed) a firm's subdomain at all (CLAUDE.md's Multi-tenancy
+// architecture). Doesn't know a subdomain up front: the backend resolves
+// every firm this identity is a lawyer/client at and this screen reacts to
+// however many come back — one redirects straight there, more than one
+// shows a picker, zero is a clear inline error.
 export default function LobbyLoginPage() {
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState(null)

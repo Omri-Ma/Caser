@@ -1,6 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -96,15 +95,13 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
+          // No tenant-subdomain /login here anymore — office_manager only
+          // ever logs in via the lobby now (CLAUDE.md's Multi-tenancy
+          // architecture: the lobby is the one login entry point per app).
+          // An unauthenticated visitor lands here (via the catch-all below)
+          // only via a direct/stale URL; AppShell's own session check is
+          // what actually sends them to the lobby (see AppShell.jsx).
           <>
-            <Route
-              path="/login"
-              element={
-                <Layout>
-                  <LoginPage />
-                </Layout>
-              }
-            />
             <Route path="/cases" element={<CasesListPage />} />
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/members" element={<MembersPage />} />

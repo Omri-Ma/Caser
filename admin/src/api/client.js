@@ -3,6 +3,8 @@
 // office1.lvh.me, or the fixed platform.lvh.me for super_admin) and only
 // takes protocol/port from env — see client/src/api/client.js for the same
 // reasoning on that side.
+import { loginRedirectUrl } from '../utils/host'
+
 const API_PROTOCOL = import.meta.env.VITE_API_PROTOCOL || 'http'
 const API_PORT = import.meta.env.VITE_API_PORT
 
@@ -64,7 +66,7 @@ export async function apiFetch(path, { method = 'GET', body, redirectOn401 = tru
     if (!_retried && (await refreshSession())) {
       return apiFetch(path, { method, body, redirectOn401, _retried: true })
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
   }
 
@@ -102,7 +104,7 @@ export async function apiUpload(path, formData, _retried = false) {
     if (!_retried && (await refreshSession())) {
       return apiUpload(path, formData, true)
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError(data?.error || 'ההתחברות פגה', { status: 401, field: data?.field })
   }
 
@@ -127,7 +129,7 @@ export async function apiDownload(path, _retried = false) {
     if (!_retried && (await refreshSession())) {
       return apiDownload(path, true)
     }
-    window.location.assign('/login')
+    window.location.assign(loginRedirectUrl())
     throw new ApiError('ההתחברות פגה', { status: 401 })
   }
 

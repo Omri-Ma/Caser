@@ -29,10 +29,22 @@ export function redirectToTenant(subdomain, path = '/') {
   window.location.assign(`${window.location.protocol}//${subdomain}.${BASE_DOMAIN}${port}${path}`)
 }
 
-// Plain <a> target (not a react-router Link) for a tenant subdomain's
-// LoginPage to point at the lobby's signup — different origin, same reason
-// redirectToTenant() above uses a hard navigation instead of client routing.
-export function lobbySignupUrl() {
+// Where the lobby's login page lives — a tenant subdomain has no /login of
+// its own anymore (office_manager only ever logs in via the lobby), so this
+// is where AppShell sends a logged-out/expired-session visitor.
+export function lobbyLoginUrl() {
   const port = window.location.port ? `:${window.location.port}` : ''
-  return `${window.location.protocol}//www.${BASE_DOMAIN}${port}/signup`
+  return `${window.location.protocol}//www.${BASE_DOMAIN}${port}/login`
+}
+
+// The right login target for a failed/expired session, wherever this code
+// happens to be running. platform.<BASE_DOMAIN> keeps its own separate
+// login — super_admin isn't a Membership and was never part of the lobby
+// (CLAUDE.md's Multi-tenancy architecture: "super_admin's separate
+// platform.lvh.me login is untouched by any of this"). The lobby keeps its
+// own /login too, to avoid redirecting to itself. Every tenant subdomain
+// goes to the lobby, since it no longer has a local /login.
+export function loginRedirectUrl() {
+  if (isPlatformHost() || isLobbyHost()) return '/login'
+  return lobbyLoginUrl()
 }

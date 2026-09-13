@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout'
-import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
@@ -108,20 +107,18 @@ export default function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
+          // No tenant-subdomain /login here anymore — lawyer/client only
+          // ever logs in via the lobby now (CLAUDE.md's Multi-tenancy
+          // architecture: the lobby is the one login entry point per app).
+          // AppShell's own session check is what sends an unauthenticated
+          // visitor to the lobby (see AppShell.jsx); "/" still shows the
+          // public homepage for a logged-out visitor, unchanged.
           <>
             <Route
               path="/register"
               element={
                 <Layout>
                   <RegisterPage />
-                </Layout>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <Layout>
-                  <LoginPage />
                 </Layout>
               }
             />

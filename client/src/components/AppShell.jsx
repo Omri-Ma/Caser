@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
 import { getStoredRole } from '../api/session'
+import { lobbyLoginUrl } from '../utils/host'
 import './AppShell.css'
 
 function navItems(role) {
@@ -54,7 +55,7 @@ function navItems(role) {
 }
 
 // Wraps every authenticated screen: resolves the session once (redirects to
-// /login if it isn't valid) and renders the sidebar shell around whatever
+// the lobby's login if it isn't valid) and renders the sidebar shell around whatever
 // page content is passed in — the same "who is this" check every real page
 // needs, written once instead of per-page.
 export default function AppShell({ activeKey, children }) {
@@ -66,13 +67,17 @@ export default function AppShell({ activeKey, children }) {
   useEffect(() => {
     me()
       .then(setIdentity)
-      .catch(() => navigate('/login', { replace: true }))
+      // A hard, cross-origin redirect, not react-router navigation — this
+      // tenant subdomain has no /login of its own anymore, lawyer/client
+      // only ever log in via the lobby (CLAUDE.md's Multi-tenancy
+      // architecture).
+      .catch(() => window.location.assign(lobbyLoginUrl()))
       .finally(() => setChecking(false))
   }, [navigate])
 
   async function handleLogout() {
     await logout()
-    navigate('/login')
+    window.location.assign(lobbyLoginUrl())
   }
 
   if (checking) {

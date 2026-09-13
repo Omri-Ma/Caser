@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout } from '../api/auth'
 import { getTenant } from '../api/tenant'
+import { lobbyLoginUrl } from '../utils/host'
 import './AppShell.css'
 
 const NAV_ITEMS = [
@@ -74,7 +75,7 @@ const NAV_ITEMS = [
 ]
 
 // Wraps every authenticated admin screen: resolves the session once
-// (redirects to /login if it isn't valid) and renders the sidebar shell
+// (redirects to the lobby's login if it isn't valid) and renders the sidebar shell
 // around whatever page content is passed in — same pattern as client/'s
 // AppShell, recolored navy for admin per CLAUDE.md's "two deliberately
 // different designs" rule.
@@ -93,7 +94,11 @@ export default function AppShell({ activeKey, children }) {
   useEffect(() => {
     me()
       .then(setIdentity)
-      .catch(() => navigate('/login', { replace: true }))
+      // A hard, cross-origin redirect, not react-router navigation — this
+      // tenant subdomain has no /login of its own anymore, office_manager
+      // only ever logs in via the lobby (CLAUDE.md's Multi-tenancy
+      // architecture).
+      .catch(() => window.location.assign(lobbyLoginUrl()))
       .finally(() => setChecking(false))
     getTenant()
       .then(setTenant)
@@ -102,7 +107,7 @@ export default function AppShell({ activeKey, children }) {
 
   async function handleLogout() {
     await logout()
-    navigate('/login')
+    window.location.assign(lobbyLoginUrl())
   }
 
   if (checking) {
