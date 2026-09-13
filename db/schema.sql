@@ -1,4 +1,4 @@
--- CaseHub schema snapshot.
+-- Caser schema snapshot.
 -- Source of truth is the Alembic migrations in db/migrations/versions/ —
 -- this file is a readable reference of the current schema, regenerated
 -- from the live database as tables stabilize (not hand-edited).

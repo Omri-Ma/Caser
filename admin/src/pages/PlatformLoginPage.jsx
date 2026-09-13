@@ -36,7 +36,7 @@ export default function PlatformLoginPage() {
   return (
     <div className="page-card">
       <h1>כניסת מנהל פלטפורמה</h1>
-      <p className="auth-switch">גישה למנהלי CaseHub בלבד — לא עבור משרדי עורכי דין.</p>
+      <p className="auth-switch">גישה למנהלי Caser בלבד — לא עבור משרדי עורכי דין.</p>
       <form onSubmit={handleSubmit}>
         <FormError message={error} />
         <FormField label="אימייל">

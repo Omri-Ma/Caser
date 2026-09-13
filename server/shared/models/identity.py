@@ -5,7 +5,7 @@ from shared.database import Base
 
 
 class Identity(Base):
-    """A person's global CaseHub login (email + password) — not tied to any
+    """A person's global Caser login (email + password) — not tied to any
     one firm. Which firm(s) they can access, and their role in each, lives on
     Membership instead. One person, one Identity, many possible Memberships.
 

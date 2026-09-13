@@ -12,7 +12,7 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-brand">CaseHub · ניהול</div>
+        <div className="app-brand">Caser · ניהול</div>
         <nav className="app-nav">
           <button type="button" className="app-nav-link" onClick={() => setAboutOpen(true)}>
             אודות
@@ -20,7 +20,7 @@ export default function Layout({ children }) {
         </nav>
       </header>
       <main className="app-main">{children}</main>
-      <Modal open={aboutOpen} title="אודות CaseHub" onClose={() => setAboutOpen(false)}>
+      <Modal open={aboutOpen} title="אודות Caser" onClose={() => setAboutOpen(false)}>
         <p>מערכת הניהול (CMS) עבור מנהלי משרד — ניהול עורכי דין, לקוחות ותיקים.</p>
       </Modal>
     </div>

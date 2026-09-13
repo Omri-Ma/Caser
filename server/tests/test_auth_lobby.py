@@ -71,7 +71,7 @@ def test_admin_lobby_login_single_match_redirects(admin_client, db):
     # to COOKIE_DOMAIN (.lvh.me), which the test client's "testserver" host
     # doesn't match, so httpx's cookie jar wouldn't store it either way.
     set_cookie_headers = resp.headers.get_list("set-cookie")
-    assert any("casehub_access=" in header for header in set_cookie_headers)
+    assert any("caser_access=" in header for header in set_cookie_headers)
 
 
 def test_admin_lobby_login_multiple_matches_returns_all_for_picker(admin_client, db):

@@ -3019,3 +3019,42 @@ stack + Vite dev servers, using a one-off Playwright script (not committed;
   half, committing, then reapplying the other — `git add -p` couldn't
   cleanly split them since both edits landed in the same contiguous JSX
   hunk.
+
+## 2026-09-13
+
+**Asked**: Product rename CaseHub → Caser across the whole codebase (CLAUDE.md
+was already renamed in a prior session); plus four other items queued from the
+punch-list (password-change-logs-out bug, confirm-password fields, membership
+invite/accept flow, public-page team section) — worked on the branch
+`feature/identity-auth-rebrand`, one commit per numbered item.
+
+**Changed (item 1, rename)**:
+- `grep -ri casehub` across the repo to find every remaining instance, then
+  renamed: README title + demo email domains, both frontend `<title>` tags and
+  wordmarks (`admin/`+`client/` `AppShell.jsx`/`Layout.jsx`/`PlatformAppShell.jsx`/
+  `PlatformLoginPage.jsx`), `db/schema.sql`/`db/seed.sql` header comments and demo
+  email domains, both FastAPI app titles, the ERD title
+  (`server/scripts/generate_erd.py`), the session cookie names
+  (`casehub_access`/`casehub_refresh` → `caser_access`/`caser_refresh` in
+  `server/shared/security.py`), the structlog logger name, the `Identities`
+  model docstring, the frontend `localStorage` role key
+  (`client/src/api/session.js`), and the hardcoded test literals in
+  `test_platform_admin.py`/`test_auth_lobby.py` that depended on the old
+  cookie name/test emails.
+- Regenerated `docs/openapi_*.json`, `docs/postman_collection_*.json`, and
+  `docs/erd.{png,mmd.md}` via `server/scripts/export_docs.sh` rather than
+  hand-editing the generated JSON, so they pick up the renamed FastAPI titles
+  from source.
+
+**Learned / decided**:
+- Left the actual local MySQL database name (`casehub`, in `.env`/`.env.example`)
+  unchanged — renaming a live local database is an infra action (drop/recreate
+  or `RENAME DATABASE`), not a text substitution, and out of scope for a
+  cosmetic product rename. Flagged in README with a one-line note next to the
+  seed command so it doesn't read as an oversight.
+- Left historical entries in this file (`docs/ai_usage.md`) referencing
+  "CaseHub"/`casehub.example.com` untouched — they're an accurate record of
+  what happened in past sessions, not something to retroactively rewrite.
+- Ran the full backend suite after the rename (cookie-name change is the one
+  edit here with real behavioral surface, since it affects every authenticated
+  request) — all 171 existing tests passed unchanged.

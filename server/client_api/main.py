@@ -18,7 +18,7 @@ from shared.tenant import BASE_DOMAIN
 load_dotenv()
 configure_logging()
 
-app = FastAPI(title="CaseHub Client API")
+app = FastAPI(title="Caser Client API")
 register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(public_router)

@@ -17,8 +17,8 @@ REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 BASE_DOMAIN = os.getenv("BASE_DOMAIN", "lvh.me")
 COOKIE_DOMAIN = f".{BASE_DOMAIN}"
 COOKIE_SECURE = os.getenv("COOKIE_SECURE", "false").lower() == "true"
-ACCESS_COOKIE_NAME = "casehub_access"
-REFRESH_COOKIE_NAME = "casehub_refresh"
+ACCESS_COOKIE_NAME = "caser_access"
+REFRESH_COOKIE_NAME = "caser_refresh"
 
 
 def hash_password(plain_password: str) -> str:

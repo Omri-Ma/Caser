@@ -1,4 +1,4 @@
-# CaseHub — Law Firm Multi-Tenant SaaS
+# Caser — Law Firm Multi-Tenant SaaS
 
 A multi-tenant SaaS platform for law firms. Each law firm is a tenant with its own
 subdomain, branding, and subscription plan.
@@ -43,6 +43,7 @@ Prerequisites: Docker Desktop, Node.js 18+.
    alembic upgrade head
    docker exec -i <mysql-container> mysql -u app_user -p casehub < db/seed.sql
    ```
+   (the database itself is still named `casehub` — only the product name changed, not the local DB)
 4. Start the two frontends (separate terminals):
    ```
    cd client && npm install && npm run dev   # http://<subdomain>.lvh.me:5173
@@ -63,11 +64,11 @@ Seeded via `db/seed.sql`, attached to a dedicated `demo` tenant:
 
 | Role           | App                          | URL                         | Email                              | Password           |
 |----------------|-------------------------------|-----------------------------|-------------------------------------|--------------------|
-| office_manager | admin (CMS)                   | `demo.lvh.me:5174/login`    | `office_manager@casehub.example.com` | `OfficeManager123!` |
-| client         | client (portal)                | `demo.lvh.me:5173/login`    | `client@casehub.example.com`         | `Client123!`        |
+| office_manager | admin (CMS)                   | `demo.lvh.me:5174/login`    | `office_manager@caser.example.com` | `OfficeManager123!` |
+| client         | client (portal)                | `demo.lvh.me:5173/login`    | `client@caser.example.com`         | `Client123!`        |
 
 Plus the `super_admin` bootstrap account (platform-only, not one of the two
-required demo users): `super@casehub.example.com` / `SuperAdmin123!`, logs in
+required demo users): `super@caser.example.com` / `SuperAdmin123!`, logs in
 at `platform.lvh.me:5174/login` — the cross-tenant firm list and
 platform-wide stats dashboard (suspend/reactivate a firm from there too).
 
