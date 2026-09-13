@@ -26,6 +26,10 @@ server/uploads/
 # resurfaces it.
 server/server/
 
+# Dev-only password-reset outbox (stand-in for real email — CLAUDE.md's
+# Future additions), written by server/shared/dev_outbox.py
+server/dev_outbox.jsonl
+
 # Editor / OS
 .vscode/
 .idea/

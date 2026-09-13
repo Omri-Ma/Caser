@@ -77,6 +77,9 @@ export default function LobbyLoginPage() {
         </button>
       </form>
       <p className="auth-switch">
+        <Link to="/forgot-password">שכחת סיסמה?</Link>
+      </p>
+      <p className="auth-switch">
         עדיין אין לך משרד? <Link to="/signup">הקמת משרד חדש</Link>
       </p>
     </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { lobbyLogin } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
 import { redirectToTenant } from '../utils/host'
@@ -78,6 +79,9 @@ export default function LobbyLoginPage() {
           {submitting ? 'מתחבר…' : 'התחברות'}
         </button>
       </form>
+      <p className="auth-switch">
+        <Link to="/forgot-password">שכחת סיסמה?</Link>
+      </p>
     </div>
   )
 }

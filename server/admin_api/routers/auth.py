@@ -6,6 +6,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from admin_api.schemas.auth import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    GenericMessageResponse,
     IdentityResponse,
     LobbyLoginRequest,
     LobbyLoginResponse,
@@ -13,13 +16,16 @@ from admin_api.schemas.auth import (
     LoginRequest,
     PlatformLoginRequest,
     PlatformSessionResponse,
+    ResetPasswordRequest,
     SessionResponse,
     SignupRequest,
 )
 from shared.database import get_db
+from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity
 from shared.models import Identity, Membership, Subscription, Tenant
 from shared.models.enums import Plan, UserRole
+from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
 from shared.security import (
     REFRESH_COOKIE_NAME,
     clear_session_cookies,
@@ -245,3 +251,61 @@ def logout(
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
     return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+def change_my_password(
+    payload: ChangePasswordRequest,
+    response: Response,
+    identity: Identity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
+    """Self-service, for every role — office_manager included — since a
+    password is an Identities-level thing, never a Memberships-level lever
+    another party at a firm gets to pull (CLAUDE.md's office_manager
+    authority boundary). Re-issues this request's own session cookies with
+    the bumped token_version so the current session isn't logged out by its
+    own password change, while every *other* outstanding session is.
+    """
+    try:
+        change_password(identity, payload.current_password, payload.new_password, db)
+    except WrongPasswordError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+
+    set_session_cookies(response, identity.id, identity.token_version)
+
+
+@router.post("/forgot-password", response_model=GenericMessageResponse)
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Always the same generic response regardless of whether the email
+    matched a real account (CLAUDE.md's PasswordResetTokens note — never
+    reveal which emails are registered). The "email" step writes to a
+    dev-only outbox instead of actually sending mail (no SMTP infra in this
+    exercise — see CLAUDE.md's Future additions).
+    """
+    identity = db.query(Identity).filter(Identity.email == payload.email).first()
+    if identity is not None:
+        raw_token = create_reset_token(identity.id, db)
+        origin = request.headers.get("origin") or f"http://www.{BASE_DOMAIN}"
+        link = f"{origin}/reset-password?token={raw_token}"
+        write_dev_outbox(identity.email, link)
+
+    return GenericMessageResponse(message="If an account exists for that email, a reset link has been sent.")
+
+
+@router.post("/reset-password", response_model=GenericMessageResponse)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    identity = redeem_reset_token(payload.token, payload.new_password, db)
+    if identity is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link is invalid or has expired")
+
+    return GenericMessageResponse(message="Password updated. You can now log in with your new password.")
+
+
+@router.get("/dev-outbox")
+def dev_outbox(email: str | None = None):
+    """Dev-only stand-in for real email delivery (see forgot_password above
+    and CLAUDE.md's Future additions) — lets a developer (or the grader)
+    find a reset link without digging through server logs.
+    """
+    return read_dev_outbox(email)

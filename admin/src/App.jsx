@@ -3,6 +3,9 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import DevOutboxPage from './pages/DevOutboxPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import DashboardPage from './pages/DashboardPage'
@@ -10,9 +13,11 @@ import MembersPage from './pages/MembersPage'
 import AuditLogPage from './pages/AuditLogPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import ProfilePage from './pages/ProfilePage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
+import PlatformProfilePage from './pages/PlatformProfilePage'
 import { isPlatformHost, isLobbyHost } from './utils/host'
 
 // This bundle serves three entirely different route trees depending on the
@@ -41,6 +46,7 @@ export default function App() {
               }
             />
             <Route path="/dashboard" element={<PlatformDashboardPage />} />
+            <Route path="/profile" element={<PlatformProfilePage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </>
@@ -59,6 +65,30 @@ export default function App() {
               element={
                 <Layout>
                   <LobbyLoginPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/forgot-password"
+              element={
+                <Layout>
+                  <ForgotPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <Layout>
+                  <ResetPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dev-outbox"
+              element={
+                <Layout>
+                  <DevOutboxPage />
                 </Layout>
               }
             />
@@ -82,6 +112,7 @@ export default function App() {
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />
             <Route path="/settings/branding" element={<BrandingPage />} />
             <Route path="/settings/subscription" element={<SubscriptionPage />} />
+            <Route path="/settings/profile" element={<ProfilePage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/" element={<Navigate to="/cases" replace />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />

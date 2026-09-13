@@ -39,6 +39,17 @@ function navItems(role) {
         </>
       ),
     },
+    {
+      key: 'profile',
+      label: 'פרופיל אישי',
+      path: '/profile',
+      icon: (
+        <>
+          <circle cx="12" cy="8.5" r="3.2" />
+          <path d="M5.5 19.5c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2" />
+        </>
+      ),
+    },
   ]
 }
 

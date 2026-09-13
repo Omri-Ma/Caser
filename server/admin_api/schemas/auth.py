@@ -64,6 +64,28 @@ class AddMemberRequest(BaseModel):
     role: UserRole
 
 
+class ChangePasswordRequest(BaseModel):
+    """Self-service "change my password" while logged in — every role can
+    do this for their own account. Never touches another person's account
+    (see CLAUDE.md's office_manager authority boundary)."""
+
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(..., min_length=8)
+
+
+class GenericMessageResponse(BaseModel):
+    message: str
+
+
 class IdentityResponse(BaseModel):
     id: int
     name: str

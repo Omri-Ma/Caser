@@ -4,9 +4,13 @@ import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import LobbyLoginPage from './pages/LobbyLoginPage'
+import ForgotPasswordPage from './pages/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPasswordPage'
+import DevOutboxPage from './pages/DevOutboxPage'
 import CasesListPage from './pages/CasesListPage'
 import CaseDetailPage from './pages/CaseDetailPage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
+import ProfilePage from './pages/ProfilePage'
 import PublicHomePage from './pages/PublicHomePage'
 import { apiFetch } from './api/client'
 import { isLobbyHost } from './utils/host'
@@ -76,6 +80,30 @@ export default function App() {
                 </Layout>
               }
             />
+            <Route
+              path="/forgot-password"
+              element={
+                <Layout>
+                  <ForgotPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/reset-password"
+              element={
+                <Layout>
+                  <ResetPasswordPage />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dev-outbox"
+              element={
+                <Layout>
+                  <DevOutboxPage />
+                </Layout>
+              }
+            />
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
@@ -100,6 +128,7 @@ export default function App() {
             <Route path="/cases" element={<CasesListPage />} />
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/" element={<RootRoute />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />
           </>
