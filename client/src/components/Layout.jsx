@@ -12,7 +12,9 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-brand">Caser · פורטל לקוחות</div>
+        <div className="app-brand">
+          <span className="wordmark">Caser</span> · פורטל לקוחות
+        </div>
         <nav className="app-nav">
           <button type="button" className="app-nav-link" onClick={() => setAboutOpen(true)}>
             אודות

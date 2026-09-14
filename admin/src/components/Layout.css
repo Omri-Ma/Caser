@@ -8,10 +8,18 @@
 }
 
 .app-brand {
-  font-family: var(--font-family-wordmark);
   font-weight: 700;
   font-size: var(--font-size-lg);
   color: var(--color-primary);
+}
+
+/* Only "Caser" gets the serif brand font (.wordmark, index.css) — the
+   Hebrew subtitle after it ("· ניהול") stays in the regular UI font, same
+   fix already applied to the sidebar's brand (AppShell.jsx/.css). Sized up
+   from the sidebar's version since this is the lobby's standalone header,
+   where the wordmark is the one prominent brand element on the page. */
+.app-brand .wordmark {
+  font-size: var(--font-size-xl);
 }
 
 .app-nav {
