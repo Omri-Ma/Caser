@@ -36,6 +36,7 @@ export default function PlatformDashboardPage() {
   const [earnings, setEarnings] = useState(null)
   const [storage, setStorage] = useState(null)
   const [chartsError, setChartsError] = useState(null)
+  const [storageSearch, setStorageSearch] = useState('')
 
   const loadStats = useCallback(() => {
     setStatsLoading(true)
@@ -67,6 +68,20 @@ export default function PlatformDashboardPage() {
   const planPieData = stats?.plan_distribution
     .filter((entry) => entry.tenant_count > 0)
     .map((entry) => ({ name: PLAN_LABELS[entry.plan] || entry.plan, value: entry.tenant_count, plan: entry.plan }))
+
+  // Search filters the storage-by-firm list client-side — storage-overview
+  // isn't paginated (bounded by tenant count, per the backend's own note),
+  // so this just narrows what's already fetched in full, the same reasoning
+  // that lets the list drop its old top-6 cap now that a firm can be found
+  // by name/subdomain directly instead.
+  const term = storageSearch.trim().toLowerCase()
+  const storageEntries = (storage || [])
+    .filter((entry) => !term || entry.name.toLowerCase().includes(term) || entry.subdomain.toLowerCase().includes(term))
+    .slice()
+    .sort((a, b) => {
+      const pctOf = (entry) => (entry.plan === 'enterprise' || entry.storage_limit_bytes <= 0 ? 0 : entry.storage_used_bytes / entry.storage_limit_bytes)
+      return pctOf(b) - pctOf(a)
+    })
 
   return (
     <PlatformAppShell>
@@ -162,32 +177,39 @@ export default function PlatformDashboardPage() {
           </div>
 
           <div className="card platform-card">
-            <div className="platform-card-title">אחסון לפי משרד</div>
+            <div className="platform-card-title-row">
+              <div className="platform-card-title">אחסון לפי משרד</div>
+              <input
+                type="text"
+                className="cases-search-input platform-storage-search"
+                placeholder="חיפוש משרד…"
+                value={storageSearch}
+                onChange={(event) => setStorageSearch(event.target.value)}
+              />
+            </div>
             {!storage || storage.length === 0 ? (
               <div className="dashboard-chart-empty">אין עדיין משרדים להצגה.</div>
+            ) : storageEntries.length === 0 ? (
+              <div className="dashboard-chart-empty">לא נמצאו משרדים התואמים את החיפוש.</div>
             ) : (
               <ul className="platform-storage-list">
-                {storage
-                  .slice()
-                  .sort((a, b) => b.storage_used_bytes / b.storage_limit_bytes - a.storage_used_bytes / a.storage_limit_bytes)
-                  .slice(0, 6)
-                  .map((entry) => {
-                    const pct = entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
-                    const over = pct >= 90
-                    return (
-                      <li key={entry.tenant_id} className="platform-storage-row">
-                        <div className="platform-storage-row-header">
-                          <span className="platform-storage-name">{entry.name}</span>
-                          <span dir="ltr" className={`platform-storage-pct${over ? ' over' : ''}`}>
-                            {formatFileSize(entry.storage_used_bytes)} / {formatFileSize(entry.storage_limit_bytes)}
-                          </span>
-                        </div>
-                        <div className="usage-bar-track">
-                          <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                        </div>
-                      </li>
-                    )
-                  })}
+                {storageEntries.map((entry) => {
+                  const pct = entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
+                  const over = pct >= 90
+                  return (
+                    <li key={entry.tenant_id} className="platform-storage-row">
+                      <div className="platform-storage-row-header">
+                        <span className="platform-storage-name">{entry.name}</span>
+                        <span dir="ltr" className={`platform-storage-pct${over ? ' over' : ''}`}>
+                          {formatFileSize(entry.storage_used_bytes)} / {formatFileSize(entry.storage_limit_bytes)}
+                        </span>
+                      </div>
+                      <div className="usage-bar-track">
+                        <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
