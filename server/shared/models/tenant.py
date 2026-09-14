@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, func
 from sqlalchemy.orm import relationship
 
 from shared.database import Base
@@ -18,5 +18,8 @@ class Tenant(Base):
     logo_url = Column(String(500), nullable=True)
     primary_color = Column(String(7), nullable=True)
     active = Column(Boolean, nullable=False, default=True)
+    # Powers super_admin's tenant-growth-per-month chart — the only consumer;
+    # not otherwise part of any tenant-scoped route's behavior.
+    created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     memberships = relationship("Membership", back_populates="tenant")

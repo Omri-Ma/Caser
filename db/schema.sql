@@ -17,6 +17,7 @@ CREATE TABLE `tenants` (
   `logo_url` varchar(500) DEFAULT NULL,
   `primary_color` varchar(7) DEFAULT NULL,
   `active` tinyint(1) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ix_tenants_subdomain` (`subdomain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -29,6 +30,7 @@ CREATE TABLE `identities` (
   `bio` text,
   `photo_url` varchar(500) DEFAULT NULL,
   `years_of_experience` int DEFAULT NULL,
+  `last_login_at` datetime DEFAULT NULL,
   `is_super_admin` tinyint(1) NOT NULL,
   `token_version` int NOT NULL,
   PRIMARY KEY (`id`),
@@ -204,4 +206,17 @@ CREATE TABLE `audit_logs` (
   KEY `ix_audit_logs_tenant_id` (`tenant_id`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
   CONSTRAINT `audit_logs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `memberships` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `platform_audit_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `identity_id` int NOT NULL,
+  `action` varchar(100) NOT NULL,
+  `target_tenant_id` int NOT NULL,
+  `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `ix_platform_audit_logs_identity_id` (`identity_id`),
+  KEY `target_tenant_id` (`target_tenant_id`),
+  CONSTRAINT `platform_audit_logs_ibfk_1` FOREIGN KEY (`identity_id`) REFERENCES `identities` (`id`),
+  CONSTRAINT `platform_audit_logs_ibfk_2` FOREIGN KEY (`target_tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

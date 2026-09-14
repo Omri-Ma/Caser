@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from shared.database import Base
@@ -27,6 +27,11 @@ class Identity(Base):
     # section (most experienced first within office_manager/lawyer groups),
     # nothing more (see CLAUDE.md's Identities note).
     years_of_experience = Column(Integer, nullable=True)
+    # Updated on every successful login, anywhere (a tenant subdomain, either
+    # lobby, or platform.<BASE_DOMAIN> for super_admin) — one column
+    # regardless of entry point, since it's the same global account either
+    # way. Powers super_admin's cross-tenant users view (CLAUDE.md).
+    last_login_at = Column(DateTime, nullable=True)
     # Platform-staff flag, unrelated to Memberships — super_admin can never
     # be a Memberships.role value (a Memberships row means "belongs to this
     # tenant", and super_admin doesn't belong to any tenant). Checked

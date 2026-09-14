@@ -3511,3 +3511,222 @@ proper project run-skill later; didn't do that myself to stay focused on the
 - Verified live: badge renders as a compact, obviously-a-number blue chip
   next to every case title, zero console errors, zero leftover initials
   elements in the DOM.
+
+**Item 8 — Remove stale "reset lawyer password" audit-log entry**:
+- `AuditLogPage.jsx`'s action filter/label map still had `member_password_reset`
+  even though `office_manager` resetting a member's password was removed
+  from the product (self-service only, per CLAUDE.md's office_manager
+  authority note) — grepped the whole server tree and confirmed no route
+  writes that action anymore, only a test fixture manufacturing one by
+  hand. Removed the entry from `ACTION_LABELS` and swapped the test
+  fixtures/assertions in `test_audit_log_admin.py` to a real, still-written
+  action (`narrative_pdf_exported`) instead of just deleting the coverage
+  those tests provided (tenant scoping, action filter, newest-first order).
+  Also fixed the same stale mention in two backend docstrings
+  (`admin_api/routers/audit_log.py`, `admin_api/schemas/audit_log.py`).
+
+**Item 9 — Sidebar wordmark font mismatch**:
+- `.wordmark { font-family: var(--font-family-wordmark) }` (a serif brand
+  font, Frank Ruhl Libre) was applied to the *entire* sidebar string —
+  `"Caser · ניהול"` / `"Caser · פלטפורמה"` — including the Hebrew subtitle,
+  which was never meant to render in the brand serif. Wrapped only `"Caser"`
+  in its own `<span className="wordmark">`, leaving the rest in a plain
+  sibling span that inherits the regular UI font (Heebo). Fixed in both
+  `admin/`'s `AppShell.jsx` (office_manager sidebar) and
+  `PlatformAppShell.jsx` (super_admin platform sidebar) — `client/`'s
+  `AppShell.jsx` only ever renders bare `"Caser"` with no subtitle, so it
+  was already correct and untouched.
+- Verified live: `getComputedStyle` on the two spans confirms
+  `"Caser"` computes to `"Frank Ruhl Libre", Georgia, serif` while its
+  sibling text computes to `Heebo, Arial, sans-serif`; screenshot confirms
+  the visual mismatch is gone.
+
+**Item 7 — All backend error messages → Hebrew, one consistent catalog**:
+- New `server/shared/error_messages.py`: every custom `HTTPException.detail`
+  string across both apps (~90 raise sites — `get_tenant_scoped`'s
+  `not_found_detail` argument, every hand-raised `HTTPException`, the Excel
+  import's `ImportRowError` messages, `DuplicateInviteError`'s message, and
+  the one custom Pydantic `model_validator` in `narratives.py`) now comes
+  from a named constant or small parameterized function here, never a
+  literal string at the raise site — exactly the "one consistent mechanism,
+  not per-message patches" CLAUDE.md asks for. Deduplicated: the same
+  logical error (e.g. "not found", "invalid email or password") is now
+  worded identically everywhere it's raised, where before six different
+  routers each had their own hand-typed English copy.
+- **Scope boundary, deliberately drawn and documented rather than silently
+  left half-done**: this pass covers *error* messages, not the two
+  success-message `GenericMessageResponse` strings in the forgot/reset-
+  password flow (CLAUDE.md's ask is specifically "error messages"); and it
+  covers custom validators, not literally every conceivable Pydantic
+  built-in error `type` — see below.
+- **Pydantic's own auto-generated validation messages** (e.g. "String
+  should have at least 1 character") are a second, separate source of
+  English text FastAPI returns on a 422 that no `HTTPException.detail`
+  ever touches. Extended `shared/errors.py`'s existing
+  `validation_exception_handler` (already the app's one place all 422s are
+  shaped) to translate these too, via `translate_pydantic_error()` — keyed
+  by the error's stable `type` code (`string_too_short`, `greater_than`,
+  `missing`, `enum`, ...) rather than pattern-matching its English `msg`
+  text. Covers every constraint kind this codebase's schemas actually use
+  today (checked by grepping every `Field(...)` in both apps' `schemas/`),
+  not a hypothetical exhaustive list — a reasonable, bounded scope for a
+  project this size, with an explicit fallback (return the library's raw
+  message) for anything uncovered, so a gap is visible in the response
+  rather than silently swallowed.
+- A `value_error` type (from a custom `model_validator`, e.g. narratives'
+  period-order check) is a special case: Pydantic wraps it as
+  `"Value error, <our message>"`, and our own validators already raise a
+  Hebrew message via this same catalog — so the translator detects Hebrew
+  characters in the wrapped message and passes it through unchanged
+  (stripping Pydantic's added prefix) rather than re-translating it into a
+  generic fallback, which would have discarded the specific message for a
+  vaguer one.
+- Updated the ~15 test assertions across the suite that checked English
+  substrings inside `resp.json()["error"]` / `row_errors[].message` to
+  check the equivalent Hebrew substring instead — same behavior being
+  verified, just matching the new wording (`test_cases_admin.py`,
+  `test_documents_client.py`, `test_work_logs_import_admin.py`,
+  `test_work_logs_import_client.py`).
+- Frontend already had Hebrew fallback error text in both apps'
+  `api/client.js` (`'משהו השתבש, נסו שוב'`, etc.) from earlier work — no
+  frontend changes needed here, it already just renders whatever `error`
+  string the backend sends.
+- **Verified**: both FastAPI apps import cleanly after the sweep (a
+  mechanical, ~30-file change like this is exactly the kind that hides a
+  stray syntax error — caught and fixed one, an errant trailing comment
+  left inside an unclosed paren in `admin_api/routers/invites.py`, this
+  way before it reached a test run). Full backend suite (220 tests as of
+  the previous item, growing as items are added) rerun clean after the
+  sweep — see the checkpoint note below for the one wrinkle encountered
+  getting there.
+- **Process note, not a code issue**: mid-sweep, a background full-suite
+  checkpoint run and a second, narrower test run I kicked off to verify
+  item 8 ended up hitting the same `casehub_test` database at the same
+  time — each test's `Base.metadata.drop_all`/`create_all` schema reset
+  collided with the other's in-progress one, producing 10 spurious
+  `OperationalError`s in the checkpoint run's `test_invites_*` files.
+  Confirmed by rerunning those two files alone (clean pass) once the first
+  run finished — not a real regression, just two pytest sessions never
+  meant to share one database concurrently. Noted here so it doesn't get
+  mistaken for a real bug if a similar log turns up later.
+- **Full-suite checkpoint after the sweep**: 214 passed, 0 failures — the
+  Hebrew-message rewrite touched ~30 files and every response shape stayed
+  correct.
+
+**Item 10 — Super admin feature set**:
+- **Two schema gaps found while implementing this, not pre-planned**:
+  CLAUDE.md's Identities section explicitly calls for `last_login_at`
+  ("powers super_admin's cross-tenant users view") but the column never
+  actually existed on the `Identity` model — added it now
+  (migration `b8c9d0e1f2a3`), plus a shared `record_login()` helper in
+  `shared/identity.py` called from all five login routes (admin `/login`,
+  `/lobby-login`, `/platform-login`; client `/login`, `/lobby-login`) so
+  every entry point stamps it identically. Separately, a tenant-growth-
+  per-month chart needs *when* each tenant was created, and `Tenant` had no
+  timestamp column at all — added `Tenants.created_at`
+  (migration `c9d0e1f2a3b4`), used only by that one chart.
+- New `PlatformAuditLogs` table + model (migration `a7b8c9d0e1f2`, exactly
+  as CLAUDE.md specifies: keyed by `identity_id` directly, not
+  `membership.id`, since super_admin is never a Memberships row) — wired
+  into `suspend_tenant`/`reactivate_tenant`, the one action CLAUDE.md
+  singles out as powerful enough to need its own durable trail.
+  `PLAN_PRICES_ILS` added to `shared/plan_limits.py` alongside the existing
+  hardcoded per-plan limits (99/₪mo Pro, 499/₪mo Enterprise, arbitrary but
+  reasonable SaaS figures — no real billing exists to derive them from).
+- New `admin_api/routers/platform.py` endpoints, all behind the existing
+  `require_super_admin` gate and none touching Cases/Documents content
+  (verified by the existing `test_platform_routes_never_expose_case_or_document_paths`
+  test, extended to cover the new paths too):
+  - `GET /platform/users` — paginated, searchable (name/email) cross-tenant
+    identity list with `last_login_at` and a per-firm role join through
+    Memberships; excludes `is_super_admin` identities (not part of "which
+    firms/roles a person holds" in any meaningful sense).
+  - `GET /platform/earnings` — trailing-6-month trend + current-month
+    figure. Implemented as a *literal* sum of every Subscription row
+    active at any point in a month (CLAUDE.md's own wording), deliberately
+    not deduped per tenant — a tenant that switched plans mid-month counts
+    both rows that month, matching what a real partial-month bill would
+    actually reflect.
+  - `GET /platform/stats` extended with `total_clients`,
+    `total_storage_bytes`, and a `plan_distribution` breakdown (a tenant
+    with no active Subscription row still counts as Free, matching
+    `get_active_plan`'s own fallback, handled by subtracting tenants that
+    *do* have an active row rather than double-counting).
+  - `GET /platform/tenant-growth` — new tenants per trailing month, same
+    Python-bucketing pattern `admin_api/routers/dashboard.py` already uses
+    for its own per-tenant charts (reused the approach, not the code — this
+    router intentionally never imports from the tenant-scoped dashboard
+    router, per CLAUDE.md's "explicitly separate code path" rule).
+  - `GET /platform/storage-overview` — every tenant's usage vs. their
+    plan's quota, unpaginated (bounded by tenant count; the frontend sorts
+    by usage% instead of paging).
+  - `GET /platform/audit-log` — paginated listing of the new
+    PlatformAuditLogs table.
+- Frontend: `PlatformDashboardPage` gains a plan-distribution pie chart, a
+  tenant-growth bar chart, an earnings line chart + current-month figure,
+  and a per-tenant storage usage list (top 6 by usage%), all via recharts
+  (already a dependency, already used the same way by the tenant-level
+  `DashboardPage`). Two new pages/routes/sidebar items:
+  `PlatformUsersPage` (searchable table, membership chips per row) and
+  `PlatformAuditLogPage` (same table pattern as the tenant-scoped
+  `AuditLogPage`).
+- Tests: `test_last_login_tracking.py` (all 5 login routes stamp it, a
+  failed login doesn't), and `test_platform_admin.py` extended with cases
+  for every new endpoint plus a lawyer-cannot-reach-any-of-them sweep.
+- **Real bug caught by the audit-log test, not by inspection**: MySQL's
+  `DATETIME` default column precision is whole seconds, so a test that
+  suspends then immediately reactivates the same tenant produces two
+  `PlatformAuditLog` rows with the *identical* `timestamp` — ordering by
+  `timestamp DESC` alone left their relative order undefined, and the test
+  caught it landing the wrong way round. Fixed by adding `id DESC` as a
+  tiebreaker, the same pattern `Narrative`'s own newest-first ordering
+  already uses elsewhere in this codebase for the identical reason. Left
+  the pre-existing tenant-scoped `AuditLogPage`'s equivalent query
+  (`admin_api/routers/audit_log.py`) alone — same latent gap, but it's
+  outside this session's 11 items and no test currently exercises it
+  closely enough to trigger it; noting it here as a real, findable
+  follow-up rather than silently fixing unrelated code.
+
+**Item 11 — Admin sidebar/settings polish**:
+- Profile and Subscription were two of three tabs nested under one
+  "הגדרות משרד" (office settings) sidebar item (`SettingsTabs`, a tab strip
+  repeated identically at the top of all three pages). Promoted both to
+  their own top-level sidebar items (`AppShell.jsx`'s `NAV_ITEMS`); the
+  remaining "הגדרות משרד" item is now just Branding and renamed to "מיתוג"
+  to match, since it's no longer an umbrella for three things. Deleted
+  `SettingsTabs.jsx`/`.css` (verified nothing else referenced it) rather
+  than leaving a dead component behind.
+- `SubscriptionPage`: added a `PLAN_DETAILS` display table (price, lawyer
+  cap, storage cap per plan) rendered under each plan option in the
+  switch-plan grid — explicitly labeled as display-only, mirroring
+  `shared/plan_limits.py`'s real values but never read by the backend, so
+  a wording tweak here can't accidentally change what's actually enforced.
+- `BrandingPage`: the subdomain was previously visible only in small,
+  muted text inside the branding preview mockup — easy to miss as "this is
+  a real, fixed address," not a mockup detail. Added a proper read-only
+  `FormField` above the editable fields (`disabled` input showing
+  `acme.lvh.me`, `dir="ltr"`, plus an explicit "קבועה, לא ניתנת לשינוי"
+  (fixed, cannot be changed) note) so it reads as the firm's actual address
+  rather than a preview detail.
+- Verified live: navigated the admin sidebar as office_manager — Branding/
+  Subscription/Profile are now three separate top-level items with no tab
+  strip on any of the three pages, Subscription page shows the new
+  plan-feature bullets, Branding page shows the new read-only subdomain
+  field; zero console errors.
+
+**Item 10 verification, continued — a false alarm worth recording**: the
+plan-distribution pie initially looked broken in a screenshot (a single-
+category dataset rendered as a near-invisible sliver instead of a full
+ring). Chased it as a real bug for a while — tried a `endAngle={359.999}`
+workaround for d3/recharts' well-known "exactly 360°" degenerate-arc case,
+then suspected the `oklch()` CSS-variable fill colors — before realizing
+the actual cause: recharts animates a Pie's entrance over ~1–1.5s, and the
+screenshot script's fixed wait was sometimes too short, catching the chart
+mid-animation. Confirmed by re-testing with a longer wait (both the
+real single-category case and a manufactured two-category one rendered
+correctly, full rings, once given enough time) and reverted both
+workarounds — neither was needed, and the `endAngle` one would have left
+a permanent, pointless 0.001° gap for a problem that didn't exist.
+Recorded so the same dead end isn't re-walked if this chart is touched
+again — always give a recharts screenshot a few extra seconds before
+concluding a shape is actually missing, not just still animating in.

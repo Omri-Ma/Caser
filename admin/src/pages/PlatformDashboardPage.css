@@ -36,6 +36,94 @@
   color: var(--color-error);
 }
 
+.platform-charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.platform-card {
+  padding: var(--space-4);
+}
+
+.platform-card-title {
+  font-weight: 700;
+  margin-bottom: var(--space-3);
+}
+
+.platform-chart {
+  margin-top: var(--space-2);
+}
+
+.dashboard-chart-empty {
+  color: var(--color-text-muted);
+  font-size: 13.5px;
+}
+
+.usage-bar-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.usage-bar-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 999px;
+}
+
+.usage-bar-fill.over {
+  background: var(--color-error);
+}
+
+.platform-earnings-figure {
+  font-size: var(--font-size-xl);
+  font-weight: 800;
+  color: var(--color-primary);
+  margin-bottom: var(--space-2);
+}
+
+.platform-storage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.platform-storage-row {
+  font-size: 12.5px;
+}
+
+.platform-storage-row-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.platform-storage-name {
+  font-weight: 600;
+}
+
+.platform-storage-pct {
+  color: var(--color-text-muted);
+}
+
+.platform-storage-pct.over {
+  color: var(--color-error);
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .platform-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .platform-stats-grid {
     grid-template-columns: 1fr 1fr;

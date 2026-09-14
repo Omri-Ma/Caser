@@ -23,7 +23,7 @@ from admin_api.schemas.auth import (
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
-from shared.identity import get_current_identity
+from shared.identity import get_current_identity, record_login
 from shared.models import Identity, Membership, Subscription, Tenant
 from shared.models.enums import Plan, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
@@ -36,6 +36,7 @@ from shared.security import (
     verify_password,
 )
 from shared.tenant import BASE_DOMAIN, get_current_tenant, is_reserved_subdomain
+from shared import error_messages as E
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -66,21 +67,21 @@ def signup(payload: SignupRequest, response: Response, db: Session = Depends(get
     """
     subdomain = payload.subdomain.lower()
     if is_reserved_subdomain(subdomain):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This subdomain is reserved")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.SUBDOMAIN_RESERVED)
 
     # Fast, friendly pre-checks for the common case. Not sufficient on their
     # own — two concurrent signups can both pass these before either has
     # written a row — so the actual guard is the try/except around the
     # insert below, which catches the database's unique-constraint rejection.
     if db.query(Tenant).filter(Tenant.subdomain == subdomain).first():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Subdomain already taken")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.SUBDOMAIN_TAKEN)
 
     existing_identity = db.query(Identity).filter(Identity.email == payload.admin_email).first()
     if existing_identity is not None:
         if not verify_password(payload.admin_password, existing_identity.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="An account with this email already exists — log in with its existing password to found a firm",
+                detail=E.EMAIL_EXISTS_LOGIN_TO_FOUND_FIRM,
             )
 
     tenant = Tenant(name=payload.firm_name, subdomain=subdomain, active=True)
@@ -112,7 +113,7 @@ def signup(payload: SignupRequest, response: Response, db: Session = Depends(get
         # race to a concurrent signup between the pre-check above and this
         # insert — inspect which unique constraint the database rejected so
         # the error stays as accurate as the pre-check would have been.
-        detail = "Email already registered" if "email" in str(exc.orig).lower() else "Subdomain already taken"
+        detail = E.EMAIL_ALREADY_REGISTERED if "email" in str(exc.orig).lower() else E.SUBDOMAIN_TAKEN
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
     db.refresh(identity)
 
@@ -133,7 +134,7 @@ def login(
     """
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
     if identity is None or not verify_password(payload.password, identity.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
     membership = (
         db.query(Membership)
@@ -145,13 +146,14 @@ def login(
         .first()
     )
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this firm")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NO_ACCESS_TO_FIRM)
     if membership.role != UserRole.OFFICE_MANAGER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account logs in through the client portal, not the admin portal",
+            detail=E.account_logs_in_through_other_portal("פורטל הלקוח"),
         )
 
+    record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
     return SessionResponse(name=identity.name, email=identity.email, role=membership.role)
 
@@ -170,7 +172,7 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     """
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
     if identity is None or not verify_password(payload.password, identity.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
     memberships = (
         db.query(Membership, Tenant)
@@ -186,9 +188,10 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     if not memberships:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No office manager account found for this email at any firm",
+            detail=E.NO_OFFICE_MANAGER_ACCOUNT_FOUND,
         )
 
+    record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
     return LobbyLoginResponse(
         name=identity.name,
@@ -214,13 +217,14 @@ def platform_login(payload: PlatformLoginRequest, request: Request, response: Re
     if hostname != PLATFORM_HOST:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Platform login must be made to {PLATFORM_HOST}",
+            detail=E.platform_login_must_be_made_to(PLATFORM_HOST),
         )
 
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
     if identity is None or not identity.is_super_admin or not verify_password(payload.password, identity.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
+    record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
     return PlatformSessionResponse(name=identity.name, email=identity.email)
 
@@ -229,22 +233,22 @@ def platform_login(payload: PlatformLoginRequest, request: Request, response: Re
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.NOT_LOGGED_IN)
 
     try:
         decoded = decode_token(token)
     except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_OR_EXPIRED_SESSION)
 
     if decoded.get("type") != "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_TOKEN_TYPE)
 
     identity = db.query(Identity).filter(Identity.id == decoded["identity_id"]).first()
     if identity is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.ACCOUNT_NO_LONGER_EXISTS)
 
     if decoded.get("token_version") != identity.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been invalidated, please log in again")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.SESSION_INVALIDATED)
 
     set_session_cookies(response, identity.id, identity.token_version)
 
@@ -306,7 +310,7 @@ def change_my_password(
         # via /auth/refresh and then redirect to /login on the second
         # failure — so mistyping the current password looked exactly like
         # being logged out, with no visible error message.
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CURRENT_PASSWORD_INCORRECT)
 
     set_session_cookies(response, identity.id, identity.token_version)
 
@@ -333,7 +337,7 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     identity = redeem_reset_token(payload.token, payload.new_password, db)
     if identity is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link is invalid or has expired")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.RESET_LINK_INVALID_OR_EXPIRED)
 
     return GenericMessageResponse(message="Password updated. You can now log in with your new password.")
 

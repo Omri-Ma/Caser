@@ -17,6 +17,8 @@ import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
 import PlatformProfilePage from './pages/PlatformProfilePage'
+import PlatformUsersPage from './pages/PlatformUsersPage'
+import PlatformAuditLogPage from './pages/PlatformAuditLogPage'
 import { isPlatformHost, isLobbyHost } from './utils/host'
 
 // This bundle serves three entirely different route trees depending on the
@@ -45,6 +47,8 @@ export default function App() {
               }
             />
             <Route path="/dashboard" element={<PlatformDashboardPage />} />
+            <Route path="/users" element={<PlatformUsersPage />} />
+            <Route path="/audit-log" element={<PlatformAuditLogPage />} />
             <Route path="/profile" element={<PlatformProfilePage />} />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
