@@ -4278,3 +4278,38 @@ pass** (ran the whole `tests/` directory once at the end of this item,
 not just the narrative-scoped files, since the client_api router
 rewrite and the DocumentsPanel refreshSignal cleanup both touch code
 other tests exercise).
+
+**Item 6 — lobby wordmark fix** (commit `84ad5b5`): same bug as the
+already-fixed sidebar one (session 1's punch list, item 9) — both apps'
+`Layout.jsx` (wrapping the lobby pages) rendered "Caser · ניהול"/"Caser ·
+פורטל לקוחות" as one plain string, and `.app-brand` applied the serif
+`--font-family-wordmark` to the whole thing. Wrapped only "Caser" in its
+own `.wordmark` span, same as the sidebar fix, and sized it up
+(`--font-size-xl`) since the lobby header is a standalone brand element,
+not a compact sidebar item. Verified live via screenshot in both apps.
+
+**Item 7 — header avatar** (commit `bdfe1bd`): two bugs, not one. The
+avatar never rendered `Identity.photo_url` at all (always initials,
+regardless of whether a photo was set) — so "doesn't update" was really
+"never showed in the first place." Even after fixing that, `AppShell`
+only fetches identity once on mount, and `ProfilePage` saves via a plain
+PATCH on the same page, so the header stayed stale until a reload. Fixed
+both: an `<img>` when `photo_url` is set, and a small
+`window.dispatchEvent(new CustomEvent('caser:identity-updated', ...))`
+from `ProfilePage` (carrying the save response's already-updated
+identity) that `AppShell` listens for — no second fetch needed, no
+Context/state-library introduced for one cross-component update.
+Verified live in both apps with a distinctly-colored placeholder image
+(to be certain it was the real image rendering, not a coincidentally
+similar-looking initials fallback — the first test image happened to
+have "LL" baked into it too, same as the lawyer's initials, which very
+nearly produced a false-positive "looks fixed" read before a second,
+visually distinct image ruled that out).
+
+**Item 8 — stray Documents nav item** (commit `d3e825a`): unlike the
+"hours" item (conditionally disabled per role), client/'s sidebar
+"documents" entry had no `path` under any circumstance — documents were
+never a standalone top-level screen, only ever a per-case panel. Removed
+outright rather than leaving a permanently-disabled "coming soon" item
+for something not actually planned. Verified live: sidebar now shows
+only תיקים / ייבוא שעות מאקסל / פרופיל אישי.
