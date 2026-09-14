@@ -224,7 +224,7 @@ export default function RoleMembersPanel({ role, inviteRole }) {
               }
               return (
                 <button type="button" className="member-rate-display" onClick={() => startRateEdit(row)}>
-                  {row.hourly_rate != null ? <span dir="ltr">{`${Number(row.hourly_rate).toFixed(2)} ש"ח`}</span> : 'הגדרת תעריף'}
+                  {row.hourly_rate != null ? `${Number(row.hourly_rate).toFixed(2)} ש"ח` : 'הגדרת תעריף'}
                 </button>
               )
             },

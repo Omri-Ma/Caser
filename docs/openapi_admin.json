@@ -718,7 +718,7 @@
           "members"
         ],
         "summary": "Update Hourly Rate",
-        "description": "office_manager-set per-lawyer billing rate (CLAUDE.md's Memberships\nnote) — feeds Narratives.total_fee, replacing the old flat placeholder\nrate. Lawyer-only, same \"only meaningful for lawyer memberships\" gate\nalready used for show_on_public_page/role changes.",
+        "description": "office_manager-set per-lawyer billing rate (CLAUDE.md's Memberships\nnote) — feeds Narratives.total_fee, replacing the old flat placeholder\nrate. Lawyer-only, same \"only meaningful for lawyer memberships\" gate\nalready used for show_on_public_page/role changes.\n\nUnlike show_on_public_page/manager-status, this deliberately allows an\n*inactive* (removed) lawyer membership too — a since-removed lawyer's\nalready-logged hours still bill into a narrative's total_fee (see\nshared.narratives.get_lawyers_with_missing_rates), and the normal\nLawyers page only lists active members, so without this their rate\nwould have no reachable fix at all once they're removed.",
         "operationId": "update_hourly_rate_members__membership_id__hourly_rate_patch",
         "parameters": [
           {
@@ -2223,6 +2223,73 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page_NarrativeResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/narratives/rate-check": {
+      "get": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Check Missing Rates",
+        "description": "Lawyers contributing hours in the chosen period whose hourly_rate is\nunset or zero (CLAUDE.md's Narratives note) — the frontend calls this\nbefore/while filling in the generate form so office_manager can fix a\nrate (including for a since-removed lawyer, via the same hourly-rate\nendpoint the Lawyers page uses) without the resulting fee silently\nunderstating their hours.",
+        "operationId": "check_missing_rates_cases__case_id__narratives_rate_check_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "period_start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Period Start"
+            }
+          },
+          {
+            "name": "period_end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Period End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MissingRateLawyer"
+                  },
+                  "title": "Response Check Missing Rates Cases  Case Id  Narratives Rate Check Get"
                 }
               }
             }
@@ -3807,6 +3874,43 @@
           "role"
         ],
         "title": "MembershipSummary"
+      },
+      "MissingRateLawyer": {
+        "properties": {
+          "membership_id": {
+            "type": "integer",
+            "title": "Membership Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "membership_id",
+          "name",
+          "active",
+          "hourly_rate"
+        ],
+        "title": "MissingRateLawyer",
+        "description": "One lawyer contributing hours to the chosen period whose\nMemberships.hourly_rate is unset or zero — see\nshared.narratives.get_lawyers_with_missing_rates. `active=False` means\nthey've since been removed from the firm and won't appear on the normal\nLawyers page at all."
       },
       "MonthlyBillableHoursPoint": {
         "properties": {

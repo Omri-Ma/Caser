@@ -74,7 +74,12 @@
   border: none;
   text-align: start;
   cursor: pointer;
-  font: inherit;
+  /* font-family only, not the `font` shorthand — that shorthand also
+     resets font-weight/font-size, which silently overrode .sidebar-brand's
+     own font-weight: 700 back down to the button default (400), making
+     "· ניהול" render at a different weight here than the lobby's identical
+     markup (Layout.jsx/.css) and look like a different typeface. */
+  font-family: inherit;
   width: 100%;
 }
 
