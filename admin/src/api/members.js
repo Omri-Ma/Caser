@@ -14,3 +14,10 @@ export function listMembers({ role, active = true } = {}) {
 export function deactivateMember(membershipId) {
   return apiFetch(`/members/${membershipId}/deactivate`, { method: 'POST' })
 }
+
+export function updatePublicVisibility(membershipId, showOnPublicPage) {
+  return apiFetch(`/members/${membershipId}/public-visibility`, {
+    method: 'PATCH',
+    body: { show_on_public_page: showOnPublicPage },
+  })
+}

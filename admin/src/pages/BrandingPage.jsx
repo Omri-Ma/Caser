@@ -2,24 +2,32 @@ import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import SettingsTabs from '../components/SettingsTabs'
 import { FormField, FormError } from '../components/Form'
-import { getTenant, updateTenant } from '../api/tenant'
+import { getTenant, updateTenant, uploadLogo } from '../api/tenant'
+import { apiBaseUrl } from '../api/client'
 import './SettingsPage.css'
 
 // office_manager-only screen to edit the firm's own branding — direct
-// Tenants columns (name/logo_url/primary_color), not the generic Settings
-// table (CLAUDE.md's Branding requirement). subdomain isn't editable here.
+// Tenants columns (name/primary_color), not the generic Settings table
+// (CLAUDE.md's Branding requirement). subdomain isn't editable here. Logo
+// is a real file upload (POST /tenant/logo), not a URL text field.
 export default function BrandingPage() {
   const [tenant, setTenant] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const [name, setName] = useState('')
-  const [logoUrl, setLogoUrl] = useState('')
   const [primaryColor, setPrimaryColor] = useState('')
   const [about, setAbout] = useState('')
   const [saveError, setSaveError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [logoFile, setLogoFile] = useState(null)
+  const [logoError, setLogoError] = useState(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  // Cache-busts the preview <img> after a re-upload — the URL itself
+  // (/tenant/logo) never changes, so the browser would otherwise keep
+  // showing the previous image from cache.
+  const [logoVersion, setLogoVersion] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -28,7 +36,6 @@ export default function BrandingPage() {
       .then((data) => {
         setTenant(data)
         setName(data.name)
-        setLogoUrl(data.logo_url || '')
         setPrimaryColor(data.primary_color || '')
         setAbout(data.about || '')
       })
@@ -44,7 +51,6 @@ export default function BrandingPage() {
     try {
       const updated = await updateTenant({
         name: name.trim(),
-        logoUrl: logoUrl.trim(),
         primaryColor: primaryColor.trim(),
         about: about.trim(),
       })
@@ -55,6 +61,25 @@ export default function BrandingPage() {
       setSaveError(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleLogoUpload(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setLogoFile(file)
+    setLogoError(null)
+    setUploadingLogo(true)
+    try {
+      const updated = await uploadLogo(file)
+      setTenant(updated)
+      setLogoVersion((v) => v + 1)
+    } catch (err) {
+      setLogoError(err.message)
+    } finally {
+      setUploadingLogo(false)
+      setLogoFile(null)
     }
   }
 
@@ -75,13 +100,10 @@ export default function BrandingPage() {
             <FormField label="שם המשרד">
               <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={255} />
             </FormField>
-            <FormField label="כתובת לוגו (URL)">
-              <input
-                type="url"
-                value={logoUrl}
-                onChange={(event) => setLogoUrl(event.target.value)}
-                placeholder="https://…"
-              />
+            <FormField label="לוגו">
+              <FormError message={logoError} />
+              <input type="file" accept="image/png,image/jpeg" onChange={handleLogoUpload} disabled={uploadingLogo} />
+              {uploadingLogo && <div className="branding-logo-uploading">מעלה{logoFile ? ` ${logoFile.name}` : ''}…</div>}
             </FormField>
             <FormField label="צבע ראשי">
               <div className="branding-color-row">
@@ -118,8 +140,13 @@ export default function BrandingPage() {
           <div className="branding-preview">
             <div className="branding-preview-label">תצוגה מקדימה</div>
             <div className="branding-preview-card" style={{ borderColor: primaryColor || undefined }}>
-              {logoUrl ? (
-                <img src={logoUrl} alt="לוגו המשרד" className="branding-preview-logo" onError={(e) => { e.target.style.display = 'none' }} />
+              {tenant.has_logo ? (
+                <img
+                  src={`${apiBaseUrl()}/tenant/logo?v=${logoVersion}`}
+                  alt="לוגו המשרד"
+                  className="branding-preview-logo"
+                  onError={(e) => { e.target.style.display = 'none' }}
+                />
               ) : (
                 <div className="branding-preview-logo-placeholder">{name.trim().slice(0, 2) || '?'}</div>
               )}

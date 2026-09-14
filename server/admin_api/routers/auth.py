@@ -19,6 +19,7 @@ from admin_api.schemas.auth import (
     ResetPasswordRequest,
     SessionResponse,
     SignupRequest,
+    UpdateProfileRequest,
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
@@ -40,8 +41,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _to_identity_response(identity: Identity) -> IdentityResponse:
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
-
+    return IdentityResponse(
+        id=identity.id,
+        name=identity.name,
+        email=identity.email,
+        bio=identity.bio,
+        photo_url=identity.photo_url,
+        years_of_experience=identity.years_of_experience,
+    )
 
 PLATFORM_HOST = f"platform.{BASE_DOMAIN}"
 
@@ -255,6 +262,23 @@ def logout(
 
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
+    return _to_identity_response(identity)
+
+
+@router.patch("/profile", response_model=IdentityResponse)
+def update_my_profile(
+    payload: UpdateProfileRequest,
+    identity: Identity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
+    """Self-service only — see client_api's identical route for the full
+    reasoning.
+    """
+    identity.bio = payload.bio
+    identity.photo_url = payload.photo_url
+    identity.years_of_experience = payload.years_of_experience
+    db.commit()
+    db.refresh(identity)
     return _to_identity_response(identity)
 
 

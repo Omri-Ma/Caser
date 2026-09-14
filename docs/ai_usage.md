@@ -3226,3 +3226,78 @@ typed)**:
   already accumulated plenty of prior sessions' test data
   (`corstest1@example.com`, `planlaw1@example.com`, etc.); not worth a
   special-case cleanup.
+
+**Before item 5, re-checked the 401-vs-form-error bug class on this
+session's item 4 code** (per the user's explicit ask): login routes still
+safe (`redirectOn401: false`), forgot/reset-password still 400, and the new
+invite accept/decline routes (`client_api/routers/invites.py`) already used
+404 for an invalid/already-answered/not-owned invite — nothing to fix.
+
+**Built (item 5, public firm homepage team section + real logo upload)**:
+- New `Identities.years_of_experience` column (migration `d4e5f6a7b8c9`,
+  applied) — self-reported, same as `bio`.
+- New self-service `PATCH /auth/profile` (both apps) — bio/photo_url/
+  years_of_experience, identity-level, never a lever another party (an
+  office_manager) can pull. Extended `IdentityResponse`/`GET /auth/me` to
+  return them. Wired into a new "פרופיל ציבורי" card on both apps'
+  `ProfilePage.jsx` (photo URL, years-of-experience number input, bio
+  textarea).
+- New `PATCH /members/{id}/public-visibility` (admin_api, office_manager
+  only) toggling `Membership.show_on_public_page` — rejects a CLIENT
+  membership or an inactive one with 400. Decided the "gated on an accepted
+  membership" requirement means gated on the Membership row itself being
+  active, not a separate cross-check against `MembershipInvites.status`:
+  there's no FK link from Membership back to the invite that created it,
+  and every Membership row (new ones via `accept_invite`, or pre-existing
+  ones seeded before invites existed) already represents a real agreed
+  relationship by virtue of existing and being active — a second check
+  would be redundant, not more correct. Wired into `MembersPage.jsx`'s
+  active tab as a checkbox column, shown only for office_manager/lawyer
+  rows.
+- `client_api`'s `GET /public/profile` now also returns `team`
+  (office_manager/lawyer memberships that are active + show_on_public_page,
+  sorted office_managers-first then lawyers, each group by
+  years_of_experience descending — nulls sort last via a Python-side sort
+  key rather than a fragile cross-DB "nulls last" SQL clause) and
+  `has_logo` (a presence flag, replacing the raw `logo_url` in the public
+  response — never leak an internal storage key).
+- Real file upload for the tenant logo, replacing the URL-only text field:
+  `shared/storage.py`'s new `save_tenant_logo`; `admin_api/core/
+  file_validation.py`'s new `detect_image_type` (png/jpeg magic bytes, same
+  approach as Documents' own check, admin_api's own copy per CLAUDE.md's
+  per-app upload-handling rule); `POST /tenant/logo` (office_manager,
+  validates content) and `GET /tenant/logo` (authenticated, admin/'s own
+  BrandingPage preview) in admin_api; `GET /public/logo` (unauthenticated)
+  in client_api for the actual public homepage. `Tenant.logo_url` now
+  holds an internal storage key, not a raw URL — `TenantResponse`/
+  `PublicTenantProfile` expose only `has_logo`; the frontend builds the
+  actual image URL itself via a newly-exported `apiBaseUrl()` (both apps'
+  `api/client.js`) pointing at `/tenant/logo` or `/public/logo`.
+  `UpdateTenantRequest` dropped `logo_url` entirely (a separate multipart
+  request now, not part of the branding PATCH body).
+- **Found via live testing, not just reasoning about the code**: the demo
+  tenant's `logo_url` already held a raw external URL from before this
+  redesign (someone had pasted one through the old text field in an
+  earlier session) — under the new "logo_url is an internal storage key"
+  meaning, `GET /public/logo` would try to resolve that URL as a local
+  disk path and fail. Not a code bug (a fresh upload or a fresh tenant
+  works correctly, verified below) — cleared that one stale dev-DB value
+  by hand, same as the CaseHub→Caser rename's stale-seed-row cleanup
+  earlier in this session, and confirmed a real upload → both the
+  BrandingPage preview and the actual public homepage's `<img>` — renders
+  correctly end-to-end afterward.
+- `PublicHomePage.jsx`: team section below the firm card — a photo-card
+  grid for members with `photo_url`, a separate plain name+role list
+  underneath for members without one (never a placeholder image in the
+  grid, per CLAUDE.md's public homepage note).
+- Added `server/tests/test_public_team.py` (role/visibility/active
+  filtering, sort order), `test_members_public_visibility.py` (role/active
+  gating, RBAC), extended `test_auth_self_service.py` (profile update, both
+  apps) and `test_tenant_admin.py` (logo upload/fetch/reject/404, updated
+  the branding test for the new `has_logo` shape). Full suite: 197 passed.
+- `npx oxlint` on every touched frontend file: clean except two more
+  instances of the same pre-existing "setState in effect" warning already
+  seen elsewhere in this codebase (data-fetch-on-mount pattern) — not new,
+  not an error.
+- Regenerated `docs/openapi_*.json`/Postman/ERD (client_api 28→30 paths,
+  admin_api 39→42).

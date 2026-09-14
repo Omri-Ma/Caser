@@ -16,6 +16,7 @@ from client_api.schemas.auth import (
     RegisterRequest,
     ResetPasswordRequest,
     SessionResponse,
+    UpdateProfileRequest,
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
@@ -38,7 +39,14 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _to_identity_response(identity: Identity) -> IdentityResponse:
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+    return IdentityResponse(
+        id=identity.id,
+        name=identity.name,
+        email=identity.email,
+        bio=identity.bio,
+        photo_url=identity.photo_url,
+        years_of_experience=identity.years_of_experience,
+    )
 
 
 @router.post("/register", response_model=IdentityResponse, status_code=status.HTTP_201_CREATED)
@@ -205,6 +213,25 @@ def logout(
 
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
+    return _to_identity_response(identity)
+
+
+@router.patch("/profile", response_model=IdentityResponse)
+def update_my_profile(
+    payload: UpdateProfileRequest,
+    identity: Identity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
+    """Self-service only — bio/photo_url/years_of_experience are global to
+    the person, never a lever another party (an office_manager, CLAUDE.md's
+    authority boundary) gets to pull. Whether any of it is actually shown
+    publicly is the separate per-membership show_on_public_page toggle.
+    """
+    identity.bio = payload.bio
+    identity.photo_url = payload.photo_url
+    identity.years_of_experience = payload.years_of_experience
+    db.commit()
+    db.refresh(identity)
     return _to_identity_response(identity)
 
 

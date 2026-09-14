@@ -28,6 +28,20 @@ def save_file(file_bytes: bytes, tenant_id: int, case_id: int, original_filename
     return storage_key
 
 
+def save_tenant_logo(file_bytes: bytes, tenant_id: int, original_filename: str) -> str:
+    """Same idea as save_file, but for a tenant's public logo — not tied to
+    a case, and only ever one live file per tenant (a re-upload just
+    overwrites the previous storage key's slot by writing a new one; the
+    caller is responsible for updating Tenants.logo_url to point at it).
+    """
+    extension = Path(original_filename).suffix[:10]
+    storage_key = f"logos/{tenant_id}/{uuid.uuid4().hex}{extension}"
+    full_path = STORAGE_ROOT / storage_key
+    full_path.parent.mkdir(parents=True, exist_ok=True)
+    full_path.write_bytes(file_bytes)
+    return storage_key
+
+
 def get_file_url(storage_key: str) -> str:
     """Resolve a storage key back to something the caller can actually read
     from. For local disk this is the absolute path (used to stream the file

@@ -65,6 +65,43 @@ def test_change_password_succeeds_and_invalidates_other_sessions(client_client, 
     assert me_resp.status_code == 401
 
 
+def test_update_my_profile(client_client, db):
+    identity = make_identity(db, "lawyer@acme.com")
+    tenant = make_tenant(db, "acme")
+    make_membership(db, identity.id, tenant.id, UserRole.LAWYER)
+    headers, cookies = auth_for(identity, "acme")
+
+    resp = client_client.patch(
+        "/auth/profile",
+        json={"bio": "Ten years of litigation experience.", "photo_url": "https://example.com/me.jpg", "years_of_experience": 10},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["bio"] == "Ten years of litigation experience."
+    assert body["photo_url"] == "https://example.com/me.jpg"
+    assert body["years_of_experience"] == 10
+
+
+def test_admin_api_exposes_the_same_profile_route(admin_client, db):
+    identity = make_identity(db, "manager@acme.com")
+    tenant = make_tenant(db, "acme")
+    make_membership(db, identity.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(identity, "acme")
+
+    resp = admin_client.patch(
+        "/auth/profile",
+        json={"bio": "Managing partner.", "photo_url": None, "years_of_experience": 15},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["years_of_experience"] == 15
+
+
 def test_forgot_password_always_returns_generic_response(client_client, db):
     make_identity(db, "real@acme.com")
 

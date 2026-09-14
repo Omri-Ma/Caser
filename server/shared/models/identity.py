@@ -23,6 +23,10 @@ class Identity(Base):
     password_hash = Column(String(255), nullable=False)
     bio = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
+    # Self-reported, same as bio — sort key for the public homepage's team
+    # section (most experienced first within office_manager/lawyer groups),
+    # nothing more (see CLAUDE.md's Identities note).
+    years_of_experience = Column(Integer, nullable=True)
     # Platform-staff flag, unrelated to Memberships — super_admin can never
     # be a Memberships.role value (a Memberships row means "belongs to this
     # tenant", and super_admin doesn't belong to any tenant). Checked

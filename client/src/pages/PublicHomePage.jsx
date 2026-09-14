@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPublicProfile } from '../api/public'
+import { apiBaseUrl } from '../api/client'
 import './PublicHomePage.css'
+
+const ROLE_LABELS = {
+  office_manager: 'מנהל/ת משרד',
+  lawyer: 'עורך/ת דין',
+}
 
 // Unauthenticated tenant landing page (CLAUDE.md's public homepage
 // requirement) — shown at "/" to anyone who isn't logged in. Renders only
@@ -45,12 +51,16 @@ export default function PublicHomePage() {
     )
   }
 
+  const team = profile.team || []
+  const withPhoto = team.filter((member) => member.photo_url)
+  const withoutPhoto = team.filter((member) => !member.photo_url)
+
   return (
     <div className="public-home">
       <div className="public-home-card" style={{ borderColor: profile.primary_color || undefined }}>
-        {profile.logo_url ? (
+        {profile.has_logo ? (
           <img
-            src={profile.logo_url}
+            src={`${apiBaseUrl()}/public/logo`}
             alt={`לוגו ${profile.name}`}
             className="public-home-logo"
             onError={(event) => {
@@ -71,6 +81,36 @@ export default function PublicHomePage() {
           כניסה לפורטל
         </Link>
       </div>
+
+      {team.length > 0 && (
+        <div className="public-home-team">
+          <h2 className="public-home-team-title">הצוות שלנו</h2>
+
+          {withPhoto.length > 0 && (
+            <div className="public-home-team-grid">
+              {withPhoto.map((member, index) => (
+                <div key={index} className="public-home-team-card">
+                  <img src={member.photo_url} alt={member.name} className="public-home-team-photo" />
+                  <div className="public-home-team-name">{member.name}</div>
+                  <div className="public-home-team-role">{ROLE_LABELS[member.role] || member.role}</div>
+                  {member.bio && <p className="public-home-team-bio">{member.bio}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {withoutPhoto.length > 0 && (
+            <ul className="public-home-team-plain-list">
+              {withoutPhoto.map((member, index) => (
+                <li key={index}>
+                  <span className="public-home-team-name">{member.name}</span>
+                  <span className="public-home-team-role">{ROLE_LABELS[member.role] || member.role}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   )
 }

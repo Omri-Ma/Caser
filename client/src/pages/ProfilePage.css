@@ -3,6 +3,12 @@
   margin-top: var(--space-4);
 }
 
+.profile-public-hint {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-3);
+}
+
 .reset-password-success {
   background: var(--color-success-bg);
   color: var(--color-success);

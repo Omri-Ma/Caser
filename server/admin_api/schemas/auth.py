@@ -101,6 +101,20 @@ class IdentityResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    bio: str | None = None
+    photo_url: str | None = None
+    years_of_experience: int | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    """Self-service profile edit — see client_api's identical schema for the
+    full reasoning (bio/photo_url/years_of_experience are global to the
+    person, never an office_manager lever over someone else's account).
+    """
+
+    bio: str | None = Field(None, max_length=2000)
+    photo_url: str | None = Field(None, max_length=500)
+    years_of_experience: int | None = Field(None, ge=0, le=80)
 
 
 class SessionResponse(BaseModel):
@@ -129,3 +143,11 @@ class MemberResponse(BaseModel):
     identity_name: str
     identity_email: EmailStr
     active: bool
+    # Only meaningful for office_manager/lawyer rows — a client is never
+    # eligible for the public team section (CLAUDE.md's public homepage
+    # note), so the frontend simply never renders the toggle for one.
+    show_on_public_page: bool
+
+
+class UpdatePublicVisibilityRequest(BaseModel):
+    show_on_public_page: bool

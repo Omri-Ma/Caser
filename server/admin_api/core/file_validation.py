@@ -21,3 +21,20 @@ def is_xlsx_file(content: bytes) -> bool:
             return "xl/workbook.xml" in archive.namelist()
     except zipfile.BadZipFile:
         return False
+
+
+# admin_api's own copy of client_api's image-only subset of detect_file_type
+# — needed for the tenant logo upload (a firm's branding, edited from
+# admin/'s BrandingPage). Same duplication reasoning as is_xlsx_file above:
+# this app never receives a Documents upload, but it does receive this one
+# directly, so it needs its own magic-byte check rather than trusting the
+# filename extension.
+MAX_LOGO_FILE_SIZE_BYTES = 5 * 1024 * 1024
+
+
+def detect_image_type(content: bytes) -> str | None:
+    if content.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if content.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    return None

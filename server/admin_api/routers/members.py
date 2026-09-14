@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from admin_api.core.pagination import Page, PageParams
-from admin_api.schemas.auth import MemberResponse
+from admin_api.schemas.auth import MemberResponse, UpdatePublicVisibilityRequest
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Identity, Membership, Tenant
@@ -24,6 +24,7 @@ def _to_member_response(membership: Membership, identity: Identity) -> MemberRes
         identity_name=identity.name,
         identity_email=identity.email,
         active=membership.active,
+        show_on_public_page=membership.show_on_public_page,
     )
 
 
@@ -85,6 +86,38 @@ def deactivate_member(
             target=f"membership:{membership.id}",
         )
     )
+    db.commit()
+    db.refresh(membership)
+
+    identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
+    return _to_member_response(membership, identity)
+
+
+@router.patch("/{membership_id}/public-visibility", response_model=MemberResponse)
+def update_public_visibility(
+    membership_id: int,
+    payload: UpdatePublicVisibilityRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Whether this person's profile (Identity.bio/photo_url) appears on
+    this firm's public team section (CLAUDE.md's Memberships note) —
+    office_manager-only to set, since it's the firm's public page, not the
+    individual's. Only office_manager/lawyer memberships are eligible: a
+    client is never "the firm" the way staff are, and an inactive
+    membership has nothing to show publicly in the first place (an active
+    row is itself the "genuinely accepted" signal — every Membership row
+    now only ever comes to exist via an accepted invite, or a pre-existing
+    one predating that flow, either way a real agreed membership).
+    """
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, "Member not found")
+    if membership.role not in (UserRole.OFFICE_MANAGER, UserRole.LAWYER):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only office managers and lawyers can appear on the public page")
+    if not membership.active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This membership isn't active")
+
+    membership.show_on_public_page = payload.show_on_public_page
     db.commit()
     db.refresh(membership)
 

@@ -3,7 +3,7 @@ import AppShell from '../components/AppShell'
 import DataTable from '../components/DataTable'
 import InviteMemberModal from '../components/InviteMemberModal'
 import { FormError } from '../components/Form'
-import { deactivateMember, listMembers } from '../api/members'
+import { deactivateMember, listMembers, updatePublicVisibility } from '../api/members'
 import { listInvites } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
@@ -93,6 +93,19 @@ export default function MembersPage() {
     }
   }
 
+  async function handleTogglePublicVisibility(member) {
+    setActioningId(member.id)
+    setRowError(null)
+    try {
+      await updatePublicVisibility(member.id, !member.show_on_public_page)
+      load()
+    } catch (err) {
+      setRowError(err.message)
+    } finally {
+      setActioningId(null)
+    }
+  }
+
   const memberColumns = [
     {
       key: 'name',
@@ -108,6 +121,28 @@ export default function MembersPage() {
       key: 'role',
       label: 'תפקיד',
       render: (row) => <span className="chip member-role-chip">{ROLE_LABELS[row.role] || row.role}</span>,
+    },
+    {
+      key: 'public_page',
+      label: 'עמוד ציבורי',
+      render: (row) => {
+        // Only office_manager/lawyer memberships are eligible at all (a
+        // client is never "the firm" the way staff are, CLAUDE.md), and
+        // only meaningful for an active membership — the removed tab never
+        // shows this control.
+        if (statusTab !== 'active' || (row.role !== 'office_manager' && row.role !== 'lawyer')) return null
+        return (
+          <label className="member-public-toggle">
+            <input
+              type="checkbox"
+              checked={row.show_on_public_page}
+              disabled={actioningId === row.id}
+              onChange={() => handleTogglePublicVisibility(row)}
+            />
+            מוצג/ת
+          </label>
+        )
+      },
     },
     {
       key: 'actions',
