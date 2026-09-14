@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell'
 import AssignMemberModal from '../components/AssignMemberModal'
 import DocumentsPanel from '../components/DocumentsPanel'
 import WorkHoursPanel from '../components/WorkHoursPanel'
+import NarrativesPanel from '../components/NarrativesPanel'
 import { FormError } from '../components/Form'
 import {
   deleteCase,
@@ -46,6 +47,8 @@ export default function CaseDetailPage() {
 
   const [tagsSaving, setTagsSaving] = useState(false)
   const [tagsError, setTagsError] = useState(null)
+
+  const [documentsRefreshSignal, setDocumentsRefreshSignal] = useState(0)
 
   const loadCase = useCallback(() => {
     setLoading(true)
@@ -302,8 +305,13 @@ export default function CaseDetailPage() {
             onAssigned={handleAssigned}
           />
 
-          <DocumentsPanel caseId={caseId} />
+          <DocumentsPanel caseId={caseId} refreshSignal={documentsRefreshSignal} />
           <WorkHoursPanel caseId={caseId} caseClosed={caseData.status === 'closed'} />
+          <NarrativesPanel
+            caseId={caseId}
+            caseTitle={caseData.title}
+            onDocumentAdded={() => setDocumentsRefreshSignal((n) => n + 1)}
+          />
         </>
       )}
     </AppShell>

@@ -11,6 +11,7 @@ from admin_api.routers.dashboard import router as dashboard_router
 from admin_api.routers.documents import router as documents_router
 from admin_api.routers.invites import router as invites_router
 from admin_api.routers.members import router as members_router
+from admin_api.routers.narratives import router as narratives_router
 from admin_api.routers.platform import router as platform_router
 from admin_api.routers.subscriptions import router as subscriptions_router
 from admin_api.routers.tenant import router as tenant_router
@@ -32,6 +33,7 @@ app.include_router(cases_router)
 app.include_router(documents_router)
 app.include_router(work_logs_router)
 app.include_router(work_log_import_router)
+app.include_router(narratives_router)
 app.include_router(tenant_router)
 app.include_router(subscriptions_router)
 app.include_router(platform_router)

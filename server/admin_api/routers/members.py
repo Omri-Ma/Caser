@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from admin_api.core.pagination import Page, PageParams
-from admin_api.schemas.auth import MemberResponse, UpdateMemberRoleRequest, UpdatePublicVisibilityRequest
+from admin_api.schemas.auth import (
+    MemberResponse,
+    UpdateHourlyRateRequest,
+    UpdateMemberRoleRequest,
+    UpdatePublicVisibilityRequest,
+)
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Identity, Membership, Tenant
@@ -26,6 +31,7 @@ def _to_member_response(membership: Membership, identity: Identity) -> MemberRes
         identity_email=identity.email,
         active=membership.active,
         show_on_public_page=membership.show_on_public_page,
+        hourly_rate=membership.hourly_rate,
     )
 
 
@@ -165,6 +171,41 @@ def update_public_visibility(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
 
     membership.show_on_public_page = payload.show_on_public_page
+    db.commit()
+    db.refresh(membership)
+
+    identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
+    return _to_member_response(membership, identity)
+
+
+@router.patch("/{membership_id}/hourly-rate", response_model=MemberResponse)
+def update_hourly_rate(
+    membership_id: int,
+    payload: UpdateHourlyRateRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """office_manager-set per-lawyer billing rate (CLAUDE.md's Memberships
+    note) — feeds Narratives.total_fee, replacing the old flat placeholder
+    rate. Lawyer-only, same "only meaningful for lawyer memberships" gate
+    already used for show_on_public_page/role changes.
+    """
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
+    if membership.role != UserRole.LAWYER:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.HOURLY_RATE_ONLY_FOR_LAWYERS)
+    if not membership.active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
+
+    membership.hourly_rate = payload.hourly_rate
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=office_manager.id,
+            action="member_hourly_rate_changed",
+            target=f"membership:{membership.id}",
+        )
+    )
     db.commit()
     db.refresh(membership)
 

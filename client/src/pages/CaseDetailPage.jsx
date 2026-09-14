@@ -38,7 +38,6 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [documentsRefreshSignal, setDocumentsRefreshSignal] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -81,14 +80,13 @@ export default function CaseDetailPage() {
               role={getStoredRole()}
               showInternalTab={canSeeInternalFolder()}
               caseClosed={caseData.status === 'closed'}
-              refreshSignal={documentsRefreshSignal}
             />
             {canSeeWorkHours() && <WorkHoursPanel caseId={caseId} caseClosed={caseData.status === 'closed'} />}
           </div>
 
           {canSeeNarratives() && (
             <div className="detail-columns">
-              <NarrativesPanel caseId={caseId} onDocumentAdded={() => setDocumentsRefreshSignal((n) => n + 1)} />
+              <NarrativesPanel caseId={caseId} />
             </div>
           )}
         </>

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Index, Integer, UniqueConstraint
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Index, Integer, Numeric, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from shared.database import Base
@@ -26,6 +26,14 @@ class Membership(Base):
     # profile (bio/photo, from Identity) appears on *this* firm's public
     # page. Only meaningful for lawyer memberships in practice.
     show_on_public_page = Column(Boolean, nullable=False, default=True)
+    # office_manager-set, per-membership (not on Identity) — a lawyer's
+    # billing rate is a fact about their employment at *this* firm, not a
+    # global attribute of the person, same reasoning as show_on_public_page.
+    # Only meaningful for lawyer memberships; feeds Narratives.total_fee
+    # (replaces the old flat, platform-wide placeholder rate). Nullable:
+    # a brand-new lawyer membership has no rate set yet until the office
+    # manager sets one.
+    hourly_rate = Column(Numeric(8, 2), nullable=True)
     # Removing someone from a firm is a soft delete (flip to false), never a
     # real delete — Documents/WorkLogs/AuditLogs/CaseAssignments all
     # reference memberships.id with no cascade rule, so a real delete would

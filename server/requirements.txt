@@ -15,6 +15,11 @@ python-bidi==0.6.11
 openpyxl==3.1.5
 pytest==8.3.4
 httpx==0.28.1
+# Test-only: extracts real text from a generated narrative PDF to verify
+# the itemized WorkLog table actually renders (a raw byte search doesn't
+# work — the embedded Hebrew TTF is a subset font with a remapped glyph
+# encoding, so literal ASCII text never appears in the content stream).
+pymupdf==1.28.2
 
 # /docs generation tooling (ERD, OpenAPI, Postman) is not needed by either
 # app at runtime — see server/scripts/requirements-docs.txt instead.

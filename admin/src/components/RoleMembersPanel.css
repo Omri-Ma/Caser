@@ -53,6 +53,30 @@
   color: var(--color-text-muted);
 }
 
+.member-rate-display {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+}
+
+.member-rate-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-rate-input {
+  width: 90px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
 .role-panel-hint {
   color: var(--color-text-muted);
   font-size: 13px;

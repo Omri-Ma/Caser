@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Literal
+from decimal import Decimal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -148,10 +149,26 @@ class MemberResponse(BaseModel):
     # eligible for the public team section (CLAUDE.md's public homepage
     # note), so the frontend simply never renders the toggle for one.
     show_on_public_page: bool
+    # Only meaningful for lawyer rows (CLAUDE.md's Memberships note) — feeds
+    # Narratives.total_fee. Nullable: a brand-new lawyer membership has no
+    # rate set yet.
+    hourly_rate: Optional[Decimal] = None
 
 
 class UpdatePublicVisibilityRequest(BaseModel):
     show_on_public_page: bool
+
+
+class UpdateHourlyRateRequest(BaseModel):
+    """office_manager-set billing rate for a lawyer membership (CLAUDE.md's
+    Memberships note) — a fact about their employment at *this* firm, not a
+    global attribute of the person. Must be positive: a rate of exactly 0
+    would silently zero out every narrative fee for that lawyer, which is
+    never the intent of *setting* a rate (an unset rate — None — already
+    covers "no rate yet" without conflating it with "billed at zero").
+    """
+
+    hourly_rate: Decimal = Field(gt=0)
 
 
 class UpdateMemberRoleRequest(BaseModel):

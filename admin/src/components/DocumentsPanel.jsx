@@ -20,7 +20,7 @@ const FOLDER_LABEL = { client: 'לקוח', internal: 'פנימי' }
 // office_manager oversight view: both folders, no upload (that's the
 // lawyer/client portal's job) — list, archive, and the permanent-delete-
 // from-archive flow, per CLAUDE.md's Documents trash lifecycle.
-export default function DocumentsPanel({ caseId }) {
+export default function DocumentsPanel({ caseId, refreshSignal }) {
   const [folderFilter, setFolderFilter] = useState('all')
   const [viewingArchive, setViewingArchive] = useState(false)
   const [documents, setDocuments] = useState(null)
@@ -51,7 +51,8 @@ export default function DocumentsPanel({ caseId }) {
 
   useEffect(() => {
     load()
-  }, [load])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, refreshSignal])
 
   async function handleDownload(doc) {
     setActionError(null)
