@@ -21,7 +21,6 @@ from client_api.schemas.auth import (
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity, record_login
-from shared.invites import resolve_invites_on_register
 from shared.membership import get_current_membership
 from shared.models import AuditLog, Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
@@ -75,12 +74,15 @@ def _lawyer_client_tenants(identity: Identity, db: Session):
 def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Create a bare global account. Used two ways: a lawyer/client
     registering with no invite yet (an office manager attaches them to a
-    firm afterward), or — more commonly now — someone following an invite
-    link for an email with no Identity yet. In the second case, a
-    *successful* registration for that exact email is itself the
-    acceptance (CLAUDE.md's MembershipInvites note) — no separate
-    confirmation step, so every matching pending invite resolves to
-    accepted immediately below.
+    firm afterward), or someone following an invite link for an email with
+    no Identity yet. In the second case, registering does *not* by itself
+    accept any pending invite for this email (CLAUDE.md's MembershipInvites
+    note, reversed from an earlier draft) — creating an account and
+    agreeing to join a specific firm are two separate, deliberate acts.
+    After a successful registration the frontend lands on the same explicit
+    accept/decline screen an already-registered invitee sees (GET /invites
+    + POST /invites/{id}/accept|decline, both already tenant-agnostic and
+    now reachable immediately since this route logs the new identity in).
     """
     if db.query(Identity).filter(Identity.email == payload.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
@@ -93,8 +95,6 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
     db.refresh(identity)
-
-    resolve_invites_on_register(identity, db)
 
     set_session_cookies(response, identity.id, identity.token_version)
     return _to_identity_response(identity)
