@@ -3989,3 +3989,124 @@ this machine, matching the script's own comment).
   switcher and the no-access redirect picker states, which are the hardest
   to fully reason about from code alone (they depend on real multi
   -membership seed data to exercise the >1-firm branches at all).
+
+## 2026-09-14 (continued, same branch) — item 4 rebuilt as three real pages, real browser verification, migration confirmed against the real dev DB
+
+Follow-up pass after review flagged three things as explicit instructions,
+not left to judgment this time.
+
+**1. Item 4 rebuilt**: replaced the earlier single-page-with-tab-rows
+`MembersPage` with three real routes — `/members/lawyers`,
+`/members/clients`, `/members/admins` — each its own sidebar nav item
+(`עורכי דין` / `לקוחות` / `מנהלי משרד`), each keeping its own
+active/pending/removed status tabs. Old `/members` redirects to
+`/members/lawyers` for existing links. Shared fetch/table/action logic
+(CLAUDE.md's reuse rule — don't triplicate the same table) lives in one
+new `RoleMembersPanel` component parameterized by `role`; each page is a
+thin `AppShell` + `<RoleMembersPanel>` wrapper. Promote/demote surfaces on
+both the Lawyers page (promote button per row) and the Admins page
+(demote button per row) — Clients gets neither, since a client is never
+involved in that toggle. Admins page shows a hint instead of an invite
+button, since an office_manager is only ever created by promoting an
+existing lawyer, never invited directly. Verified: both real-browser
+(below) and `npm run build` (clean, no errors).
+
+**2. Real browser verification** — Playwright was not previously set up in
+this repo (checked: no `playwright`/`cypress`/`puppeteer` in any
+`package.json`, no e2e directory). Installed it standalone in the
+scratchpad (`npm install playwright`) rather than adding it as a repo
+dependency, since this is a one-off verification pass, not a permanent
+e2e suite the project asked for. A Chromium binary was already cached
+locally from an earlier, unrelated session (`~/AppData/Local/ms-playwright`)
+— `npx playwright install chromium` confirmed it's present and usable; a
+`chromium.launch()` + `page.goto('about:blank')` smoke test succeeded
+before doing anything real.
+
+Ran the actual app, not a mock: both backends (`client_api`, `admin_api`)
+launched directly via `uvicorn` on ports 8100/8101 (the docker containers
+on 8000/8001 belong to the other running worktree and were left alone),
+both frontends via `vite` dev server on ports 5273/5274 (5173/5174 were
+likewise already taken by the other worktree). All pointed at a disposable
+`casehub_e2e` MySQL database (migrated fresh to `head`, seeded from
+`db/seed.sql`), never touching the other worktree's dev data. `.env` /
+`client/.env` / `admin/.env` were temporarily edited to point at the new
+ports/database and restored to their original contents afterward (backed
+up first, diffed back to identical after restore). Test data (3 tenants,
+multiple identities with real multi-firm memberships, real pending
+invites) was created through genuine HTTP calls to the running app's own
+signup/login/invite/register/accept endpoints — not hand-inserted rows —
+so the setup itself exercised real code paths too.
+
+One Playwright script (`verify.js`, kept in the scratchpad, not committed
+to the repo) drove a real Chromium instance through all six requested
+flows end to end, with actual DOM assertions (not just "did it load") and
+a full-page screenshot at every step:
+
+- **Homepage + directory**: loaded `www.lvh.me:5273/`, confirmed the hero
+  text and all three seeded firms listed, clicked through to a firm's
+  public homepage and confirmed it landed on the right one.
+- **No-access redirects, all three cases**:
+  - Admin (2 firms: Demo, Acme) hitting a third subdomain (Globex) it has
+    no membership at → inline picker showing exactly those 2 firms;
+    clicking one actually navigated there.
+  - Logged-out visitor hitting `demo.lvh.me:5274/cases` directly →
+    redirected to `www.lvh.me:5274/login`.
+  - Client with no access at a subdomain (`acme.lvh.me:5273`, logged in
+    but no membership there) → landed on the general homepage
+    (`www.lvh.me:5273/`), not the lobby login and not a blank page.
+- **Multi-firm switcher**: opened the dropdown as the 2-firm admin,
+  confirmed it lists the other firm, clicked it, confirmed the browser
+  actually navigated to that firm's subdomain.
+- **Persistent invites inbox**: logged in as an identity with 2 pending
+  invites and 1 existing active membership elsewhere, confirmed the badge
+  shows "2", opened the panel, **declined** one invite (confirmed it
+  disappears from the list, stays on the page) and **accepted** the other
+  (confirmed the browser actually redirects into the newly-joined firm).
+- **Promote/demote**: promoted a lawyer from the Lawyers page, confirmed
+  she disappears from Lawyers and appears on Admins; demoted her back from
+  the Admins page itself (the "surfaces on Admins page" requirement),
+  confirmed she's gone from Admins again.
+- **Invite revoke**: confirmed a pending invite is visible on the Lawyers
+  page's pending tab, revoked it, confirmed it's gone.
+
+**All 21 checks passed** on the final clean run (fresh database, re-seeded
+from scratch). Screenshots for every step are in the scratchpad
+(`.../scratchpad/pw/shots/`, 23 PNGs) — not committed to the repo, since
+they're throwaway verification artifacts tied to disposable test data, not
+project deliverables.
+
+**A real bug this actually caught**: the first run's screenshot of the
+admin no-access picker (item 2) showed unstyled default-gray buttons and a
+top-left-aligned block instead of a centered card — the JSX never gave the
+picker buttons a `primary-button` class, and the CSS never wrapped the
+card in a full-viewport centering container. Not a functional bug (the
+picker worked, tests passed on DOM content alone), but a real visual one
+that a pure code-trace would not have caught, since nothing about the
+JSX/CSS *looked* wrong when reading it and both files independently
+"looked" like they had appropriate rules — it only became visible as a
+render. Fixed (`className="primary-button"` on the buttons, wrapped in a
+new `.no-access-page` centering container, `.no-access-picker` restyled as
+a real card) and re-verified with a fresh screenshot showing a properly
+styled, centered card matching the rest of the app's design system. This
+fix landed in the item-4 commit since both touch `AppShell.jsx`/`.css` in
+the same pass — noted here rather than force-split for its own sake.
+
+Everything used for this pass (E2E database, temp `.env` edits, spare-port
+dev servers, the Playwright install and script) was cleaned up afterward:
+`casehub_e2e` dropped, all three `.env` files restored to their exact
+original contents (verified no diff), all uvicorn/vite processes for this
+session killed. The repo's actual git state carries only real code
+changes — no test-only scaffolding was committed.
+
+**3. Migration confirmed against the real dev database**: `alembic upgrade
+head` was run against the actual `casehub` database (the one the other
+worktree's `docker-compose` containers use), not a disposable one this
+time. It was sitting exactly at `c9d0e1f2a3b4` (this session's new
+migration's parent revision), so `d1e2f3a4b5c6_invite_revoked_status`
+applied as the only pending step, cleanly, with no manual intervention.
+Verified directly: `alembic_version` now reads `d1e2f3a4b5c6`, and
+`SHOW COLUMNS ... LIKE 'status'` on `membership_invites` confirms the enum
+now includes `REVOKED`. This is an additive, backward-compatible `ALTER
+TABLE` (existing rows/values untouched, old code simply never writes the
+new value), so it's safe for the other worktree's running containers even
+though they're on older code.
