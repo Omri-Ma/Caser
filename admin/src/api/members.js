@@ -21,3 +21,9 @@ export function updatePublicVisibility(membershipId, showOnPublicPage) {
     body: { show_on_public_page: showOnPublicPage },
   })
 }
+
+// Promote a lawyer to office_manager, or demote an office_manager back to
+// lawyer — never involves a client (CLAUDE.md's Memberships note).
+export function updateMemberRole(membershipId, role) {
+  return apiFetch(`/members/${membershipId}/role`, { method: 'PATCH', body: { role } })
+}

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from admin_api.core.pagination import Page, PageParams
-from admin_api.schemas.auth import MemberResponse, UpdatePublicVisibilityRequest
+from admin_api.schemas.auth import MemberResponse, UpdateMemberRoleRequest, UpdatePublicVisibilityRequest
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Identity, Membership, Tenant
@@ -84,6 +84,52 @@ def deactivate_member(
             tenant_id=tenant.id,
             user_id=office_manager.id,
             action="member_deactivated",
+            target=f"membership:{membership.id}",
+        )
+    )
+    db.commit()
+    db.refresh(membership)
+
+    identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
+    return _to_member_response(membership, identity)
+
+
+@router.patch("/{membership_id}/role", response_model=MemberResponse)
+def update_member_role(
+    membership_id: int,
+    payload: UpdateMemberRoleRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Promote a lawyer to office_manager, or demote an office_manager back
+    to lawyer, at this office_manager's own firm (CLAUDE.md's Memberships
+    note). Never touches a client membership — UpdateMemberRoleRequest's
+    schema already restricts the *target* role to office_manager/lawyer,
+    and this additionally rejects a *source* membership that's a client, so
+    a client can never be promoted this way either.
+
+    Deliberately allows changing your own role (including an office_manager
+    demoting themselves) with no "last office_manager standing" guard: this
+    is the exact mechanism CLAUDE.md's Memberships note relies on to make
+    self-service firm-leaving safe to allow at all ("any office_manager can
+    promote someone else before or after the fact, so a firm is never
+    actually strandable") — adding a block here would be inconsistent with
+    that reasoning, and super_admin remains the last-resort fallback either
+    way.
+    """
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
+    if membership.role not in (UserRole.OFFICE_MANAGER, UserRole.LAWYER):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ROLE_CHANGE_ONLY_FOR_LAWYER_OR_MANAGER)
+    if not membership.active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
+
+    membership.role = payload.role
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=office_manager.id,
+            action=f"member_role_changed_to_{payload.role.value}",
             target=f"membership:{membership.id}",
         )
     )

@@ -3,7 +3,7 @@ import AppShell from '../components/AppShell'
 import DataTable from '../components/DataTable'
 import InviteMemberModal from '../components/InviteMemberModal'
 import { FormError } from '../components/Form'
-import { deactivateMember, listMembers, updatePublicVisibility } from '../api/members'
+import { deactivateMember, listMembers, updateMemberRole, updatePublicVisibility } from '../api/members'
 import { listInvites } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
@@ -93,6 +93,24 @@ export default function MembersPage() {
     }
   }
 
+  async function handleToggleRole(member) {
+    const nextRole = member.role === 'office_manager' ? 'lawyer' : 'office_manager'
+    const verb = nextRole === 'office_manager' ? 'לקדם' : 'להוריד'
+    if (!window.confirm(`${verb} את ${member.identity_name} ל${ROLE_LABELS[nextRole]}?`)) {
+      return
+    }
+    setActioningId(member.id)
+    setRowError(null)
+    try {
+      await updateMemberRole(member.id, nextRole)
+      load()
+    } catch (err) {
+      setRowError(err.message)
+    } finally {
+      setActioningId(null)
+    }
+  }
+
   async function handleTogglePublicVisibility(member) {
     setActioningId(member.id)
     setRowError(null)
@@ -149,8 +167,19 @@ export default function MembersPage() {
       label: '',
       render: (row) => {
         const isSelf = row.identity_email === myEmail
+        const canToggleRole = row.role === 'office_manager' || row.role === 'lawyer'
         return statusTab === 'active' ? (
           <div className="member-actions">
+            {canToggleRole && (
+              <button
+                type="button"
+                className="member-action"
+                onClick={() => handleToggleRole(row)}
+                disabled={actioningId === row.id}
+              >
+                {row.role === 'office_manager' ? 'הורדה לעו״ד' : 'קידום למנהל/ת'}
+              </button>
+            )}
             <button
               type="button"
               className="member-action member-action-danger"
