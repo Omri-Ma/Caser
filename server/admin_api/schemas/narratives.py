@@ -38,6 +38,20 @@ class NarrativeResponse(BaseModel):
     created_at: datetime
 
 
+class MissingRateLawyer(BaseModel):
+    """One lawyer contributing hours to the chosen period whose
+    Memberships.hourly_rate is unset or zero — see
+    shared.narratives.get_lawyers_with_missing_rates. `active=False` means
+    they've since been removed from the firm and won't appear on the normal
+    Lawyers page at all.
+    """
+
+    membership_id: int
+    name: str
+    active: bool
+    hourly_rate: Decimal | None
+
+
 class ExportNarrativeRequest(BaseModel):
     """office_manager names the exported file at export time, rather than
     it being auto-generated (CLAUDE.md's Narratives note) — same "person

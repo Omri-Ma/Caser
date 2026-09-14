@@ -32,6 +32,80 @@
   margin-top: 16px;
 }
 
+.narrative-rate-warning {
+  border: 1px solid var(--color-warn);
+  background: var(--color-warn-bg);
+  border-radius: var(--radius-control);
+  padding: 12px;
+  margin-bottom: var(--space-3);
+}
+
+.narrative-rate-warning-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 8px;
+}
+
+.narrative-rate-warning-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.narrative-rate-warning-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+/* Same "inline rate edit" pattern as RoleMembersPanel.css's
+   .member-rate-*/.member-action — duplicated here rather than depended on
+   via load order, since this is a separate component with its own CSS file. */
+.member-rate-display {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  cursor: pointer;
+}
+
+.member-rate-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.member-rate-input {
+  width: 90px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.member-action {
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+}
+
+.member-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .narrative-history-toggle {
   background: none;
   border: none;

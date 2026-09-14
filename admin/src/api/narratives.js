@@ -8,6 +8,10 @@ export function listNarratives(caseId) {
   return apiFetch(`/cases/${caseId}/narratives?page=1&page_size=${PAGE_SIZE}`)
 }
 
+export function checkMissingRates(caseId, periodStart, periodEnd) {
+  return apiFetch(`/cases/${caseId}/narratives/rate-check?period_start=${periodStart}&period_end=${periodEnd}`)
+}
+
 export function generateNarrative(caseId, { periodStart, periodEnd, language }) {
   return apiFetch(`/cases/${caseId}/narratives`, {
     method: 'POST',

@@ -145,12 +145,17 @@ def update_hourly_rate(
     note) — feeds Narratives.total_fee, replacing the old flat placeholder
     rate. Lawyer-only, same "only meaningful for lawyer memberships" gate
     already used for show_on_public_page/role changes.
+
+    Unlike show_on_public_page/manager-status, this deliberately allows an
+    *inactive* (removed) lawyer membership too — a since-removed lawyer's
+    already-logged hours still bill into a narrative's total_fee (see
+    shared.narratives.get_lawyers_with_missing_rates), and the normal
+    Lawyers page only lists active members, so without this their rate
+    would have no reachable fix at all once they're removed.
     """
     membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
     if membership.role != UserRole.LAWYER:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.HOURLY_RATE_ONLY_FOR_LAWYERS)
-    if not membership.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
 
     membership.hourly_rate = payload.hourly_rate
     db.add(
