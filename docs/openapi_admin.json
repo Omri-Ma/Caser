@@ -776,7 +776,7 @@
           "cases"
         ],
         "summary": "List Cases",
-        "description": "office_manager sees every case at their own tenant automatically —\nno CaseAssignment row needed, unlike a lawyer/client. Optional `search`\n(title, partial match) and `status` filter so the admin case list can\noffer real (server-paginated) search/filtering instead of only ever\nfiltering whatever single page happened to be fetched.",
+        "description": "office_manager sees every case at their own tenant automatically —\nno CaseAssignment row needed, unlike a lawyer/client. Optional `search`\n(title, partial match), `status`, and `practice_area` tag filter so the\nadmin case list can offer real (server-paginated) search/filtering\ninstead of only ever filtering whatever single page happened to be\nfetched.",
         "operationId": "list_cases_cases_get",
         "parameters": [
           {
@@ -812,6 +812,24 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "practice_area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PracticeArea"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to cases carrying this tag",
+              "title": "Practice Area"
+            },
+            "description": "Filter to cases carrying this tag"
           },
           {
             "name": "page",
@@ -1188,6 +1206,59 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/tags": {
+      "put": {
+        "tags": [
+          "cases"
+        ],
+        "summary": "Set Case Tags",
+        "description": "Replaces the full set of practice-area tags on a case — office_manager\nonly, same reasoning as case title/status: administrative facts about a\ncase are the office manager's authority (CLAUDE.md's CaseTags).",
+        "operationId": "set_case_tags_cases__case_id__tags_put",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetCaseTagsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseResponse"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -2132,7 +2203,7 @@
           "platform"
         ],
         "summary": "Platform Stats",
-        "description": "Platform-wide aggregate stats for the overview dashboard — totals\nonly, no per-firm breakdown (that's what /platform/tenants is for).",
+        "description": "Platform-wide aggregate stats for the overview dashboard — totals\nand a plan-distribution breakdown only, no per-firm detail (that's what\n/platform/tenants is for). Counts only, never case/document content.",
         "operationId": "platform_stats_platform_stats_get",
         "responses": {
           "200": {
@@ -2141,6 +2212,212 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlatformStatsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/tenant-growth": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Tenant Growth",
+        "description": "New tenants per month, trailing TREND_MONTHS months.",
+        "operationId": "tenant_growth_platform_tenant_growth_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TenantGrowthPoint"
+                  },
+                  "type": "array",
+                  "title": "Response Tenant Growth Platform Tenant Growth Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/earnings": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Platform Earnings",
+        "description": "\"Earnings\" = sum of the hardcoded price of every Subscription active\nat any point in a given month, across all tenants (CLAUDE.md's\nsuper_admin note) — still no real billing integration, this is a\ndisplay figure only. A subscription is \"active during month M\" if its\nstart_date is before month M ends and it has no end_date, or its\nend_date is on/after month M's start — deliberately a plain sum over\nqualifying rows (not deduped per tenant), matching CLAUDE.md's wording\nliterally: a tenant that switched plans mid-month counts both rows that\nmonth, same as a firm's real bill would reflect both plans being active\nfor part of the month.",
+        "operationId": "platform_earnings_platform_earnings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformEarningsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/storage-overview": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "Storage Overview",
+        "description": "Per-tenant storage usage vs. plan quota — which firms are nearing\ntheir plan's GB quota (CLAUDE.md's super_admin note). Not paginated:\nbounded by how many tenants exist, and the frontend sorts/highlights\nby usage percentage rather than paging through it.",
+        "operationId": "storage_overview_platform_storage_overview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TenantStorageOverviewEntry"
+                  },
+                  "type": "array",
+                  "title": "Response Storage Overview Platform Storage Overview Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/users": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Platform Users",
+        "description": "Every Identity platform-wide, their last_login_at, and which firms/\nroles they hold — a cross-tenant join through Memberships. Still\nfirm-level/account-level data, not case/document content (CLAUDE.md's\nRoles section): knowing *that* someone is a lawyer at two firms is not\nthe same as seeing anything about their casework.",
+        "operationId": "list_platform_users_platform_users_get",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on name or email",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on name or email"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PlatformUserResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/platform/audit-log": {
+      "get": {
+        "tags": [
+          "platform"
+        ],
+        "summary": "List Platform Audit Log",
+        "description": "super_admin's own action trail (suspend/reactivate) — a separate,\nparallel log from the tenant-scoped AuditLogs every other role writes\nto (CLAUDE.md's PlatformAuditLogs note).",
+        "operationId": "list_platform_audit_log_platform_audit_log_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PlatformAuditLogEntryResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -2218,7 +2495,7 @@
           "audit-log"
         ],
         "summary": "List Audit Log",
-        "description": "Read-only browsing of this tenant's AuditLog — no write path here,\nentries are produced by the actions that already write them (document\narchive/restore/permanent-delete, work log edit/delete, member\ndeactivate/password-reset, narrative PDF export). Newest first, same\ntenant-scoped + paginated shape as every other list endpoint.",
+        "description": "Read-only browsing of this tenant's AuditLog — no write path here,\nentries are produced by the actions that already write them (document\narchive/restore/permanent-delete, work log edit/delete, member\ndeactivate, narrative PDF export, Excel import). Newest first, same\ntenant-scoped + paginated shape as every other list endpoint.",
         "operationId": "list_audit_log_audit_log_get",
         "parameters": [
           {
@@ -2356,7 +2633,7 @@
           "actor_email"
         ],
         "title": "AuditLogEntryResponse",
-        "description": "One AuditLog row for the office_manager's browsing screen — read-only,\nno write path here (see shared/models/audit_log.py's writers: document\narchive/restore/permanent-delete, work log edit/delete, member\ndeactivate/password-reset, narrative PDF export)."
+        "description": "One AuditLog row for the office_manager's browsing screen — read-only,\nno write path here (see shared/models/audit_log.py's writers: document\narchive/restore/permanent-delete, work log edit/delete, member\ndeactivate, narrative PDF export, Excel import)."
       },
       "Body_import_work_logs_work_logs_import_post": {
         "properties": {
@@ -2445,6 +2722,13 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "practice_areas": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeArea"
+            },
+            "type": "array",
+            "title": "Practice Areas"
           }
         },
         "type": "object",
@@ -2639,6 +2923,24 @@
           "created_at"
         ],
         "title": "DocumentResponse"
+      },
+      "EarningsPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "earnings_ils": {
+            "type": "integer",
+            "title": "Earnings Ils"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "earnings_ils"
+        ],
+        "title": "EarningsPoint"
       },
       "ForgotPasswordRequest": {
         "properties": {
@@ -2946,6 +3248,34 @@
         "title": "MemberResponse",
         "description": "A membership joined with its identity's name/email — what the case\nassignment picker (and any future members list screen) actually needs to\ndisplay, not just the bare ids MembershipResponse carries."
       },
+      "MembershipSummary": {
+        "properties": {
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "tenant_name": {
+            "type": "string",
+            "title": "Tenant Name"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "subdomain",
+          "role"
+        ],
+        "title": "MembershipSummary"
+      },
       "MonthlyBillableHoursPoint": {
         "properties": {
           "month": {
@@ -3170,6 +3500,68 @@
         ],
         "title": "Page[MemberResponse]"
       },
+      "Page_PlatformAuditLogEntryResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformAuditLogEntryResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PlatformAuditLogEntryResponse]"
+      },
+      "Page_PlatformUserResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlatformUserResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PlatformUserResponse]"
+      },
       "Page_TenantSummaryResponse_": {
         "properties": {
           "items": {
@@ -3241,6 +3633,83 @@
         ],
         "title": "Plan"
       },
+      "PlanDistributionEntry": {
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "tenant_count": {
+            "type": "integer",
+            "title": "Tenant Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "plan",
+          "tenant_count"
+        ],
+        "title": "PlanDistributionEntry"
+      },
+      "PlatformAuditLogEntryResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "target_tenant_name": {
+            "type": "string",
+            "title": "Target Tenant Name"
+          },
+          "actor_name": {
+            "type": "string",
+            "title": "Actor Name"
+          },
+          "actor_email": {
+            "type": "string",
+            "title": "Actor Email"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "target_tenant_name",
+          "actor_name",
+          "actor_email",
+          "timestamp"
+        ],
+        "title": "PlatformAuditLogEntryResponse"
+      },
+      "PlatformEarningsResponse": {
+        "properties": {
+          "current_month_earnings_ils": {
+            "type": "integer",
+            "title": "Current Month Earnings Ils"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/EarningsPoint"
+            },
+            "type": "array",
+            "title": "Trend"
+          }
+        },
+        "type": "object",
+        "required": [
+          "current_month_earnings_ils",
+          "trend"
+        ],
+        "title": "PlatformEarningsResponse"
+      },
       "PlatformLoginRequest": {
         "properties": {
           "email": {
@@ -3295,9 +3764,24 @@
             "type": "integer",
             "title": "Total Lawyers"
           },
+          "total_clients": {
+            "type": "integer",
+            "title": "Total Clients"
+          },
           "total_cases": {
             "type": "integer",
             "title": "Total Cases"
+          },
+          "total_storage_bytes": {
+            "type": "integer",
+            "title": "Total Storage Bytes"
+          },
+          "plan_distribution": {
+            "items": {
+              "$ref": "#/components/schemas/PlanDistributionEntry"
+            },
+            "type": "array",
+            "title": "Plan Distribution"
           }
         },
         "type": "object",
@@ -3305,9 +3789,71 @@
           "total_tenants",
           "active_tenants",
           "total_lawyers",
-          "total_cases"
+          "total_clients",
+          "total_cases",
+          "total_storage_bytes",
+          "plan_distribution"
         ],
         "title": "PlatformStatsResponse"
+      },
+      "PlatformUserResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "memberships": {
+            "items": {
+              "$ref": "#/components/schemas/MembershipSummary"
+            },
+            "type": "array",
+            "title": "Memberships"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "last_login_at",
+          "memberships"
+        ],
+        "title": "PlatformUserResponse",
+        "description": "One row of super_admin's cross-tenant users view — still firm-level/\naccount-level data, not case/document content (CLAUDE.md's Roles\nsection): knowing *that* someone is a lawyer at two firms is not the\nsame as seeing anything about their casework."
+      },
+      "PracticeArea": {
+        "type": "string",
+        "enum": [
+          "traffic",
+          "criminal",
+          "family",
+          "civil",
+          "labor",
+          "real_estate",
+          "corporate",
+          "immigration"
+        ],
+        "title": "PracticeArea"
       },
       "ReclassifyDocumentRequest": {
         "properties": {
@@ -3362,6 +3908,20 @@
           "role"
         ],
         "title": "SessionResponse"
+      },
+      "SetCaseTagsRequest": {
+        "properties": {
+          "practice_areas": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeArea"
+            },
+            "type": "array",
+            "title": "Practice Areas"
+          }
+        },
+        "type": "object",
+        "title": "SetCaseTagsRequest",
+        "description": "office_manager-only — replaces the full set of practice-area tags on\na case in one call (simpler than separate add/remove endpoints for a\nsmall, fixed-enum tag list)."
       },
       "SignupRequest": {
         "properties": {
@@ -3451,6 +4011,24 @@
         ],
         "title": "SwitchPlanRequest"
       },
+      "TenantGrowthPoint": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month"
+          },
+          "new_tenants": {
+            "type": "integer",
+            "title": "New Tenants"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "new_tenants"
+        ],
+        "title": "TenantGrowthPoint"
+      },
       "TenantResponse": {
         "properties": {
           "id": {
@@ -3505,6 +4083,43 @@
           "active"
         ],
         "title": "TenantResponse"
+      },
+      "TenantStorageOverviewEntry": {
+        "properties": {
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "storage_used_bytes": {
+            "type": "integer",
+            "title": "Storage Used Bytes"
+          },
+          "storage_limit_bytes": {
+            "type": "integer",
+            "title": "Storage Limit Bytes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "name",
+          "subdomain",
+          "plan",
+          "storage_used_bytes",
+          "storage_limit_bytes"
+        ],
+        "title": "TenantStorageOverviewEntry"
       },
       "TenantSummaryResponse": {
         "properties": {
