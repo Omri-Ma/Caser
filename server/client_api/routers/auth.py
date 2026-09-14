@@ -21,7 +21,7 @@ from client_api.schemas.auth import (
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity, record_login
-from shared.membership import get_current_membership
+from shared.membership import get_current_membership, require_role
 from shared.models import AuditLog, Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
@@ -256,13 +256,21 @@ def my_tenants(identity: Identity = Depends(get_current_identity), db: Session =
 
 
 @router.get("/my-membership", status_code=status.HTTP_204_NO_CONTENT)
-def my_membership(_membership: Membership = Depends(get_current_membership)):
-    """A cheap "do I actually have access at this subdomain" check — reuses
-    the exact same get_current_membership dependency every tenant-scoped
-    client_api route already depends on, just with no role restriction.
-    204 means yes; the dependency itself raises 403 (E.NO_ACCESS_TO_FIRM)
-    otherwise. AppShell calls this once on mount to send a lawyer/client
-    with no access at this subdomain to the general homepage instead of
+def my_membership(_membership: Membership = Depends(require_role(UserRole.LAWYER, UserRole.CLIENT))):
+    """A cheap "do I actually have access at this subdomain, as a lawyer or
+    client" check. Deliberately role-restricted (not just "any active
+    Membership row here", which get_current_membership alone would allow) —
+    an office_manager visiting their own firm's client/ subdomain has a
+    real, active Membership row there too, but the wrong role for this app
+    entirely (CLAUDE.md: office_manager never logs into client/, only
+    admin/). Without this restriction that case fell through to a blank,
+    no-data shell instead of the "landing somewhere you have no access"
+    redirect every other no-access case already gets.
+
+    204 means yes; the dependency raises 403 otherwise (either no
+    membership at all, or a membership here with a role that isn't
+    lawyer/client). AppShell calls this once on mount to send anyone
+    without real client/ access here to the general homepage instead of
     rendering a shell whose every real data call would 403 individually
     (CLAUDE.md's "Landing somewhere you have no access" redirect rule).
     """

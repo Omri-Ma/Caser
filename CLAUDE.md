@@ -17,18 +17,21 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   content within a tenant, even though the role is cross-tenant. Goes through
   its own explicitly separate code path (see Multi-tenancy architecture),
   including at login — it is not a `Memberships` row at all (see below).
-- `office_manager` (tenant admin) — manages lawyers/clients, branding,
-  subscription, scoped to their own tenant only. This is firm
-  *administration* — people, billing, branding — not automatically the same
-  thing as full case oversight (see `Memberships.is_manager`, below, for
-  that). `office_manager` still automatically gets full case visibility too
-  (unchanged from before), but that's now because being `office_manager`
-  always implies manager-level case oversight, not because administration
-  and case oversight are the same privilege — a lawyer can hold the
-  narrower `is_manager` flag and get the case-oversight half without any of
-  the firm-administration half. Office managers don't additionally log into
-  `client/` to work cases the way a lawyer would — their case oversight is
-  a Cases section built into the `admin/` CMS itself.
+- `office_manager` (tenant admin) — **exactly one per firm**, fixed at
+  founding, never promoted/demoted into or out of (see `Memberships`,
+  below) — manages lawyers/clients, branding, subscription, scoped to
+  their own tenant only. This is firm *administration* — people, billing,
+  branding — not automatically the same thing as full case oversight (see
+  `Memberships.is_manager`, below, for that). `office_manager` still
+  automatically gets full case visibility too (unchanged from before), but
+  that's now because being `office_manager` always implies manager-level
+  case oversight, not because administration and case oversight are the
+  same privilege — a lawyer can hold the narrower `is_manager` flag and get
+  the case-oversight half without any of the firm-administration half, and
+  without ever becoming the firm's one administrator. Office managers don't
+  additionally log into `client/` to work cases the way a lawyer would —
+  their case oversight is a Cases section built into the `admin/` CMS
+  itself.
 - `lawyer` — manages assigned cases only by default (explicitly assigned
   per case by the office manager, not automatic just from having a
   membership at the firm), uploads/downloads documents (including
@@ -337,17 +340,25 @@ are built — avoids painful migrations later.
   `MembershipInvites` flow again, reactivating their existing (inactive) row
   on acceptance instead of inserting a new one — the `identity_id`+
   `tenant_id` unique constraint means a fresh insert would fail while the
-  old row still exists, active or not. `role` can also change on an
-  existing accepted `Membership` — `office_manager` can promote a `lawyer`
-  to `office_manager` or demote an `office_manager` back to `lawyer`, at
-  their own firm (never `client` in or out of this, promoting/demoting is
-  a lawyer-only ↔ office_manager-only toggle). This is also why a lawyer
-  self-service-leaving as the firm's *only* office_manager isn't treated as
-  a dangerous edge case worth blocking: any office_manager can promote
-  someone else before or after the fact, so a firm is never actually
-  strandable — worst case, `super_admin` exists as the last-resort fallback
-  (see Roles), but this promote/demote action is the normal, expected fix,
-  not an emergency path.
+  old row still exists, active or not.
+
+  **`role` cannot be changed on an existing `Membership` between
+  `office_manager` and `lawyer`** (reversed from an earlier draft of this
+  decision, which had a promote/demote toggle) — a firm has exactly **one**
+  `office_manager`, fixed at founding (see `POST /auth/signup`), never
+  more. There is deliberately no path to create a second one: no promotion,
+  no invite with `role = office_manager` (`MembershipInvites.role` only
+  ever accepts `lawyer`/`client`). This is also why the sole
+  `office_manager` cannot self-service-leave their own firm at all — with
+  no promotion path, there is no way to replace them, so a firm can never
+  be left without an administrator. That's treated as a hard block, not a
+  discouraged-but-allowed edge case: a firm genuinely needing a change of
+  administrator is a manual/`super_admin`-assisted case outside self-service
+  scope (same reasoning already used elsewhere for things outside this
+  product's self-serve boundary — see Subscriptions' Enterprise ceiling).
+  Case-oversight authority (`is_manager`, above) remains the only thing an
+  `office_manager` can actually grant a `lawyer` — it was never the same
+  privilege as being the firm's one administrator, and stays fully intact.
 - `MembershipInvites` (id, tenant_id, email, role, invited_by, status,
   created_at, responded_at) — an office manager inviting someone is a
   request, not an instant action: nobody should find themselves listed as a

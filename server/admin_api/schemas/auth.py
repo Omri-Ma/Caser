@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -166,9 +166,9 @@ class UpdatePublicVisibilityRequest(BaseModel):
 
 class UpdateManagerStatusRequest(BaseModel):
     """Grant or revoke Memberships.is_manager (CLAUDE.md's Memberships
-    note) — deliberately separate from UpdateMemberRoleRequest's
-    promote/demote-to-office_manager action: this is case-oversight
-    authority only, never firm administration.
+    note) — case-oversight authority only, never firm administration. There
+    is no promote/demote-to-office_manager action to be separate from: a
+    firm's role is fixed at founding and never changes (see Memberships).
     """
 
     is_manager: bool
@@ -184,15 +184,3 @@ class UpdateHourlyRateRequest(BaseModel):
     """
 
     hourly_rate: Decimal = Field(gt=0)
-
-
-class UpdateMemberRoleRequest(BaseModel):
-    """Promote a lawyer to office_manager, or demote an office_manager back
-    to lawyer — CLAUDE.md's Memberships note: "office_manager can promote a
-    lawyer to office_manager or demote an office_manager back to lawyer ...
-    never client in or out of this". Restricted to exactly those two values
-    at the schema level (not the full UserRole enum) so a client can never
-    even be submitted here in the first place.
-    """
-
-    role: Literal[UserRole.OFFICE_MANAGER, UserRole.LAWYER]

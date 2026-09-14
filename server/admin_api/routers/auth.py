@@ -19,6 +19,7 @@ from admin_api.schemas.auth import (
     ResetPasswordRequest,
     SessionResponse,
     SignupRequest,
+    UpdatePublicVisibilityRequest,
     UpdateProfileRequest,
 )
 from shared.database import get_db
@@ -301,33 +302,55 @@ def my_tenants(identity: Identity = Depends(get_current_identity), db: Session =
 
 @router.post("/leave-firm", status_code=status.HTTP_204_NO_CONTENT)
 def leave_firm(
-    tenant: Tenant = Depends(get_current_tenant),
+    _membership: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """A firm has exactly one office_manager, fixed at founding, with no
+    promote/demote path to replace them (CLAUDE.md's Memberships note) — so
+    unlike the lawyer/client version of this route in client_api, this is a
+    hard, unconditional block, not a self-service action. There is no
+    "leave, someone else will still be there" case here at all: leaving
+    would always strand the firm without an administrator. A genuine need
+    to change a firm's administrator is a manual/super_admin-assisted case,
+    outside self-service scope.
+
+    Kept as a route (rather than removed outright) so an office_manager
+    hitting this from stale/cached frontend code gets a clear, explained
+    rejection instead of a 404 that looks like a bug.
+    """
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.OFFICE_MANAGER_CANNOT_LEAVE_FIRM)
+
+
+@router.get("/my-public-visibility", response_model=UpdatePublicVisibilityRequest)
+def get_my_public_visibility(membership: Membership = Depends(require_role(UserRole.OFFICE_MANAGER))):
+    """Self-service read of the office_manager's own
+    Memberships.show_on_public_page (CLAUDE.md's public homepage team
+    section note). This lever used to only be reachable through the
+    now-removed Admins page (POST /members/{id}/public-visibility,
+    self-targeting was never actually possible since there was no page
+    listing office_manager rows at all after that removal) — a real
+    regression from removing that page, not a pre-existing gap: without
+    this, an office_manager's own visibility toggle became permanently
+    stuck wherever it happened to be, with no way to ever change it again.
+    """
+    return UpdatePublicVisibilityRequest(show_on_public_page=membership.show_on_public_page)
+
+
+@router.patch("/my-public-visibility", response_model=UpdatePublicVisibilityRequest)
+def update_my_public_visibility(
+    payload: UpdatePublicVisibilityRequest,
     db: Session = Depends(get_db),
     membership: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    """Self-service "leave this firm" for the office_manager whose session
-    this is — deactivates their own membership at the current tenant subdomain
-    (same soft-delete semantics as an office_manager deactivating someone
-    else via POST /members/{id}/deactivate, just self-initiated and with no
-    "not your own membership" block, since that block existed specifically
-    to stop *that* route from being used this way).
-
-    No "last office_manager standing" guard, on purpose — CLAUDE.md's
-    Memberships note is explicit that this isn't a dangerous edge case worth
-    blocking: any office_manager (including this one, a moment earlier) can
-    promote a colleague first, so a firm is never actually strandable;
-    super_admin remains the last-resort fallback regardless.
+    """Write side of the above — same field, same semantics as
+    POST /members/{id}/public-visibility, just self-targeting (no
+    membership_id needed: require_role already resolves the caller's own
+    membership at this tenant) so an office_manager can reach it from
+    their own profile/settings page instead of a members list they're not
+    listed on.
     """
-    membership.active = False
-    db.add(
-        AuditLog(
-            tenant_id=tenant.id,
-            user_id=membership.id,
-            action="member_left_firm",
-            target=f"membership:{membership.id}",
-        )
-    )
+    membership.show_on_public_page = payload.show_on_public_page
     db.commit()
+    return UpdatePublicVisibilityRequest(show_on_public_page=membership.show_on_public_page)
 
 
 @router.patch("/profile", response_model=IdentityResponse)
