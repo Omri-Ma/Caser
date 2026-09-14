@@ -216,6 +216,13 @@
   font-size: 12px;
   font-weight: 700;
   flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .user-name {

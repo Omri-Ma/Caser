@@ -206,6 +206,20 @@ export default function AppShell({ activeKey, children }) {
     }
   }, [navigate])
 
+  // ProfilePage saves the photo/bio/etc. via a plain PATCH, not a
+  // navigation — this shell's own `identity` (fetched once, above) would
+  // otherwise keep showing the pre-save name/photo in the header until the
+  // next full page load. ProfilePage dispatches this event with the
+  // already-updated identity the save response returned, so no second
+  // fetch is needed here.
+  useEffect(() => {
+    function handleIdentityUpdated(event) {
+      setIdentity(event.detail)
+    }
+    window.addEventListener('caser:identity-updated', handleIdentityUpdated)
+    return () => window.removeEventListener('caser:identity-updated', handleIdentityUpdated)
+  }, [])
+
   async function handleLogout() {
     await logout()
     window.location.assign(lobbyLoginUrl())
@@ -320,7 +334,13 @@ export default function AppShell({ activeKey, children }) {
               </div>
             )}
             <div className="topbar-user">
-              <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
+              <div className="user-avatar">
+                {identity.photo_url ? (
+                  <img src={identity.photo_url} alt="" className="user-avatar-img" />
+                ) : (
+                  identity.name.trim().slice(0, 2)
+                )}
+              </div>
               <div className="user-name">{identity.name}</div>
             </div>
           </div>
