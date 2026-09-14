@@ -331,8 +331,14 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     matched a real account (CLAUDE.md's PasswordResetTokens note — never
     reveal which emails are registered). See admin_api's identical route.
     """
+    # super_admin is deliberately excluded from self-service reset entirely
+    # (CLAUDE.md's Multi-tenancy architecture note): it is the single most
+    # powerful account in the system, already manually-provisioned, and a
+    # compromised/spoofed reset flow there has a far bigger blast radius
+    # than for anyone else. Still returns the exact same generic response
+    # either way, so this can never reveal *why* a reset "didn't work".
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
-    if identity is not None:
+    if identity is not None and not identity.is_super_admin:
         raw_token = create_reset_token(identity.id, db)
         origin = request.headers.get("origin") or f"http://www.{BASE_DOMAIN}"
         link = f"{origin}/reset-password?token={raw_token}"

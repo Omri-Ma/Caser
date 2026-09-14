@@ -49,7 +49,33 @@ def create_reset_token(identity_id: int, db: Session) -> str:
     Only the hash is stored (same reasoning as password_hash) — the raw
     token only ever exists in the one-time link itself, returned here so the
     caller can build that link.
+
+    Invalidates every earlier outstanding (unused, unexpired) token for this
+    identity first — requesting "forgot password" twice used to leave two
+    simultaneously-valid links outstanding, both independently redeemable.
+    Marking the old ones used (not deleting them — same "used_at is the
+    record" pattern a real redemption uses, not a special-cased row) means
+    only the newest link is ever valid, matching how most real password-
+    reset flows behave (a fresh request supersedes the last one).
     """
+    # Filtered in Python, not SQL, for the not-yet-expired check — MySQL's
+    # DATETIME column has no timezone of its own, so comparing it against a
+    # timezone-aware Python value at the SQL layer is unreliable; the same
+    # naive/aware normalization redeem_reset_token already does below is
+    # applied here too.
+    now = datetime.now(timezone.utc)
+    unused_tokens = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.identity_id == identity_id, PasswordResetToken.used_at.is_(None))
+        .all()
+    )
+    for stale in unused_tokens:
+        expires_at = stale.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at >= now:
+            stale.used_at = now
+
     raw_token = secrets.token_urlsafe(32)
     db.add(
         PasswordResetToken(
