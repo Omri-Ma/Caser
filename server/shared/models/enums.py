@@ -35,3 +35,14 @@ class InviteStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"
+
+
+class PracticeArea(str, enum.Enum):
+    TRAFFIC = "traffic"
+    CRIMINAL = "criminal"
+    FAMILY = "family"
+    CIVIL = "civil"
+    LABOR = "labor"
+    REAL_ESTATE = "real_estate"
+    CORPORATE = "corporate"
+    IMMIGRATION = "immigration"

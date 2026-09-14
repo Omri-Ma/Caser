@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, EmailStr, Field
 
-from shared.models.enums import CaseStatus, UserRole
+from shared.models.enums import CaseStatus, PracticeArea, UserRole
 
 
 class CreateCaseRequest(BaseModel):
@@ -29,12 +30,22 @@ class AssignCaseRequest(BaseModel):
     membership_id: int
 
 
+class SetCaseTagsRequest(BaseModel):
+    """office_manager-only — replaces the full set of practice-area tags on
+    a case in one call (simpler than separate add/remove endpoints for a
+    small, fixed-enum tag list).
+    """
+
+    practice_areas: List[PracticeArea] = Field(default_factory=list)
+
+
 class CaseResponse(BaseModel):
     id: int
     tenant_id: int
     title: str
     status: CaseStatus
     created_at: datetime
+    practice_areas: List[PracticeArea] = Field(default_factory=list)
 
 
 class CaseAssignmentResponse(BaseModel):

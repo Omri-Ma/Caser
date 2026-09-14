@@ -95,6 +95,20 @@ CREATE TABLE `case_assignments` (
   CONSTRAINT `case_assignments_ibfk_3` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE `case_tags` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL,
+  `case_id` int NOT NULL,
+  `practice_area` enum('TRAFFIC','CRIMINAL','FAMILY','CIVIL','LABOR','REAL_ESTATE','CORPORATE','IMMIGRATION') NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_case_tags_case_practice_area` (`case_id`,`practice_area`),
+  KEY `ix_case_tags_tenant_id` (`tenant_id`),
+  KEY `ix_case_tags_case_id` (`case_id`),
+  KEY `ix_case_tags_practice_area` (`practice_area`),
+  CONSTRAINT `case_tags_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
+  CONSTRAINT `case_tags_ibfk_2` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE `documents` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tenant_id` int NOT NULL,

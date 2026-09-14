@@ -5,8 +5,17 @@ import AssignMemberModal from '../components/AssignMemberModal'
 import DocumentsPanel from '../components/DocumentsPanel'
 import WorkHoursPanel from '../components/WorkHoursPanel'
 import { FormError } from '../components/Form'
-import { deleteCase, getCase, listCaseAssignments, unassignFromCase, updateCaseStatus, updateCaseTitle } from '../api/cases'
+import {
+  deleteCase,
+  getCase,
+  listCaseAssignments,
+  setCaseTags,
+  unassignFromCase,
+  updateCaseStatus,
+  updateCaseTitle,
+} from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
+import { PRACTICE_AREAS, practiceAreaLabel } from '../utils/practiceArea'
 import { formatDate } from '../utils/format'
 import './CaseDetailPage.css'
 
@@ -34,6 +43,9 @@ export default function CaseDetailPage() {
 
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
+
+  const [tagsSaving, setTagsSaving] = useState(false)
+  const [tagsError, setTagsError] = useState(null)
 
   const loadCase = useCallback(() => {
     setLoading(true)
@@ -136,6 +148,21 @@ export default function CaseDetailPage() {
     }
   }
 
+  async function toggleTag(area) {
+    const current = caseData.practice_areas ?? []
+    const next = current.includes(area) ? current.filter((a) => a !== area) : [...current, area]
+    setTagsSaving(true)
+    setTagsError(null)
+    try {
+      const updated = await setCaseTags(caseId, next)
+      setCaseData(updated)
+    } catch (err) {
+      setTagsError(err.message)
+    } finally {
+      setTagsSaving(false)
+    }
+  }
+
   const lawyers = (assignments ?? []).filter((a) => a.role === 'lawyer')
   const clients = (assignments ?? []).filter((a) => a.role === 'client')
   const assignedMembershipIds = (assignments ?? []).map((a) => a.membership_id)
@@ -206,6 +233,25 @@ export default function CaseDetailPage() {
           </div>
           {titleError && <FormError message={titleError} />}
           {statusError && <FormError message={statusError} />}
+
+          <div className="detail-tags-row">
+            <span className="detail-tags-label">תחומי עיסוק:</span>
+            {PRACTICE_AREAS.map((area) => {
+              const active = (caseData.practice_areas ?? []).includes(area)
+              return (
+                <button
+                  key={area}
+                  type="button"
+                  className={`detail-tag-toggle${active ? ' active' : ''}`}
+                  onClick={() => toggleTag(area)}
+                  disabled={tagsSaving}
+                >
+                  {practiceAreaLabel(area)}
+                </button>
+              )
+            })}
+          </div>
+          {tagsError && <FormError message={tagsError} />}
 
           <div className="detail-actions">
             <button type="button" className="detail-delete-button" onClick={handleDelete} disabled={deleting}>

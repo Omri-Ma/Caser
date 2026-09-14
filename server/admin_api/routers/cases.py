@@ -10,13 +10,14 @@ from admin_api.schemas.cases import (
     CaseAssignmentResponse,
     CaseResponse,
     CreateCaseRequest,
+    SetCaseTagsRequest,
     UpdateCaseStatusRequest,
     UpdateCaseTitleRequest,
 )
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import Case, CaseAssignment, Document, Identity, Membership, Tenant, WorkLog
-from shared.models.enums import CaseStatus, UserRole
+from shared.models import Case, CaseAssignment, CaseTag, Document, Identity, Membership, Tenant, WorkLog
+from shared.models.enums import CaseStatus, PracticeArea, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
 
@@ -41,6 +42,7 @@ def create_case(
 def list_cases(
     search: Optional[str] = Query(None, description="Partial, case-insensitive match on case title"),
     status_filter: Optional[CaseStatus] = Query(None, alias="status"),
+    practice_area: Optional[PracticeArea] = Query(None, description="Filter to cases carrying this tag"),
     params: PageParams = Depends(),
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
@@ -48,15 +50,18 @@ def list_cases(
 ):
     """office_manager sees every case at their own tenant automatically —
     no CaseAssignment row needed, unlike a lawyer/client. Optional `search`
-    (title, partial match) and `status` filter so the admin case list can
-    offer real (server-paginated) search/filtering instead of only ever
-    filtering whatever single page happened to be fetched.
+    (title, partial match), `status`, and `practice_area` tag filter so the
+    admin case list can offer real (server-paginated) search/filtering
+    instead of only ever filtering whatever single page happened to be
+    fetched.
     """
     query = db.query(Case).filter(Case.tenant_id == tenant.id)
     if search:
         query = query.filter(Case.title.ilike(f"%{search}%"))
     if status_filter is not None:
         query = query.filter(Case.status == status_filter)
+    if practice_area is not None:
+        query = query.join(CaseTag, CaseTag.case_id == Case.id).filter(CaseTag.practice_area == practice_area)
     query = query.order_by(Case.created_at.desc())
     items, total = paginate(query, params)
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
@@ -240,3 +245,24 @@ def unassign_from_case(
 
     db.delete(assignment)
     db.commit()
+
+
+@router.put("/{case_id}/tags", response_model=CaseResponse)
+def set_case_tags(
+    case_id: int,
+    payload: SetCaseTagsRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Replaces the full set of practice-area tags on a case — office_manager
+    only, same reasoning as case title/status: administrative facts about a
+    case are the office manager's authority (CLAUDE.md's CaseTags).
+    """
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    db.query(CaseTag).filter(CaseTag.case_id == case.id).delete()
+    for area in dict.fromkeys(payload.practice_areas):
+        db.add(CaseTag(tenant_id=tenant.id, case_id=case.id, practice_area=area))
+    db.commit()
+    db.refresh(case)
+    return case

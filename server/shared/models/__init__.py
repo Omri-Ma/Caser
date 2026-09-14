@@ -1,6 +1,7 @@
 from shared.models.audit_log import AuditLog
 from shared.models.case import Case
 from shared.models.case_assignment import CaseAssignment
+from shared.models.case_tag import CaseTag
 from shared.models.document import Document
 from shared.models.identity import Identity
 from shared.models.membership import Membership
@@ -16,6 +17,7 @@ __all__ = [
     "AuditLog",
     "Case",
     "CaseAssignment",
+    "CaseTag",
     "Document",
     "Identity",
     "Membership",

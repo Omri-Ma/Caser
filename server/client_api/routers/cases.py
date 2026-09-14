@@ -7,8 +7,8 @@ from client_api.core.pagination import Page, PageParams, paginate
 from client_api.schemas.cases import CaseResponse
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import Case, CaseAssignment, Membership, Tenant
-from shared.models.enums import CaseStatus, UserRole
+from shared.models import Case, CaseAssignment, CaseTag, Membership, Tenant
+from shared.models.enums import CaseStatus, PracticeArea, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
 
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/cases", tags=["cases"])
 def list_my_cases(
     search: Optional[str] = Query(None, description="Partial, case-insensitive match on case title"),
     status_filter: Optional[CaseStatus] = Query(None, alias="status"),
+    practice_area: Optional[PracticeArea] = Query(None, description="Filter to cases carrying this tag"),
     params: PageParams = Depends(),
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
@@ -26,8 +27,8 @@ def list_my_cases(
 ):
     """Only cases this membership is explicitly assigned to via
     CaseAssignment — unlike office_manager, a lawyer/client has no automatic
-    tenant-wide visibility. Optional server-side title search + status
-    filter, same as the admin case list.
+    tenant-wide visibility. Optional server-side title search + status +
+    practice-area tag filter, same as the admin case list.
     """
     query = (
         db.query(Case)
@@ -42,6 +43,8 @@ def list_my_cases(
         query = query.filter(Case.title.ilike(f"%{search}%"))
     if status_filter is not None:
         query = query.filter(Case.status == status_filter)
+    if practice_area is not None:
+        query = query.join(CaseTag, CaseTag.case_id == Case.id).filter(CaseTag.practice_area == practice_area)
     query = query.order_by(Case.created_at.desc())
     items, total = paginate(query, params)
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)

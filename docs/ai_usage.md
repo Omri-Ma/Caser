@@ -3301,3 +3301,58 @@ invite accept/decline routes (`client_api/routers/invites.py`) already used
   not an error.
 - Regenerated `docs/openapi_*.json`/Postman/ERD (client_api 28→30 paths,
   admin_api 39→42).
+
+## 2026-09-14
+
+**Asked**: Unattended overnight session on `feature/case-billing-superadmin` —
+11 items (case tags, narratives language/period + Hebrew PDF, Excel import
+polish, split assignment UI, cases-list badge swap, enterprise "unlimited"
+display, Hebrew error catalog, audit log cleanup, sidebar font fix, super
+admin feature set, admin sidebar/settings polish). Work through all of them
+without stopping for approval; commit one item at a time; document any
+judgment calls made instead of asking.
+
+**Environment note**: no `chromium-cli` available in this Windows shell (the
+`run` skill's default browser driver). Installed Playwright directly
+(`npm install playwright` + `npx playwright install chromium`) in a scratch
+dir under the session temp folder and drove it with a small Node script per
+item instead — same verification bar (real browser, real login, screenshot,
+`console --errors` equivalent), just a hand-rolled driver rather than the
+packaged CLI. Flagging this so a `/run-skill-generator` pass could capture a
+proper project run-skill later; didn't do that myself to stay focused on the
+11 items.
+
+**Item 1 — Case practice-area tags**:
+- New `case_tags` table (`shared/models/case_tag.py`, migration
+  `e5f6a7b8c9d0`), `PracticeArea` enum (traffic/criminal/family/civil/labor/
+  real_estate/corporate/immigration — CLAUDE.md calls for "a curated list"
+  without naming one; picked 8 common Israeli-practice areas as the
+  reasonable default, easy to extend later since it's a real enum + table,
+  not scattered string literals).
+- `Case.practice_areas` is a Python `@property` over the `tags` relationship
+  so both apps' existing `CaseResponse` (already relying on FastAPI's
+  automatic ORM-attribute response serialization, no explicit
+  `from_attributes` config anywhere else in the codebase either) picks it up
+  for free.
+- `admin_api`: `PUT /cases/{id}/tags` (office_manager-only, full-replace
+  semantics — simpler than add/remove for a small fixed enum), `practice_area`
+  query filter on both `GET /cases` list endpoints (admin + client — read
+  access to tags/filter given to lawyers/clients too, only *setting* them is
+  office_manager-gated, per CLAUDE.md).
+- Frontend (admin only, since setting is office_manager-only there):
+  `CasesListPage` gets a practice-area filter `<select>` + a new "תחומים" tag
+  column; `CaseDetailPage` gets a row of toggle-chip buttons under the
+  header, each click PUT-replacing the full tag set.
+- Tests: `server/tests/test_case_tags.py` (set/replace, office_manager-only,
+  tenant isolation via `get_tenant_scoped`, filter). Full suite: 32 passed
+  locally on the touched files; ran the broader relevant subset (`test_cases_admin`,
+  `test_cases_client`) alongside it.
+- Verified live: logged into the real running dev stack (`demo.lvh.me:5174`,
+  seeded office_manager) via the Playwright script above — filter select
+  renders, 8 tag toggles render on a case, two toggles activate and survive
+  a full page reload (confirms the PUT + refetch round-trip against the real
+  DB, not just component state), tag chips show up back on the list page,
+  zero console errors. Screenshots kept in the session scratch dir only (not
+  committed — this repo doesn't have a convention for storing ad hoc
+  verification screenshots, and README screenshots are handled separately
+  per CLAUDE.md's delivery requirements).
