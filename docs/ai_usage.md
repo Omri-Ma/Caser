@@ -4178,3 +4178,33 @@ storage-by-firm card, matching the lawyers bar's existing pattern
 exactly. Verified live by switching the demo tenant to Enterprise via
 its own existing self-service plan switch (no seed data needed), then
 back to Free afterward to leave demo state as found.
+
+**Item 4 — narrative date format + Hebrew font in both PDF languages**
+(commit `51fc1af`): two independent, already-shipped bugs. (a) The period
+date-range picker used native `<input type="date">`; confirmed live
+(a throwaway HTML test page) that even an explicit `lang="he"` on the
+element does nothing in Chromium — the displayed format follows the
+browser's own UI locale, which isn't controllable from the page at all.
+Replaced with a new `DateInput` component (masked text input, always
+DD/MM/YYYY on screen, converts to/from the ISO string everywhere else
+already uses) rather than pulling in a date-picker dependency for one
+field. (b) `build_narrative_pdf` only registered/used the bundled Hebrew
+TTF for `he` narratives, silently falling back to Helvetica (no Hebrew
+glyphs at all) for `en` — per CLAUDE.md's corrected note, `language` only
+picks the template sentences, and real embedded data (case title, names)
+is typed in Hebrew regardless, so an `en` PDF with a Hebrew case title
+produced missing-glyph boxes. Now both languages register/use the Hebrew
+font and run every line through python-bidi's `get_display` with an
+explicit `base_dir` — only paragraph alignment still depends on language.
+
+Verified concretely, not just by reading the code: rendered both an `en`
+and `he` test PDF with a Hebrew case title embedded via PyMuPDF
+(`pymupdf`, already in the venv) to PNG and visually confirmed real
+Hebrew glyphs in both. For the date picker, logged in as a real lawyer
+(reset an existing dev-DB identity's password through the actual
+self-service forgot-password + dev-outbox flow, since its original
+password wasn't known), typed `01/03/2026`/`14/09/2026` into the real
+form, submitted, and confirmed the created narrative's period text reads
+"01 במרץ 2026–14 בספט' 2026" — day and month were not swapped. Cleaned up
+the one throwaway narrative row created for this afterward. Added a
+regression test for the font fix; 16/16 narrative tests pass.
