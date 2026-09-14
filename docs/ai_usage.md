@@ -4353,3 +4353,40 @@ whatever it reports lands in its own follow-up commit if anything
 needed fixing, or is simply confirmed clean if not. Per the session's
 own instructions: branch not pushed, no PR opened — stopping here for
 review.
+
+## 2026-09-14 (branch `feature/manager-flag`) — Memberships.is_manager: orthogonal case-oversight authority, split out of office_manager
+
+New session, real conceptual correction to CLAUDE.md's Roles/Memberships
+model: `office_manager` used to bundle two different things — firm
+*administration* (people, billing, branding) and case *oversight* (full
+case visibility, narrative authority). This session splits them.
+`office_manager` keeps both (unchanged), but a `lawyer` can now hold a
+narrower `Memberships.is_manager` flag granting the oversight half only,
+without becoming a firm administrator — matching how larger real firms
+separate "runs the business" from "oversees the casework."
+
+Read the corrected CLAUDE.md in full before starting (as instructed) —
+the diff already existed as an uncommitted edit on disk when the session
+started, same pattern as last session's CLAUDE.md handoff. Since the spec
+explicitly builds on "the narrative generation/export code you just
+built" (last session's admin_api-only implementation, never actually
+merged — the prior session stopped before pushing/opening a PR per its
+own instructions), and the task said to branch off "current master": did
+a local-only fast-forward merge of `feature/superadmin-narrative-polish`
+into `master` first (no push), so master genuinely contains what the
+spec assumes, then popped the CLAUDE.md stash on top and committed it to
+master before branching — same reasoning as last session's CLAUDE.md
+handling. Flagging this judgment call explicitly rather than silently
+picking a base branch that wouldn't have had the code the task
+references. Per this session's explicit instruction, commits from here
+on are one per numbered item (four), asked for and confirmed before any
+of them — this log is written incrementally alongside them, not in one
+retroactive block.
+
+**Item 1 — `Memberships.is_manager`** (migration `b3c4d5e6f7a8`): added
+NOT NULL with a server default of `false` directly, unlike `hourly_rate`
+(meaningfully nullable — "no rate set yet" is real). There's no
+meaningful "unset" third state for is_manager, so no backfill pass
+needed. Applied to the real dev DB; `db/schema.sql` updated by hand
+(same as last session, since that file has no dedicated regen script —
+it's a manual mirror of the live schema per its own header comment).

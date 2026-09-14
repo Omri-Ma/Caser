@@ -34,6 +34,14 @@ class Membership(Base):
     # a brand-new lawyer membership has no rate set yet until the office
     # manager sets one.
     hourly_rate = Column(Numeric(8, 2), nullable=True)
+    # office_manager-set, lawyer-only flag (meaningless on office_manager/
+    # client rows) granting full case visibility at this firm plus
+    # narrative-generation authority — the same case-oversight privileges
+    # office_manager has, deliberately without any firm-administration
+    # power (CLAUDE.md's Memberships note). Orthogonal to `role`: this
+    # lawyer never becomes an administrator, only a case overseer, and
+    # still only ever logs into client/, never admin/.
+    is_manager = Column(Boolean, nullable=False, default=False)
     # Removing someone from a firm is a soft delete (flip to false), never a
     # real delete — Documents/WorkLogs/AuditLogs/CaseAssignments all
     # reference memberships.id with no cascade rule, so a real delete would
