@@ -222,6 +222,47 @@
         }
       }
     },
+    "/auth/my-tenants": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "My Tenants",
+        "description": "Tenant-agnostic (no get_current_tenant dependency) on purpose — this\nis what the frontend calls when it lands on a subdomain the identity has\nno office_manager membership at, to resolve where to actually send them\n(CLAUDE.md's \"Landing somewhere you have no access\" redirect rule).\nReuses the exact same lookup /auth/lobby-login uses to resolve \"which\nfirm\" for an unauthenticated login — same answer, just for an identity\nthat's already holding a valid session.",
+        "operationId": "my_tenants_auth_my_tenants_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LobbyTenantOption"
+                  },
+                  "type": "array",
+                  "title": "Response My Tenants Auth My Tenants Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/leave-firm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Leave Firm",
+        "description": "Self-service \"leave this firm\" for the office_manager whose session\nthis is — deactivates their own membership at the current tenant subdomain\n(same soft-delete semantics as an office_manager deactivating someone\nelse via POST /members/{id}/deactivate, just self-initiated and with no\n\"not your own membership\" block, since that block existed specifically\nto stop *that* route from being used this way).\n\nNo \"last office_manager standing\" guard, on purpose — CLAUDE.md's\nMemberships note is explicit that this isn't a dangerous edge case worth\nblocking: any office_manager (including this one, a moment earlier) can\npromote a colleague first, so a firm is never actually strandable;\nsuper_admin remains the last-resort fallback regardless.",
+        "operationId": "leave_firm_auth_leave_firm_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
     "/auth/profile": {
       "patch": {
         "tags": [
@@ -556,6 +597,59 @@
         }
       }
     },
+    "/members/{membership_id}/role": {
+      "patch": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Update Member Role",
+        "description": "Promote a lawyer to office_manager, or demote an office_manager back\nto lawyer, at this office_manager's own firm (CLAUDE.md's Memberships\nnote). Never touches a client membership — UpdateMemberRoleRequest's\nschema already restricts the *target* role to office_manager/lawyer,\nand this additionally rejects a *source* membership that's a client, so\na client can never be promoted this way either.\n\nDeliberately allows changing your own role (including an office_manager\ndemoting themselves) with no \"last office_manager standing\" guard: this\nis the exact mechanism CLAUDE.md's Memberships note relies on to make\nself-service firm-leaving safe to allow at all (\"any office_manager can\npromote someone else before or after the fact, so a firm is never\nactually strandable\") — adding a block here would be inconsistent with\nthat reasoning, and super_admin remains the last-resort fallback either\nway.",
+        "operationId": "update_member_role_members__membership_id__role_patch",
+        "parameters": [
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Membership Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/members/{membership_id}/public-visibility": {
       "patch": {
         "tags": [
@@ -709,6 +803,49 @@
         },
         "responses": {
           "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites/{invite_id}/revoke": {
+      "post": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Revoke Invite",
+        "description": "Cancel a still-pending invite the office_manager (or a colleague at\nthe same firm) sent — a different fact from DECLINED (the invitee's own\nanswer), so it gets its own status rather than reusing that one\n(CLAUDE.md's MembershipInvites note doesn't cover this directly; this is\nthe natural extension of its pending/accepted/declined pattern). Only\na still-pending invite can be revoked — an already-accepted/declined/\nrevoked one is done, nothing left to cancel.",
+        "operationId": "revoke_invite_invites__invite_id__revoke_post",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invite Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
@@ -3106,7 +3243,8 @@
         "enum": [
           "pending",
           "accepted",
-          "declined"
+          "declined",
+          "revoked"
         ],
         "title": "InviteStatus"
       },
@@ -3975,6 +4113,10 @@
             "type": "integer",
             "title": "Lawyer Count"
           },
+          "pending_lawyer_invites": {
+            "type": "integer",
+            "title": "Pending Lawyer Invites"
+          },
           "lawyer_limit": {
             "type": "integer",
             "title": "Lawyer Limit"
@@ -3992,6 +4134,7 @@
         "required": [
           "plan",
           "lawyer_count",
+          "pending_lawyer_invites",
           "lawyer_limit",
           "storage_used_bytes",
           "storage_limit_bytes"
@@ -4190,6 +4333,24 @@
           "title"
         ],
         "title": "UpdateCaseTitleRequest"
+      },
+      "UpdateMemberRoleRequest": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "office_manager",
+              "lawyer"
+            ],
+            "title": "Role"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "title": "UpdateMemberRoleRequest",
+        "description": "Promote a lawyer to office_manager, or demote an office_manager back\nto lawyer — CLAUDE.md's Memberships note: \"office_manager can promote a\nlawyer to office_manager or demote an office_manager back to lawyer ...\nnever client in or out of this\". Restricted to exactly those two values\nat the schema level (not the full UserRole enum) so a client can never\neven be submitted here in the first place."
       },
       "UpdateProfileRequest": {
         "properties": {

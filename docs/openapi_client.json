@@ -11,7 +11,7 @@
           "auth"
         ],
         "summary": "Register",
-        "description": "Create a bare global account. Used two ways: a lawyer/client\nregistering with no invite yet (an office manager attaches them to a\nfirm afterward), or — more commonly now — someone following an invite\nlink for an email with no Identity yet. In the second case, a\n*successful* registration for that exact email is itself the\nacceptance (CLAUDE.md's MembershipInvites note) — no separate\nconfirmation step, so every matching pending invite resolves to\naccepted immediately below.",
+        "description": "Create a bare global account. Used two ways: a lawyer/client\nregistering with no invite yet (an office manager attaches them to a\nfirm afterward), or someone following an invite link for an email with\nno Identity yet. In the second case, registering does *not* by itself\naccept any pending invite for this email (CLAUDE.md's MembershipInvites\nnote, reversed from an earlier draft) — creating an account and\nagreeing to join a specific firm are two separate, deliberate acts.\nAfter a successful registration the frontend lands on the same explicit\naccept/decline screen an already-registered invitee sees (GET /invites\n+ POST /invites/{id}/accept|decline, both already tenant-agnostic and\nnow reachable immediately since this route logs the new identity in).",
         "operationId": "register_auth_register_post",
         "requestBody": {
           "content": {
@@ -176,6 +176,62 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/auth/my-tenants": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "My Tenants",
+        "description": "Every other active firm this identity works with, as a lawyer or\nclient — backs the multi-firm switcher in the authenticated app shell\n(CLAUDE.md: one person can hold a lawyer/client membership at more than\none firm). Tenant-agnostic on purpose, same shape as admin_api's own\n/auth/my-tenants.",
+        "operationId": "my_tenants_auth_my_tenants_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LobbyTenantOption"
+                  },
+                  "type": "array",
+                  "title": "Response My Tenants Auth My Tenants Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/my-membership": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "My Membership",
+        "description": "A cheap \"do I actually have access at this subdomain\" check — reuses\nthe exact same get_current_membership dependency every tenant-scoped\nclient_api route already depends on, just with no role restriction.\n204 means yes; the dependency itself raises 403 (E.NO_ACCESS_TO_FIRM)\notherwise. AppShell calls this once on mount to send a lawyer/client\nwith no access at this subdomain to the general homepage instead of\nrendering a shell whose every real data call would 403 individually\n(CLAUDE.md's \"Landing somewhere you have no access\" redirect rule).",
+        "operationId": "my_membership_auth_my_membership_get",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/auth/leave-firm": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Leave Firm",
+        "description": "Self-service \"leave this firm\" for the lawyer/client whose session\nthis is — deactivates their own membership at the current tenant\nsubdomain (CLAUDE.md's Memberships note). Unlike the office_manager role\n(see admin_api's own /auth/leave-firm), there's no \"last one standing\"\nconcern here at all: a lawyer/client leaving never strands a firm's own\nadministrative capacity the way removing its last office_manager could.",
+        "operationId": "leave_firm_auth_leave_firm_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           }
         }
       }
@@ -372,6 +428,63 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/directory": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Get Public Directory",
+        "description": "Unauthenticated, non-tenant list of every active firm's public\nprofile info (name/logo/subdomain only) — backs the lobby's general\nhomepage firm directory (CLAUDE.md: \"a public firm directory ...\nletting a visitor find a firm and click through to its page\"). No\nget_current_tenant dependency here on purpose: this route is reached\nfrom the lobby host (www.<BASE_DOMAIN>), which has no tenant of its own\nto resolve. A suspended tenant (active=False) never appears here, same\nlockout semantics as everywhere else.",
+        "operationId": "get_public_directory_public_directory_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PublicDirectoryEntry_"
+                }
               }
             }
           },
@@ -2159,6 +2272,37 @@
         ],
         "title": "Page[NarrativeResponse]"
       },
+      "Page_PublicDirectoryEntry_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicDirectoryEntry"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[PublicDirectoryEntry]"
+      },
       "Page_WorkLogResponse_": {
         "properties": {
           "items": {
@@ -2236,6 +2380,30 @@
           "immigration"
         ],
         "title": "PracticeArea"
+      },
+      "PublicDirectoryEntry": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "subdomain"
+        ],
+        "title": "PublicDirectoryEntry",
+        "description": "One row of the lobby's public firm directory (CLAUDE.md's \"general,\nnon-tenant product homepage\" requirement) — name/logo/subdomain only,\nsame non-sensitive boundary as a tenant's own public homepage. The\nlogo itself is fetched from that tenant's own GET /public/logo (keyed\nby subdomain via the Host header, same as everywhere else), not a new\nlogo route here — has_logo just tells the frontend whether to try."
       },
       "PublicTeamMember": {
         "properties": {
