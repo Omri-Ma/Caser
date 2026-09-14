@@ -139,9 +139,18 @@ def get_plan_usage(tenant_id: int, db: Session) -> dict:
     from the numbers check_plan_limit actually enforces.
     """
     plan = get_active_plan(tenant_id, db)
+    # lawyer_count is active lawyers only; pending_lawyer_invites is broken
+    # out separately (not merged into lawyer_count) so the UI can show both
+    # facts ("2 active + 1 pending"), while their *sum* is what actually
+    # needs to be compared against lawyer_limit — matching check_plan_limit
+    # exactly, which was the actual bug here: this used to report active
+    # lawyers only, understating usage relative to what really blocks a new
+    # invite (CLAUDE.md's MembershipInvites note: pending invites count too).
+    pending_invites = count_pending_lawyer_invites(tenant_id, db)
     return {
         "plan": plan,
         "lawyer_count": count_active_lawyers(tenant_id, db),
+        "pending_lawyer_invites": pending_invites,
         "lawyer_limit": PLAN_LAWYER_LIMITS[plan],
         "storage_used_bytes": get_storage_used_bytes(tenant_id, db),
         "storage_limit_bytes": PLAN_STORAGE_LIMIT_BYTES[plan],

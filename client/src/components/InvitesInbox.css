@@ -1,0 +1,101 @@
+.invites-inbox {
+  position: relative;
+}
+
+.invites-inbox-toggle {
+  position: relative;
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  padding: 4px;
+}
+
+.invites-inbox-toggle:hover {
+  color: var(--color-primary);
+}
+
+.invites-inbox-badge {
+  position: absolute;
+  top: -4px;
+  inset-inline-end: -4px;
+  background: var(--color-error);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  min-width: 15px;
+  height: 15px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+}
+
+.invites-inbox-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
+  padding: var(--space-3);
+  width: 300px;
+  z-index: 30;
+}
+
+.invites-inbox-title {
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+}
+
+.invites-inbox-empty {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.invites-inbox-error {
+  color: var(--color-error);
+  font-size: 13px;
+  margin-bottom: var(--space-2);
+}
+
+.invites-inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.invites-inbox-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.invites-inbox-firm {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.invites-inbox-role {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.invites-inbox-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.invites-inbox-actions button {
+  padding: 4px 10px;
+  font-size: 12px;
+  width: auto;
+}

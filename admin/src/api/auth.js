@@ -32,6 +32,22 @@ export function me() {
   return apiFetch('/auth/me')
 }
 
+// Every active office_manager Membership the current session holds, across
+// every active tenant — same lookup /auth/lobby-login uses, just for an
+// already-authenticated identity. Used by AppShell to resolve where to send
+// someone who lands on a subdomain they have no membership at (CLAUDE.md's
+// "Landing somewhere you have no access" redirect rule).
+export function myTenants() {
+  return apiFetch('/auth/my-tenants')
+}
+
+// Self-service "leave this firm" — deactivates the caller's own membership
+// at the current tenant subdomain (CLAUDE.md's Memberships note: promote
+// /demote makes this safe even for the firm's only office_manager).
+export function leaveFirm() {
+  return apiFetch('/auth/leave-firm', { method: 'POST' })
+}
+
 // Self-service profile edit (bio/photo_url/years_of_experience) — global to
 // the person, feeds the public homepage's team section (CLAUDE.md).
 export function updateProfile({ bio, photoUrl, yearsOfExperience }) {

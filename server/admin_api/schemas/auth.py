@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -151,3 +152,15 @@ class MemberResponse(BaseModel):
 
 class UpdatePublicVisibilityRequest(BaseModel):
     show_on_public_page: bool
+
+
+class UpdateMemberRoleRequest(BaseModel):
+    """Promote a lawyer to office_manager, or demote an office_manager back
+    to lawyer — CLAUDE.md's Memberships note: "office_manager can promote a
+    lawyer to office_manager or demote an office_manager back to lawyer ...
+    never client in or out of this". Restricted to exactly those two values
+    at the schema level (not the full UserRole enum) so a client can never
+    even be submitted here in the first place.
+    """
+
+    role: Literal[UserRole.OFFICE_MANAGER, UserRole.LAWYER]

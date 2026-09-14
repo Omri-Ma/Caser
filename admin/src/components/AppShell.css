@@ -4,6 +4,42 @@
   color: var(--color-text-muted);
 }
 
+.no-access-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg);
+  padding: var(--space-5);
+}
+
+.no-access-picker {
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-modal);
+}
+
+.no-access-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.no-access-picker-list button {
+  width: 100%;
+}
+
 .app-shell-layout {
   display: flex;
   min-height: 100vh;
@@ -114,6 +150,52 @@
 .topbar-tenant-name {
   font-size: 13px;
   font-weight: 700;
+}
+
+.tenant-switcher {
+  position: relative;
+}
+
+.tenant-switcher-toggle {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+
+.tenant-switcher-toggle:hover {
+  color: var(--color-primary);
+}
+
+.tenant-switcher-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  inset-inline-start: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-modal);
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  min-width: 180px;
+  z-index: 20;
+}
+
+.tenant-switcher-menu li button {
+  width: 100%;
+  text-align: start;
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  border-radius: var(--radius-control);
+  font-size: 13px;
+}
+
+.tenant-switcher-menu li button:hover {
+  background: var(--color-primary-bg);
 }
 
 .topbar-user {

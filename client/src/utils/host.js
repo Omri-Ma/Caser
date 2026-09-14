@@ -18,6 +18,15 @@ export function redirectToTenant(subdomain, path = '/') {
   window.location.assign(`${window.location.protocol}//${subdomain}.${BASE_DOMAIN}${port}${path}`)
 }
 
+// Where the lobby's general homepage (marketing + firm directory) lives —
+// a logged-in client can navigate back to it from inside the authenticated
+// app (CLAUDE.md: "Reachable from client/ ... not just anonymous
+// visitors"), even though the current page is on a different origin.
+export function lobbyHomeUrl() {
+  const port = window.location.port ? `:${window.location.port}` : ''
+  return `${window.location.protocol}//www.${BASE_DOMAIN}${port}/`
+}
+
 // Where the lobby's login page lives — a tenant subdomain has no /login of
 // its own anymore (lawyer/client only ever log in via the lobby), so this
 // is where AppShell sends a logged-out/expired-session visitor.

@@ -1,0 +1,104 @@
+.home-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-5) var(--space-3);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.home-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-hero p {
+  color: var(--color-text-muted);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.home-directory h2 {
+  margin: 0 0 var(--space-1);
+}
+
+.home-directory-sub {
+  color: var(--color-text-muted);
+  margin: 0 0 var(--space-4);
+}
+
+.home-state {
+  color: var(--color-text-muted);
+  padding: var(--space-4) 0;
+}
+
+.home-state-error {
+  color: var(--color-error);
+}
+
+.home-directory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.home-directory-link {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+}
+
+.home-directory-link:hover {
+  border-color: var(--color-primary);
+}
+
+.home-directory-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  border-radius: var(--radius-card);
+}
+
+.home-directory-logo-placeholder {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-card);
+  background: var(--color-avatar1-bg);
+  color: var(--color-avatar1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.home-directory-name {
+  font-weight: 700;
+}
+
+.home-directory-subdomain {
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+}
+
+.home-directory-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}

@@ -27,9 +27,39 @@ def test_get_subscription_returns_plan_and_usage(admin_client, db):
     body = resp.json()
     assert body["plan"] == "free"
     assert body["lawyer_count"] == 1
+    assert body["pending_lawyer_invites"] == 0
     assert body["lawyer_limit"] == 3
     assert body["storage_used_bytes"] == 0
     assert body["storage_limit_bytes"] == 1024**3
+
+
+def test_get_subscription_reports_pending_lawyer_invites_separately(admin_client, db):
+    """The actual bug this backs: the usage display used to only count
+    active lawyers, understating usage relative to what check_plan_limit
+    (shared/plan_limits.py) really enforces — pending invites count too.
+    """
+    from conftest import make_invite
+
+    tenant = make_tenant(db, "acme")
+    _seed_free_subscription(db, tenant.id)
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    lawyer_identity = make_identity(db, "lawyer@acme.com")
+    make_membership(db, lawyer_identity.id, tenant.id, UserRole.LAWYER)
+    make_invite(db, tenant.id, "pending1@acme.com", UserRole.LAWYER, manager_membership.id)
+    make_invite(db, tenant.id, "pending2@acme.com", UserRole.LAWYER, manager_membership.id)
+    # A client invite shouldn't count toward the lawyer figure.
+    make_invite(db, tenant.id, "client-invite@acme.com", UserRole.CLIENT, manager_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get("/subscription", headers=headers, cookies=cookies)
+
+    body = resp.json()
+    assert body["lawyer_count"] == 1
+    assert body["pending_lawyer_invites"] == 2
+    # What actually needs comparing against lawyer_limit for a "how close
+    # to the cap" display: matches check_plan_limit's own arithmetic.
+    assert body["lawyer_count"] + body["pending_lawyer_invites"] == 3
 
 
 def test_enterprise_plan_reports_effectively_unlimited_lawyer_limit(admin_client, db):

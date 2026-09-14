@@ -78,6 +78,8 @@ MEMBERSHIP_NOT_ACTIVE = "החברות הזו אינה פעילה"
 ONLY_LAWYER_CLIENT_INVITES_SUPPORTED = "ניתן להזמין רק עורכי דין או לקוחות"
 ALREADY_MEMBER_OF_FIRM = "האדם הזה כבר חבר/ה במשרד שלך"
 INVITE_ALREADY_PENDING = "כבר קיימת הזמנה ממתינה עבור אימייל זה"
+ROLE_CHANGE_ONLY_FOR_LAWYER_OR_MANAGER = "ניתן להחליף תפקיד רק בין עורך/ת דין למנהל/ת משרד"
+INVITE_NOT_PENDING = "ניתן לבטל רק הזמנות שממתינות למענה"
 
 # --- Subscriptions ---
 ALREADY_ON_THIS_PLAN = "המשרד כבר נמצא בתוכנית הזו"

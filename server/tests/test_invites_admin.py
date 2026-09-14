@@ -20,6 +20,77 @@ def test_invite_lawyer_creates_pending_invite(admin_client, db):
     assert body["invited_by_name"] == manager.name
 
 
+def test_revoke_pending_invite(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    invite = make_invite(db, tenant.id, "invitee@example.com", UserRole.LAWYER, manager_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.post(f"/invites/{invite.id}/revoke", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "revoked"
+    db.refresh(invite)
+    assert invite.status == InviteStatus.REVOKED
+
+
+def test_revoke_frees_up_the_lawyer_limit(admin_client, db):
+    """The actual point of revoking: it un-blocks new invites/lawyers,
+    unlike a declined or never-answered invite which CLAUDE.md is explicit
+    should NOT free up a seat on its own.
+    """
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    for i in range(3):
+        make_invite(db, tenant.id, f"pending{i}@acme.com", UserRole.LAWYER, manager_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    # Free plan caps at 3 lawyers - already at capacity via pending invites alone.
+    blocked = admin_client.post(
+        "/invites", json={"email": "one-more@acme.com", "role": "lawyer"}, headers=headers, cookies=cookies
+    )
+    assert blocked.status_code == 400
+
+    pending = admin_client.get("/invites", headers=headers, cookies=cookies).json()["items"]
+    admin_client.post(f"/invites/{pending[0]['id']}/revoke", headers=headers, cookies=cookies)
+
+    allowed = admin_client.post(
+        "/invites", json={"email": "one-more@acme.com", "role": "lawyer"}, headers=headers, cookies=cookies
+    )
+    assert allowed.status_code == 201
+
+
+def test_cannot_revoke_already_accepted_invite(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    manager_membership = make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    invite = make_invite(
+        db, tenant.id, "invitee@example.com", UserRole.LAWYER, manager_membership.id, InviteStatus.ACCEPTED
+    )
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.post(f"/invites/{invite.id}/revoke", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 400
+
+
+def test_revoke_rejects_invite_from_another_tenant(admin_client, db):
+    tenant_a = make_tenant(db, "acme")
+    tenant_b = make_tenant(db, "globex")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant_a.id, UserRole.OFFICE_MANAGER)
+    other_manager = make_identity(db, "manager@globex.com")
+    other_membership = make_membership(db, other_manager.id, tenant_b.id, UserRole.OFFICE_MANAGER)
+    invite = make_invite(db, tenant_b.id, "invitee@example.com", UserRole.LAWYER, other_membership.id)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.post(f"/invites/{invite.id}/revoke", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 404
+
+
 def test_invite_writes_dev_outbox_only_for_unregistered_email(admin_client, db):
     tenant = make_tenant(db, "acme")
     manager = make_identity(db, "manager@acme.com")

@@ -1,5 +1,5 @@
 from conftest import auth_for, make_identity, make_invite, make_membership, make_tenant
-from shared.models import Membership
+from shared.models import Membership, MembershipInvite
 from shared.models.enums import InviteStatus, UserRole
 
 
@@ -99,7 +99,13 @@ def test_cannot_re_accept_already_resolved_invite(client_client, db):
     assert resp.status_code == 404
 
 
-def test_registering_auto_accepts_matching_pending_invites(client_client, db):
+def test_registering_does_not_auto_accept_pending_invites(client_client, db):
+    """Reversed from an earlier draft (CLAUDE.md's MembershipInvites note):
+    creating an account and agreeing to join a specific firm are two
+    separate, deliberate acts. Registering for an invited email leaves the
+    invite(s) pending - the newly-registered identity accepts/declines
+    explicitly afterward, same screen an already-registered invitee sees.
+    """
     tenant_a = make_tenant(db, "acme")
     tenant_b = make_tenant(db, "globex")
     manager_a = make_identity(db, "manager@acme.com")
@@ -117,8 +123,19 @@ def test_registering_auto_accepts_matching_pending_invites(client_client, db):
     assert resp.status_code == 201
     identity_id = resp.json()["id"]
 
-    memberships = db.query(Membership).filter(Membership.identity_id == identity_id).all()
-    assert {(m.tenant_id, m.role) for m in memberships} == {(tenant_a.id, UserRole.LAWYER), (tenant_b.id, UserRole.CLIENT)}
+    # No Membership rows created - both invites are still pending.
+    assert db.query(Membership).filter(Membership.identity_id == identity_id).count() == 0
+    pending = db.query(MembershipInvite).filter(MembershipInvite.email == "newperson@example.com").all()
+    assert {i.status for i in pending} == {InviteStatus.PENDING}
+
+    # The newly-registered (and now logged-in) identity can see and accept
+    # them immediately via the ordinary tenant-agnostic invites endpoints -
+    # no second login needed, same cookie register() already set.
+    set_cookie_headers = resp.headers.get_list("set-cookie")
+    access_cookie = next(h.split(";")[0].split("=", 1)[1] for h in set_cookie_headers if h.startswith("caser_access="))
+    invites_resp = client_client.get("/invites", cookies={"caser_access": access_cookie})
+    assert invites_resp.status_code == 200
+    assert {i["subdomain"] for i in invites_resp.json()} == {"acme", "globex"}
 
 
 def test_lobby_login_surfaces_pending_invites(client_client, db):

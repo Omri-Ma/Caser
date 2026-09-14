@@ -89,22 +89,6 @@ def decline_invite(invite: MembershipInvite, db: Session) -> None:
     db.commit()
 
 
-def resolve_invites_on_register(identity: Identity, db: Session) -> None:
-    """A successful registration for an email with pending invites *is* the
-    acceptance (CLAUDE.md's MembershipInvites note) — no separate
-    confirmation step after that. Resolves every pending invite for this
-    email, not just one: the same not-yet-registered person could have
-    been invited by more than one firm before ever creating an account.
-    """
-    pending = (
-        db.query(MembershipInvite)
-        .filter(MembershipInvite.email == identity.email, MembershipInvite.status == InviteStatus.PENDING)
-        .all()
-    )
-    for invite in pending:
-        accept_invite(invite, identity, db)
-
-
 def list_pending_invites_for_email(email: str, db: Session) -> list[MembershipInvite]:
     return (
         db.query(MembershipInvite)

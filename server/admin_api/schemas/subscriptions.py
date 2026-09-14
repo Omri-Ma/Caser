@@ -12,6 +12,12 @@ class SubscriptionUsageResponse(BaseModel):
 
     plan: Plan
     lawyer_count: int
+    # Broken out separately from lawyer_count (not merged into it) so the
+    # UI can show both facts, but lawyer_count + pending_lawyer_invites is
+    # what actually needs comparing against lawyer_limit — matching
+    # check_plan_limit exactly (shared/plan_limits.py's MembershipInvites
+    # note: pending invites count toward the limit too).
+    pending_lawyer_invites: int
     lawyer_limit: int
     storage_used_bytes: int
     storage_limit_bytes: int

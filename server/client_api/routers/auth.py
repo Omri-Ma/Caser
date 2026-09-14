@@ -21,8 +21,8 @@ from client_api.schemas.auth import (
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity, record_login
-from shared.invites import resolve_invites_on_register
-from shared.models import Identity, Membership, MembershipInvite, Tenant
+from shared.membership import get_current_membership
+from shared.models import AuditLog, Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
 from shared.security import (
@@ -50,16 +50,39 @@ def _to_identity_response(identity: Identity) -> IdentityResponse:
     )
 
 
+def _lawyer_client_tenants(identity: Identity, db: Session):
+    """Every active lawyer/client Membership this identity holds, at active
+    tenants — shared by /auth/lobby-login (unauthenticated) and
+    /auth/my-tenants below (already-authenticated, used by the multi-firm
+    switcher and the no-access redirect check) so both resolve "which
+    firms does this person work with" identically.
+    """
+    return (
+        db.query(Membership, Tenant)
+        .join(Tenant, Membership.tenant_id == Tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.role.in_([UserRole.LAWYER, UserRole.CLIENT]),
+            Membership.active.is_(True),
+            Tenant.active.is_(True),
+        )
+        .all()
+    )
+
+
 @router.post("/register", response_model=IdentityResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Create a bare global account. Used two ways: a lawyer/client
     registering with no invite yet (an office manager attaches them to a
-    firm afterward), or — more commonly now — someone following an invite
-    link for an email with no Identity yet. In the second case, a
-    *successful* registration for that exact email is itself the
-    acceptance (CLAUDE.md's MembershipInvites note) — no separate
-    confirmation step, so every matching pending invite resolves to
-    accepted immediately below.
+    firm afterward), or someone following an invite link for an email with
+    no Identity yet. In the second case, registering does *not* by itself
+    accept any pending invite for this email (CLAUDE.md's MembershipInvites
+    note, reversed from an earlier draft) — creating an account and
+    agreeing to join a specific firm are two separate, deliberate acts.
+    After a successful registration the frontend lands on the same explicit
+    accept/decline screen an already-registered invitee sees (GET /invites
+    + POST /invites/{id}/accept|decline, both already tenant-agnostic and
+    now reachable immediately since this route logs the new identity in).
     """
     if db.query(Identity).filter(Identity.email == payload.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
@@ -72,8 +95,6 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
     db.refresh(identity)
-
-    resolve_invites_on_register(identity, db)
 
     set_session_cookies(response, identity.id, identity.token_version)
     return _to_identity_response(identity)
@@ -131,17 +152,7 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     if identity is None or not verify_password(payload.password, identity.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
-    memberships = (
-        db.query(Membership, Tenant)
-        .join(Tenant, Membership.tenant_id == Tenant.id)
-        .filter(
-            Membership.identity_id == identity.id,
-            Membership.role.in_([UserRole.LAWYER, UserRole.CLIENT]),
-            Membership.active.is_(True),
-            Tenant.active.is_(True),
-        )
-        .all()
-    )
+    memberships = _lawyer_client_tenants(identity, db)
     pending_invites = (
         db.query(MembershipInvite, Tenant)
         .join(Tenant, MembershipInvite.tenant_id == Tenant.id)
@@ -219,6 +230,60 @@ def me(identity: Identity = Depends(get_current_identity)):
     return _to_identity_response(identity)
 
 
+@router.get("/my-tenants", response_model=list[LobbyTenantOption])
+def my_tenants(identity: Identity = Depends(get_current_identity), db: Session = Depends(get_db)):
+    """Every other active firm this identity works with, as a lawyer or
+    client — backs the multi-firm switcher in the authenticated app shell
+    (CLAUDE.md: one person can hold a lawyer/client membership at more than
+    one firm). Tenant-agnostic on purpose, same shape as admin_api's own
+    /auth/my-tenants.
+    """
+    memberships = _lawyer_client_tenants(identity, db)
+    return [
+        LobbyTenantOption(tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role)
+        for membership, tenant in memberships
+    ]
+
+
+@router.get("/my-membership", status_code=status.HTTP_204_NO_CONTENT)
+def my_membership(_membership: Membership = Depends(get_current_membership)):
+    """A cheap "do I actually have access at this subdomain" check — reuses
+    the exact same get_current_membership dependency every tenant-scoped
+    client_api route already depends on, just with no role restriction.
+    204 means yes; the dependency itself raises 403 (E.NO_ACCESS_TO_FIRM)
+    otherwise. AppShell calls this once on mount to send a lawyer/client
+    with no access at this subdomain to the general homepage instead of
+    rendering a shell whose every real data call would 403 individually
+    (CLAUDE.md's "Landing somewhere you have no access" redirect rule).
+    """
+    return None
+
+
+@router.post("/leave-firm", status_code=status.HTTP_204_NO_CONTENT)
+def leave_firm(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    membership: Membership = Depends(get_current_membership),
+):
+    """Self-service "leave this firm" for the lawyer/client whose session
+    this is — deactivates their own membership at the current tenant
+    subdomain (CLAUDE.md's Memberships note). Unlike the office_manager role
+    (see admin_api's own /auth/leave-firm), there's no "last one standing"
+    concern here at all: a lawyer/client leaving never strands a firm's own
+    administrative capacity the way removing its last office_manager could.
+    """
+    membership.active = False
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=membership.id,
+            action="member_left_firm",
+            target=f"membership:{membership.id}",
+        )
+    )
+    db.commit()
+
+
 @router.patch("/profile", response_model=IdentityResponse)
 def update_my_profile(
     payload: UpdateProfileRequest,
@@ -266,8 +331,14 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
     matched a real account (CLAUDE.md's PasswordResetTokens note — never
     reveal which emails are registered). See admin_api's identical route.
     """
+    # super_admin is deliberately excluded from self-service reset entirely
+    # (CLAUDE.md's Multi-tenancy architecture note): it is the single most
+    # powerful account in the system, already manually-provisioned, and a
+    # compromised/spoofed reset flow there has a far bigger blast radius
+    # than for anyone else. Still returns the exact same generic response
+    # either way, so this can never reveal *why* a reset "didn't work".
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
-    if identity is not None:
+    if identity is not None and not identity.is_super_admin:
         raw_token = create_reset_token(identity.id, db)
         origin = request.headers.get("origin") or f"http://www.{BASE_DOMAIN}"
         link = f"{origin}/reset-password?token={raw_token}"

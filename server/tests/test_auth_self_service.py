@@ -193,3 +193,76 @@ def test_admin_api_exposes_the_same_self_service_routes(admin_client, db):
 
     reset_resp = admin_client.post("/auth/reset-password", json={"token": token, "new_password": "BrandNewPass123"})
     assert reset_resp.status_code == 200
+
+
+def test_second_forgot_password_request_invalidates_the_first_token(client_client, db):
+    """A new "forgot password" request supersedes any earlier outstanding
+    one - only the newest link is ever valid, so requesting twice (e.g. the
+    first email felt lost) can't leave two independently-redeemable links
+    outstanding.
+    """
+    make_identity(db, "real@acme.com")
+
+    client_client.post("/auth/forgot-password", json={"email": "real@acme.com"})
+    first_outbox = client_client.get("/auth/dev-outbox", params={"email": "real@acme.com"}).json()
+    first_token = first_outbox[0]["link"].split("token=")[1]
+
+    client_client.post("/auth/forgot-password", json={"email": "real@acme.com"})
+    second_outbox = client_client.get("/auth/dev-outbox", params={"email": "real@acme.com"}).json()
+    # read_dev_outbox returns newest-first, so index 0 is the just-written one.
+    second_token = second_outbox[0]["link"].split("token=")[1]
+
+    assert first_token != second_token
+
+    # The first (now-superseded) token no longer redeems...
+    stale_resp = client_client.post(
+        "/auth/reset-password", json={"token": first_token, "new_password": "StalePass1234"}
+    )
+    assert stale_resp.status_code == 400
+
+    # ...but the second (newest) one still does.
+    fresh_resp = client_client.post(
+        "/auth/reset-password", json={"token": second_token, "new_password": "FreshPass1234"}
+    )
+    assert fresh_resp.status_code == 200
+
+
+def test_two_pending_tokens_only_the_newest_counted_used_once(client_client, db):
+    """Direct check on the actual row state, not just behavior through the
+    API: requesting twice marks the earlier row used_at (not deleted) and
+    leaves exactly one still-genuinely-pending row.
+    """
+    make_identity(db, "real@acme.com")
+
+    client_client.post("/auth/forgot-password", json={"email": "real@acme.com"})
+    client_client.post("/auth/forgot-password", json={"email": "real@acme.com"})
+
+    tokens = db.query(PasswordResetToken).order_by(PasswordResetToken.id).all()
+    assert len(tokens) == 2
+    assert tokens[0].used_at is not None  # superseded, not deleted
+    assert tokens[1].used_at is None  # the current, genuinely pending one
+
+
+def test_super_admin_is_excluded_from_forgot_password(admin_client, db):
+    """CLAUDE.md's Multi-tenancy architecture: super_admin is manually
+    -provisioned and excluded from self-service reset entirely - the
+    generic response is unchanged (never reveal *why* it "didn't work"),
+    but no token/outbox entry is actually created.
+    """
+    make_identity(db, "root@platform.internal", is_super_admin=True)
+
+    resp = admin_client.post("/auth/forgot-password", json={"email": "root@platform.internal"})
+
+    assert resp.status_code == 200
+    assert db.query(PasswordResetToken).count() == 0
+    outbox = admin_client.get("/auth/dev-outbox", params={"email": "root@platform.internal"}).json()
+    assert outbox == []
+
+
+def test_super_admin_excluded_from_forgot_password_on_client_api_too(client_client, db):
+    make_identity(db, "root@platform.internal", is_super_admin=True)
+
+    resp = client_client.post("/auth/forgot-password", json={"email": "root@platform.internal"})
+
+    assert resp.status_code == 200
+    assert db.query(PasswordResetToken).count() == 0

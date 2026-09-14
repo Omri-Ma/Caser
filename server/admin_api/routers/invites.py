@@ -13,6 +13,7 @@ from shared.membership import require_role
 from shared.models import Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
 from shared.plan_limits import check_plan_limit
+from shared.scoped import get_tenant_scoped
 from shared.tenant import BASE_DOMAIN, get_current_tenant
 from shared import error_messages as E
 
@@ -106,4 +107,31 @@ def invite_member(
         write_dev_outbox(payload.email, link)
 
     inviter_identity = db.query(Identity).filter(Identity.id == office_manager.identity_id).first()
+    return _to_invite_response(invite, inviter_identity)
+
+
+@router.post("/{invite_id}/revoke", response_model=InviteResponse)
+def revoke_invite(
+    invite_id: int,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Cancel a still-pending invite the office_manager (or a colleague at
+    the same firm) sent — a different fact from DECLINED (the invitee's own
+    answer), so it gets its own status rather than reusing that one
+    (CLAUDE.md's MembershipInvites note doesn't cover this directly; this is
+    the natural extension of its pending/accepted/declined pattern). Only
+    a still-pending invite can be revoked — an already-accepted/declined/
+    revoked one is done, nothing left to cancel.
+    """
+    invite = get_tenant_scoped(MembershipInvite, invite_id, tenant.id, db, E.INVITE_NOT_FOUND)
+    if invite.status != InviteStatus.PENDING:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.INVITE_NOT_PENDING)
+
+    invite.status = InviteStatus.REVOKED
+    db.commit()
+    db.refresh(invite)
+
+    inviter_identity = db.query(Identity).filter(Identity.id == invite.inviter.identity_id).first()
     return _to_invite_response(invite, inviter_identity)

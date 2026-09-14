@@ -37,6 +37,19 @@ CREATE TABLE `identities` (
   UNIQUE KEY `ix_identities_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE `password_reset_tokens` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `identity_id` int NOT NULL,
+  `token_hash` varchar(255) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token_hash` (`token_hash`),
+  KEY `ix_password_reset_tokens_identity_id` (`identity_id`),
+  KEY `ix_password_reset_tokens_token_hash` (`token_hash`),
+  CONSTRAINT `password_reset_tokens_ibfk_1` FOREIGN KEY (`identity_id`) REFERENCES `identities` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE `memberships` (
   `id` int NOT NULL AUTO_INCREMENT,
   `identity_id` int NOT NULL,
@@ -58,7 +71,7 @@ CREATE TABLE `membership_invites` (
   `email` varchar(255) NOT NULL,
   `role` enum('SUPER_ADMIN','OFFICE_MANAGER','LAWYER','CLIENT') NOT NULL,
   `invited_by` int NOT NULL,
-  `status` enum('PENDING','ACCEPTED','DECLINED') NOT NULL,
+  `status` enum('PENDING','ACCEPTED','DECLINED','REVOKED') NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `responded_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
