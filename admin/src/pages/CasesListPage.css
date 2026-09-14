@@ -116,25 +116,25 @@
   gap: 10px;
 }
 
-.case-avatar {
-  width: 34px;
-  height: 34px;
+.case-id-badge {
+  min-width: 42px;
+  height: 28px;
+  padding: 0 8px;
   border-radius: var(--radius-control);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primary-hover);
+  background: var(--color-primary-bg);
   flex: 0 0 auto;
+  direction: ltr;
 }
 
 .case-title-text {
   font-weight: 700;
-}
-
-.case-title-sub {
-  font-size: 11.5px;
-  color: var(--color-text-muted);
 }
 
 .case-muted {

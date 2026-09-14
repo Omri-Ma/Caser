@@ -3495,3 +3495,19 @@ proper project run-skill later; didn't do that myself to stay focused on the
   frontend-only ask.
 - Verified live: both buttons render with distinct labels, each opens the
   correctly-titled modal scoped to that role, zero console errors.
+
+**Item 5 — Cases list: ID badge instead of initials**:
+- `CasesListPage`'s title column previously led with a decorative 2-letter
+  initials badge (`avatarInitials`/`avatarTone`, purely cosmetic, not
+  derived from any real per-row data) and showed the case's actual id only
+  as small muted subtitle text ("מס׳ תיק #N"). Replaced the badge with a
+  `.case-id-badge` showing "#N" prominently (bold, tinted, `direction: ltr`
+  so the digits after `#` don't get bidi-reordered), and dropped the now-
+  redundant subtitle line — the id has one clear, prominent home instead of
+  two weaker ones.
+- Removed the now-fully-unused `avatarInitials`/`avatarTone` helpers from
+  `utils/format.js` (verified no other page still imports them) rather than
+  leaving dead exports behind.
+- Verified live: badge renders as a compact, obviously-a-number blue chip
+  next to every case title, zero console errors, zero leftover initials
+  elements in the DOM.

@@ -6,7 +6,7 @@ import NewCaseModal from '../components/NewCaseModal'
 import { listCases } from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
 import { PRACTICE_AREAS, practiceAreaLabel } from '../utils/practiceArea'
-import { avatarInitials, avatarTone, formatDate } from '../utils/format'
+import { formatDate } from '../utils/format'
 import './CasesListPage.css'
 
 const STATUS_TABS = [{ key: 'all', label: 'כל התיקים' }, ...CASE_STATUSES.map((s) => ({ key: s, label: caseStatusLabel(s) }))]
@@ -68,15 +68,12 @@ export default function CasesListPage() {
     {
       key: 'title',
       label: 'תיק',
-      render: (row, index) => (
+      render: (row) => (
         <div className="case-title-cell">
-          <div className="case-avatar" style={avatarTone(index)}>
-            {avatarInitials(row.title)}
+          <div className="case-id-badge" aria-hidden="true">
+            #{row.id}
           </div>
-          <div>
-            <div className="case-title-text">{row.title}</div>
-            <div className="case-title-sub">מס׳ תיק #{row.id}</div>
-          </div>
+          <div className="case-title-text">{row.title}</div>
         </div>
       ),
     },
