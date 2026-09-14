@@ -58,7 +58,7 @@ CREATE TABLE `membership_invites` (
   `email` varchar(255) NOT NULL,
   `role` enum('SUPER_ADMIN','OFFICE_MANAGER','LAWYER','CLIENT') NOT NULL,
   `invited_by` int NOT NULL,
-  `status` enum('PENDING','ACCEPTED','DECLINED') NOT NULL,
+  `status` enum('PENDING','ACCEPTED','DECLINED','REVOKED') NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `responded_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),

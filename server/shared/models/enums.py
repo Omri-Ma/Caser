@@ -35,6 +35,10 @@ class InviteStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     DECLINED = "declined"
+    # office_manager cancelled a still-pending invite before any response —
+    # kept distinct from DECLINED (the invitee's own answer): different
+    # actor, different fact (CLAUDE.md's MembershipInvites note).
+    REVOKED = "revoked"
 
 
 class PracticeArea(str, enum.Enum):

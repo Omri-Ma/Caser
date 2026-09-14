@@ -4,7 +4,7 @@ import DataTable from '../components/DataTable'
 import InviteMemberModal from '../components/InviteMemberModal'
 import { FormError } from '../components/Form'
 import { deactivateMember, listMembers, updateMemberRole, updatePublicVisibility } from '../api/members'
-import { listInvites } from '../api/invites'
+import { listInvites, revokeInvite } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
 import './MembersPage.css'
@@ -85,6 +85,20 @@ export default function MembersPage() {
     setRowError(null)
     try {
       await deactivateMember(member.id)
+      load()
+    } catch (err) {
+      setRowError(err.message)
+    } finally {
+      setActioningId(null)
+    }
+  }
+
+  async function handleRevoke(invite) {
+    if (!window.confirm(`לבטל את ההזמנה עבור ${invite.email}?`)) return
+    setActioningId(invite.id)
+    setRowError(null)
+    try {
+      await revokeInvite(invite.id)
       load()
     } catch (err) {
       setRowError(err.message)
@@ -206,6 +220,20 @@ export default function MembersPage() {
     },
     { key: 'invited_by', label: 'הוזמן/ה על ידי', render: (row) => row.invited_by_name },
     { key: 'created_at', label: 'תאריך הזמנה', render: (row) => formatDate(row.created_at) },
+    {
+      key: 'actions',
+      label: '',
+      render: (row) => (
+        <button
+          type="button"
+          className="member-action member-action-danger"
+          onClick={() => handleRevoke(row)}
+          disabled={actioningId === row.id}
+        >
+          ביטול הזמנה
+        </button>
+      ),
+    },
   ]
 
   return (

@@ -63,7 +63,7 @@ export default function SubscriptionPage() {
 
       {loading && <div className="cases-state">טוען פרטי מנוי…</div>}
       {!loading && error && <div className="cases-state cases-state-error">{error}</div>}
-      {!loading && !error && usage && usage.lawyer_count === 0 && usage.storage_used_bytes === 0 && (
+      {!loading && !error && usage && usage.lawyer_count === 0 && usage.pending_lawyer_invites === 0 && usage.storage_used_bytes === 0 && (
         <div className="card settings-card subscription-empty-note">
           המשרד עדיין לא צבר שימוש (אין עורכי דין או קבצים) — הנתונים למטה יתעדכנו עם הפעילות הראשונה.
         </div>
@@ -78,10 +78,15 @@ export default function SubscriptionPage() {
 
             <UsageBar
               label="עורכי דין"
-              used={usage.lawyer_count}
+              // Matches check_plan_limit exactly (shared/plan_limits.py):
+              // pending invites count toward the limit too, so the bar
+              // shown here must include them or it understates how close
+              // the firm actually is to being blocked from inviting more.
+              used={usage.lawyer_count + usage.pending_lawyer_invites}
               limit={usage.lawyer_limit}
               formatValue={(v) => String(v)}
               unlimited={usage.plan === 'enterprise'}
+              note={usage.pending_lawyer_invites > 0 ? `(מתוכם ${usage.pending_lawyer_invites} ממתינים)` : null}
             />
             <UsageBar
               label="אחסון"
@@ -125,13 +130,16 @@ export default function SubscriptionPage() {
   )
 }
 
-function UsageBar({ label, used, limit, formatValue, unlimited }) {
+function UsageBar({ label, used, limit, formatValue, unlimited, note }) {
   const percent = unlimited ? 0 : limit > 0 ? Math.min(100, (used / limit) * 100) : 0
   const over = !unlimited && used > limit
   return (
     <div className="usage-bar">
       <div className="usage-bar-header">
-        <span>{label}</span>
+        <span>
+          {label}
+          {note && <span className="usage-bar-note"> {note}</span>}
+        </span>
         {/* dir="ltr" forced explicitly — plain numbers/slash have no strong
             directional characters, so left to the surrounding RTL context
             they silently reorder ("1 / 3" renders as "3 / 1"). */}

@@ -11,3 +11,8 @@ export function listInvites({ role, status = 'pending' } = {}) {
 export function inviteMember(email, role) {
   return apiFetch('/invites', { method: 'POST', body: { email, role } })
 }
+
+// Cancel a still-pending invite before anyone has answered it.
+export function revokeInvite(inviteId) {
+  return apiFetch(`/invites/${inviteId}/revoke`, { method: 'POST' })
+}
