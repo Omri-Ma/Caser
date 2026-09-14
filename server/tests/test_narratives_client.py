@@ -2,6 +2,12 @@ from conftest import auth_for, make_assignment, make_case, make_identity, make_m
 from shared.models import AuditLog, Document, Narrative
 from shared.models.enums import UserRole
 
+# A wide period so a work log created with today's date (make_work_log's
+# default) always falls inside it — most of these tests care about
+# generation mechanics, not period filtering specifically (see
+# test_narrative_period_and_language.py for that).
+DEFAULT_PERIOD = {"period_start": "2000-01-01", "period_end": "2100-01-01"}
+
 
 def _lawyer_on_case(db, tenant, case):
     identity = make_identity(db, "lawyer@acme.com", "Lior Lawyer")
@@ -25,7 +31,7 @@ def test_lawyer_generates_narrative_from_work_logs(client_client, db):
     make_work_log(db, tenant.id, case.id, lawyer_membership.id, hours="1.5")
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    resp = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
 
     assert resp.status_code == 201
     body = resp.json()
@@ -40,7 +46,7 @@ def test_client_cannot_generate_narrative(client_client, db):
     client_identity, _ = _client_on_case(db, tenant, case)
     headers, cookies = auth_for(client_identity, "acme")
 
-    resp = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
 
     assert resp.status_code == 403
 
@@ -52,7 +58,7 @@ def test_generate_rejects_unassigned_lawyer(client_client, db):
     make_membership(db, identity.id, tenant.id, UserRole.LAWYER)
     headers, cookies = auth_for(identity, "acme")
 
-    resp = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
 
     assert resp.status_code == 403
 
@@ -64,9 +70,9 @@ def test_generating_twice_keeps_both_rows_newest_first(client_client, db):
     make_work_log(db, tenant.id, case.id, lawyer_membership.id, hours="2")
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    first = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    first = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
     make_work_log(db, tenant.id, case.id, lawyer_membership.id, hours="1")
-    second = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    second = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
 
     assert first.json()["total_hours"] == "2.00"
     assert second.json()["total_hours"] == "3.00"
@@ -99,7 +105,7 @@ def test_export_pdf_creates_internal_document_and_audit_log(client_client, db):
     make_work_log(db, tenant.id, case.id, lawyer_membership.id, hours="4")
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
     narrative_id = narrative_resp.json()["id"]
 
     export_resp = client_client.post(
@@ -130,7 +136,7 @@ def test_export_pdf_rejects_narrative_from_other_case(client_client, db):
     make_assignment(db, tenant.id, other_case.id, lawyer_membership.id)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    other_narrative = client_client.post(f"/cases/{other_case.id}/narratives", headers=headers, cookies=cookies)
+    other_narrative = client_client.post(f"/cases/{other_case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
     other_narrative_id = other_narrative.json()["id"]
 
     resp = client_client.post(
@@ -148,7 +154,7 @@ def test_client_cannot_export_pdf(client_client, db):
     client_identity, _ = _client_on_case(db, tenant, case)
 
     lawyer_headers, lawyer_cookies = auth_for(lawyer_identity, "acme")
-    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", headers=lawyer_headers, cookies=lawyer_cookies)
+    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=lawyer_headers, cookies=lawyer_cookies)
     narrative_id = narrative_resp.json()["id"]
 
     client_headers, client_cookies = auth_for(client_identity, "acme")
@@ -167,7 +173,7 @@ def test_reclassifying_exported_narrative_makes_it_client_visible(client_client,
     client_identity, _ = _client_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", headers=headers, cookies=cookies)
+    narrative_resp = client_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
     narrative_id = narrative_resp.json()["id"]
     export_resp = client_client.post(
         f"/cases/{case.id}/narratives/{narrative_id}/export-pdf", headers=headers, cookies=cookies

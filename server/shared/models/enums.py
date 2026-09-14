@@ -46,3 +46,8 @@ class PracticeArea(str, enum.Enum):
     REAL_ESTATE = "real_estate"
     CORPORATE = "corporate"
     IMMIGRATION = "immigration"
+
+
+class NarrativeLanguage(str, enum.Enum):
+    HE = "he"
+    EN = "en"

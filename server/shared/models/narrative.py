@@ -1,7 +1,8 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, Numeric, Text, func
+from sqlalchemy import Column, Date, DateTime, Enum, ForeignKey, Index, Integer, Numeric, Text, func
 from sqlalchemy.orm import relationship
 
 from shared.database import Base
+from shared.models.enums import NarrativeLanguage
 
 
 class Narrative(Base):
@@ -17,6 +18,9 @@ class Narrative(Base):
     generated_text = Column(Text, nullable=False)
     total_hours = Column(Numeric(8, 2), nullable=False)
     total_fee = Column(Numeric(10, 2), nullable=False)
+    language = Column(Enum(NarrativeLanguage), nullable=False, default=NarrativeLanguage.HE)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     case = relationship("Case")

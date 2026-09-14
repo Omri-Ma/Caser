@@ -5,7 +5,7 @@ from client_api.core.case_access import get_assigned_case
 from client_api.core.narratives import build_narrative_pdf, compute_case_totals, generate_narrative_text
 from client_api.core.pagination import Page, PageParams, paginate
 from client_api.schemas.documents import DocumentResponse
-from client_api.schemas.narratives import NarrativeResponse
+from client_api.schemas.narratives import GenerateNarrativeRequest, NarrativeResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Document, Identity, Membership, Narrative, Tenant
@@ -32,6 +32,7 @@ def _get_case_narrative(case_id: int, narrative_id: int, tenant: Tenant, db: Ses
 @router.post("", response_model=NarrativeResponse, status_code=status.HTTP_201_CREATED)
 def generate_narrative(
     case_id: int,
+    payload: GenerateNarrativeRequest,
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
     membership: Membership = Depends(require_role(UserRole.LAWYER)),
@@ -39,19 +40,26 @@ def generate_narrative(
     """Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always
     inserts a new row — never edits an existing one; the newest row for a
     case is the current/authoritative one, older rows stay as history (same
-    "rows accumulate, newest wins" pattern as Subscriptions).
+    "rows accumulate, newest wins" pattern as Subscriptions). period/language
+    are chosen by the lawyer at generation time and stored as a fixed
+    snapshot on the row, same reasoning as total_hours/total_fee.
     """
     case = get_assigned_case(case_id, tenant, membership, db)
 
-    total_hours, total_fee = compute_case_totals(case.id, tenant.id, db)
+    total_hours, total_fee = compute_case_totals(case.id, tenant.id, db, payload.period_start, payload.period_end)
     narrative = Narrative(
         tenant_id=tenant.id,
         case_id=case.id,
         generated_text="",
         total_hours=total_hours,
         total_fee=total_fee,
+        language=payload.language,
+        period_start=payload.period_start,
+        period_end=payload.period_end,
     )
-    narrative.generated_text = generate_narrative_text(case, total_hours, total_fee)
+    narrative.generated_text = generate_narrative_text(
+        case, total_hours, total_fee, payload.language, payload.period_start, payload.period_end
+    )
     db.add(narrative)
     db.commit()
     db.refresh(narrative)
