@@ -158,3 +158,42 @@ def test_hebrew_pdf_embeds_real_hebrew_font(db):
 
     assert pdf_bytes.startswith(b"%PDF")
     assert b"Alef" in pdf_bytes  # embedded font name present in the PDF object stream
+
+
+def test_english_pdf_also_embeds_hebrew_font(db):
+    """CLAUDE.md's corrected Narratives note: `language` only changes which
+    template sentences were used, not whether the document is guaranteed to
+    be one script — a case title, WorkLog description, or person's name is
+    typed in Hebrew regardless of narrative language, so the `en` PDF must
+    embed the same real Hebrew font as `he`, not fall back to Helvetica
+    (which has no Hebrew glyphs and would render them as missing-glyph
+    boxes). Regression test for the earlier version of this that only
+    registered/used the Hebrew font for `he`.
+    """
+    from client_api.core.narratives import build_narrative_pdf
+    from shared.models import Case, Narrative
+    from shared.models.enums import CaseStatus, NarrativeLanguage
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    # A Hebrew case title embedded inside an otherwise-English narrative —
+    # exactly the scenario CLAUDE.md calls out (real domain data is typed in
+    # Hebrew everywhere else in the app, independent of narrative language).
+    case = Case(id=1, tenant_id=1, title='תיק לדוגמה', status=CaseStatus.OPEN)
+    narrative = Narrative(
+        id=1,
+        tenant_id=1,
+        case_id=1,
+        generated_text='Narrative summary for case "תיק לדוגמה" (case #1).',
+        total_hours=Decimal("2.00"),
+        total_fee=Decimal("900.00"),
+        language=NarrativeLanguage.EN,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        created_at=datetime(2026, 2, 1, 10, 0),
+    )
+
+    pdf_bytes = build_narrative_pdf(case, narrative)
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert b"Alef" in pdf_bytes

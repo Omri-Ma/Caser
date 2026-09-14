@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FormError, FormField } from './Form'
+import DateInput from './DateInput'
 import { exportNarrativePdf, generateNarrative, listNarratives } from '../api/narratives'
 import { formatDate } from '../utils/format'
 import './NarrativesPanel.css'
@@ -101,18 +102,16 @@ export default function NarrativesPanel({ caseId, onDocumentAdded }) {
       {formOpen && (
         <form className="work-hours-form" onSubmit={handleGenerate}>
           <FormField label="מתאריך">
-            <input
-              type="date"
+            <DateInput
               value={draft.periodStart}
-              onChange={(event) => setDraft((d) => ({ ...d, periodStart: event.target.value }))}
+              onChange={(iso) => setDraft((d) => ({ ...d, periodStart: iso }))}
               required
             />
           </FormField>
           <FormField label="עד תאריך">
-            <input
-              type="date"
+            <DateInput
               value={draft.periodEnd}
-              onChange={(event) => setDraft((d) => ({ ...d, periodEnd: event.target.value }))}
+              onChange={(iso) => setDraft((d) => ({ ...d, periodEnd: iso }))}
               required
             />
           </FormField>

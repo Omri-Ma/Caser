@@ -105,21 +105,27 @@ def generate_narrative_text(
 
 
 def build_narrative_pdf(case: Case, narrative) -> bytes:
-    """Renders one Narrative row into a simple single-page PDF. `en` uses the
-    built-in Helvetica font, LTR layout — CLAUDE.md calls this "the easy
-    case". `he` uses the bundled Hebrew TTF and right-aligned RTL layout:
-    every line is passed through python-bidi's get_display (the Unicode
-    Bidi Algorithm) before drawing, which reorders Hebrew runs
-    right-to-left while leaving embedded numbers/Latin text (dates, case
-    numbers) in correct reading order — reportlab has no automatic RTL
-    shaping the way a browser does.
+    """Renders one Narrative row into a simple single-page PDF. `language`
+    only changes which template sentences were used (CLAUDE.md) — it does
+    NOT mean the whole document is guaranteed to be one script. Real domain
+    data embedded in either version (case title, WorkLog descriptions, a
+    lawyer/client's name) is typed in Hebrew regardless of narrative
+    language, since that's how it was entered everywhere else in the app.
+    So the Hebrew-glyph embedded font is used for BOTH languages (an
+    earlier version of this only registered/used it for `he`, which
+    produced missing-glyph boxes wherever Hebrew data appeared inside an
+    otherwise-English `en` document) — only paragraph alignment (right for
+    `he`, left for `en`) actually depends on the chosen language. Every
+    line, in both languages, is passed through python-bidi's get_display
+    (the Unicode Bidi Algorithm, given an explicit base direction matching
+    the paragraph alignment) before drawing — reportlab has no automatic
+    RTL shaping the way a browser does, and a line can carry a Hebrew name
+    inside an English sentence (or vice versa) either way.
     """
     is_hebrew = narrative.language == NarrativeLanguage.HE
-    if is_hebrew:
-        _ensure_hebrew_font_registered()
-        font, font_bold = _HEBREW_FONT_NAME, _HEBREW_FONT_BOLD_NAME
-    else:
-        font, font_bold = "Helvetica", "Helvetica-Bold"
+    _ensure_hebrew_font_registered()
+    font, font_bold = _HEBREW_FONT_NAME, _HEBREW_FONT_BOLD_NAME
+    base_dir = "R" if is_hebrew else "L"
 
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
@@ -129,7 +135,7 @@ def build_narrative_pdf(case: Case, narrative) -> bytes:
     max_width = width - 2 * margin
 
     def draw_line(text: str, y: float) -> None:
-        rendered = get_display(text) if is_hebrew else text
+        rendered = get_display(text, base_dir=base_dir)
         if is_hebrew:
             pdf.drawRightString(right_edge, y, rendered)
         else:
@@ -165,7 +171,7 @@ def build_narrative_pdf(case: Case, narrative) -> bytes:
 
     pdf.setFont(font, 10)
     for paragraph in narrative.generated_text.split("\n\n"):
-        for line in _wrap_text(pdf, paragraph, font, 10, max_width, is_hebrew):
+        for line in _wrap_text(pdf, paragraph, font, 10, max_width, base_dir):
             if y < margin:
                 pdf.showPage()
                 pdf.setFont(font, 10)
@@ -179,16 +185,19 @@ def build_narrative_pdf(case: Case, narrative) -> bytes:
     return buffer.getvalue()
 
 
-def _wrap_text(pdf: canvas.Canvas, text: str, font: str, size: int, max_width: float, is_hebrew: bool) -> list[str]:
+def _wrap_text(pdf: canvas.Canvas, text: str, font: str, size: int, max_width: float, base_dir: str) -> list[str]:
     """Word-wraps on the *logical* string (before bidi reordering) — bidi
     reordering happens per finished line, right before drawing, not here.
+    Measures the *displayed* (post-bidi) width, same as draw_line renders,
+    since a Hebrew run's reordering doesn't change its rendered width but
+    keeps this consistent with what's actually drawn either way.
     """
     words = text.split()
     lines: list[str] = []
     current = ""
     for word in words:
         candidate = f"{current} {word}".strip()
-        display_width = pdf.stringWidth(get_display(candidate) if is_hebrew else candidate, font, size)
+        display_width = pdf.stringWidth(get_display(candidate, base_dir=base_dir), font, size)
         if display_width <= max_width:
             current = candidate
         else:
