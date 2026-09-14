@@ -41,19 +41,28 @@ export function myTenants() {
   return apiFetch('/auth/my-tenants')
 }
 
-// Self-service "leave this firm" — deactivates the caller's own membership
-// at the current tenant subdomain (CLAUDE.md's Memberships note: promote
-// /demote makes this safe even for the firm's only office_manager).
-export function leaveFirm() {
-  return apiFetch('/auth/leave-firm', { method: 'POST' })
-}
-
 // Self-service profile edit (bio/photo_url/years_of_experience) — global to
 // the person, feeds the public homepage's team section (CLAUDE.md).
 export function updateProfile({ bio, photoUrl, yearsOfExperience }) {
   return apiFetch('/auth/profile', {
     method: 'PATCH',
     body: { bio: bio || null, photo_url: photoUrl || null, years_of_experience: yearsOfExperience },
+  })
+}
+
+// Self-service read/write of the office_manager's own
+// Memberships.show_on_public_page — reachable from their own profile page
+// (there's no Admins page/list to find themselves on anymore, since a
+// firm has exactly one office_manager, fixed at founding; CLAUDE.md's
+// Memberships note).
+export function getMyPublicVisibility() {
+  return apiFetch('/auth/my-public-visibility')
+}
+
+export function updateMyPublicVisibility(showOnPublicPage) {
+  return apiFetch('/auth/my-public-visibility', {
+    method: 'PATCH',
+    body: { show_on_public_page: showOnPublicPage },
   })
 }
 

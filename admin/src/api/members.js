@@ -22,12 +22,6 @@ export function updatePublicVisibility(membershipId, showOnPublicPage) {
   })
 }
 
-// Promote a lawyer to office_manager, or demote an office_manager back to
-// lawyer — never involves a client (CLAUDE.md's Memberships note).
-export function updateMemberRole(membershipId, role) {
-  return apiFetch(`/members/${membershipId}/role`, { method: 'PATCH', body: { role } })
-}
-
 // Lawyer-only billing rate, feeds Narratives.total_fee (CLAUDE.md's
 // Memberships note).
 export function updateHourlyRate(membershipId, hourlyRate) {
@@ -36,8 +30,7 @@ export function updateHourlyRate(membershipId, hourlyRate) {
 
 // Grant/revoke Memberships.is_manager (CLAUDE.md's Memberships note) —
 // case-oversight authority only (full case visibility + narrative
-// generation in client_api), never firm administration. Deliberately
-// separate from updateMemberRole's promote/demote-to-office_manager action.
+// generation in client_api), never firm administration or a role change.
 export function updateManagerStatus(membershipId, isManager) {
   return apiFetch(`/members/${membershipId}/manager-status`, { method: 'PATCH', body: { is_manager: isManager } })
 }

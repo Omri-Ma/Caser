@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
-import { changePassword, leaveFirm, me, updateProfile } from '../api/auth'
-import { lobbyLoginUrl } from '../utils/host'
+import { changePassword, getMyPublicVisibility, me, updateMyPublicVisibility, updateProfile } from '../api/auth'
 import './SettingsPage.css'
 
 // Self-service "change my password" — the only lever anyone (including
@@ -31,8 +30,13 @@ export default function ProfilePage() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
 
-  const [leaving, setLeaving] = useState(false)
-  const [leaveError, setLeaveError] = useState(null)
+  // Own show_on_public_page — used to only be reachable through the now-
+  // removed Admins page (RoleMembersPanel listing office_manager rows).
+  // Self-service here instead: there's exactly one office_manager per
+  // firm, so "which member" is never a real question for this toggle.
+  const [showOnPublicPage, setShowOnPublicPage] = useState(false)
+  const [visibilitySaving, setVisibilitySaving] = useState(false)
+  const [visibilityError, setVisibilityError] = useState(null)
 
   useEffect(() => {
     me()
@@ -43,7 +47,24 @@ export default function ProfilePage() {
       })
       .catch(() => {})
       .finally(() => setProfileLoading(false))
+    getMyPublicVisibility()
+      .then((data) => setShowOnPublicPage(data.show_on_public_page))
+      .catch((err) => setVisibilityError(err.message))
   }, [])
+
+  async function handleToggleVisibility() {
+    const next = !showOnPublicPage
+    setVisibilitySaving(true)
+    setVisibilityError(null)
+    try {
+      const updated = await updateMyPublicVisibility(next)
+      setShowOnPublicPage(updated.show_on_public_page)
+    } catch (err) {
+      setVisibilityError(err.message)
+    } finally {
+      setVisibilitySaving(false)
+    }
+  }
 
   async function handleProfileSubmit(event) {
     event.preventDefault()
@@ -86,25 +107,6 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleLeaveFirm() {
-    if (
-      !window.confirm(
-        'לעזוב את המשרד הזה? הגישה תיחסם מיידית. אם אתם מנהל/ת המשרד היחיד/ה, קדמו מישהו אחר לפני כן.',
-      )
-    ) {
-      return
-    }
-    setLeaveError(null)
-    setLeaving(true)
-    try {
-      await leaveFirm()
-      window.location.assign(lobbyLoginUrl())
-    } catch (err) {
-      setLeaveError(err.message)
-      setLeaving(false)
-    }
-  }
-
   return (
     <AppShell activeKey="profile">
       <h1 className="page-title settings-title">פרופיל אישי</h1>
@@ -113,8 +115,18 @@ export default function ProfilePage() {
         <div className="card settings-card">
           <div className="detail-card-title">פרופיל ציבורי</div>
           <p className="profile-public-hint">
-            מוצג בעמוד הבית הציבורי של המשרד אם מנהל/ת המשרד הפעיל/ה זאת עבורך (ראו "אנשי צוות").
+            כמנהל/ת המשרד, זהו הבקרה היחידה על הצגת הפרופיל שלך — אין מי שיפעיל אותה עבורך.
           </p>
+          <FormError message={visibilityError} />
+          <label className="member-public-toggle profile-visibility-toggle">
+            <input
+              type="checkbox"
+              checked={showOnPublicPage}
+              disabled={visibilitySaving}
+              onChange={handleToggleVisibility}
+            />
+            הצגה בעמוד הבית הציבורי של המשרד
+          </label>
           <form onSubmit={handleProfileSubmit}>
             <FormError message={profileError} />
             {profileSaved && <div className="reset-password-success">הפרופיל עודכן בהצלחה.</div>}
@@ -168,18 +180,6 @@ export default function ProfilePage() {
             {saving ? 'מעדכן…' : 'עדכון סיסמה'}
           </button>
         </form>
-      </div>
-
-      <div className="card settings-card">
-        <div className="detail-card-title">עזיבת המשרד</div>
-        <p className="profile-public-hint">
-          עזיבה תסיר את החברות שלכם במשרד הנוכחי מיידית. חשבון ה-Caser שלכם עצמו לא נמחק — תוכלו
-          עדיין להיכנס למשרדים אחרים שבהם אתם חברים.
-        </p>
-        <FormError message={leaveError} />
-        <button type="button" className="member-action member-action-danger" onClick={handleLeaveFirm} disabled={leaving}>
-          {leaving ? 'עוזב/ת…' : 'עזיבת המשרד'}
-        </button>
       </div>
     </AppShell>
   )

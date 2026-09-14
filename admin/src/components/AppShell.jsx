@@ -39,17 +39,6 @@ const NAV_ITEMS = [
     ),
   },
   {
-    key: 'admins',
-    label: 'מנהלי משרד',
-    path: '/members/admins',
-    icon: (
-      <>
-        <path d="M12 3.5l7 3v5c0 4.5-3 7.5-7 8.5-4-1-7-4-7-8.5v-5z" />
-        <path d="M9.5 12l1.8 1.8L14.8 10" />
-      </>
-    ),
-  },
-  {
     key: 'audit-log',
     label: 'יומן פעולות',
     path: '/audit-log',
@@ -256,7 +245,7 @@ export default function AppShell({ activeKey, children }) {
   return (
     <div className="app-shell-layout">
       <aside className="app-sidebar">
-        <div className="sidebar-brand">
+        <button type="button" className="sidebar-brand sidebar-brand-link" onClick={() => navigate('/cases')}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
@@ -264,7 +253,7 @@ export default function AppShell({ activeKey, children }) {
           <span>
             <span className="wordmark">Caser</span> · ניהול
           </span>
-        </div>
+        </button>
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) =>
             item.path ? (

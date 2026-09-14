@@ -69,6 +69,15 @@
   font-weight: 700;
 }
 
+.sidebar-brand-link {
+  background: none;
+  border: none;
+  text-align: start;
+  cursor: pointer;
+  font: inherit;
+  width: 100%;
+}
+
 .sidebar-nav-item {
   font-size: 13.5px;
   font-weight: 600;

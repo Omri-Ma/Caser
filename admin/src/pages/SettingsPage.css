@@ -23,6 +23,10 @@
   margin: 0 0 var(--space-3);
 }
 
+.profile-visibility-toggle {
+  margin-bottom: var(--space-4);
+}
+
 .branding-logo-uploading {
   font-size: 0.85em;
   color: var(--color-text-muted);

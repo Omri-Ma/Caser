@@ -39,7 +39,7 @@ export default function PlatformAppShell({ children }) {
   return (
     <div className="app-shell-layout">
       <aside className="app-sidebar">
-        <div className="sidebar-brand">
+        <button type="button" className="sidebar-brand sidebar-brand-link" onClick={() => navigate('/dashboard')}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
@@ -47,7 +47,7 @@ export default function PlatformAppShell({ children }) {
           <span>
             <span className="wordmark">Caser</span> · פלטפורמה
           </span>
-        </div>
+        </button>
         <nav className="sidebar-nav">
           <button
             type="button"
