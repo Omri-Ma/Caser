@@ -39,10 +39,32 @@ class LobbyTenantOption(BaseModel):
     role: UserRole
 
 
+class PendingInviteOption(BaseModel):
+    """A lawyer/client invite still awaiting this identity's response —
+    surfaced at lobby-login the same way active memberships are (CLAUDE.md's
+    MembershipInvites note: "the invite shows up as a pending action for
+    them the next time they log in").
+    """
+
+    invite_id: int
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+    role: UserRole
+
+
 class LobbyLoginResponse(BaseModel):
     name: str
     email: EmailStr
     tenants: list[LobbyTenantOption]
+    pending_invites: list[PendingInviteOption] = []
+
+
+class AcceptInviteResponse(BaseModel):
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+    role: UserRole
 
 
 class ChangePasswordRequest(BaseModel):

@@ -38,6 +38,11 @@ from shared.tenant import BASE_DOMAIN, get_current_tenant, is_reserved_subdomain
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+def _to_identity_response(identity: Identity) -> IdentityResponse:
+    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+
+
 PLATFORM_HOST = f"platform.{BASE_DOMAIN}"
 
 
@@ -250,7 +255,7 @@ def logout(
 
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+    return _to_identity_response(identity)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

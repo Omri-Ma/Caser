@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import DataTable from '../components/DataTable'
-import AddMemberModal from '../components/AddMemberModal'
+import InviteMemberModal from '../components/InviteMemberModal'
 import { FormError } from '../components/Form'
 import { deactivateMember, listMembers } from '../api/members'
+import { listInvites } from '../api/invites'
 import { me } from '../api/auth'
+import { formatDate } from '../utils/format'
 import './MembersPage.css'
+
+const STATUS_TABS = [
+  { key: 'active', label: 'פעילים' },
+  { key: 'pending', label: 'ממתינים' },
+  { key: 'removed', label: 'הוסרו' },
+]
 
 const ROLE_TABS = [
   { key: 'all', label: 'הכול' },
@@ -21,14 +29,22 @@ const ROLE_LABELS = {
 }
 
 export default function MembersPage() {
+  const [statusTab, setStatusTab] = useState('active')
   const [roleFilter, setRoleFilter] = useState('all')
-  const [showInactive, setShowInactive] = useState(false)
   const [result, setResult] = useState(null)
+  // Which tab `result` actually belongs to — set together with the data
+  // itself (not read off `statusTab` directly), so columns never render
+  // against rows from the *previous* tab's shape. `statusTab` changes the
+  // instant a tab is clicked, but the fetch (and this) only resolve later;
+  // rendering pending's invite-shaped columns against a still-in-flight
+  // active tab's member rows (or vice versa) crashes on the mismatched shape
+  // (e.g. an invite column reading a member row's missing `created_at`).
+  const [resultTab, setResultTab] = useState('active')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [rowError, setRowError] = useState(null)
   const [actioningId, setActioningId] = useState(null)
-  const [addOpen, setAddOpen] = useState(false)
+  const [inviteRole, setInviteRole] = useState(null)
   const [myEmail, setMyEmail] = useState(null)
 
   useEffect(() => {
@@ -38,19 +54,27 @@ export default function MembersPage() {
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    listMembers({ role: roleFilter === 'all' ? undefined : roleFilter, includeInactive: showInactive })
-      .then(setResult)
+    const role = roleFilter === 'all' ? undefined : roleFilter
+    const tabAtRequestTime = statusTab
+    const request =
+      statusTab === 'pending' ? listInvites({ role, status: 'pending' }) : listMembers({ role, active: statusTab === 'active' })
+    request
+      .then((data) => {
+        setResult(data)
+        setResultTab(tabAtRequestTime)
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [roleFilter, showInactive])
+  }, [roleFilter, statusTab])
 
   useEffect(() => {
     load()
   }, [load])
 
-  function handleAdded() {
-    setAddOpen(false)
-    load()
+  function handleInvited() {
+    setInviteRole(null)
+    if (statusTab !== 'pending') setStatusTab('pending')
+    else load()
   }
 
   async function handleDeactivate(member) {
@@ -69,7 +93,7 @@ export default function MembersPage() {
     }
   }
 
-  const columns = [
+  const memberColumns = [
     {
       key: 'name',
       label: 'שם',
@@ -86,20 +110,11 @@ export default function MembersPage() {
       render: (row) => <span className="chip member-role-chip">{ROLE_LABELS[row.role] || row.role}</span>,
     },
     {
-      key: 'active',
-      label: 'סטטוס',
-      render: (row) => (
-        <span className={`chip ${row.active ? 'member-status-active' : 'member-status-inactive'}`}>
-          {row.active ? 'פעיל/ה' : 'הוסר/ה'}
-        </span>
-      ),
-    },
-    {
       key: 'actions',
       label: '',
       render: (row) => {
         const isSelf = row.identity_email === myEmail
-        return row.active ? (
+        return statusTab === 'active' ? (
           <div className="member-actions">
             <button
               type="button"
@@ -112,19 +127,35 @@ export default function MembersPage() {
             </button>
           </div>
         ) : (
-          <span className="member-inactive-hint">להחזרה: הוספה מחדש לפי אימייל</span>
+          <span className="member-inactive-hint">להחזרה: הזמנה מחדש לפי אימייל</span>
         )
       },
     },
+  ]
+
+  const inviteColumns = [
+    { key: 'email', label: 'אימייל', render: (row) => row.email },
+    {
+      key: 'role',
+      label: 'תפקיד',
+      render: (row) => <span className="chip member-role-chip">{ROLE_LABELS[row.role] || row.role}</span>,
+    },
+    { key: 'invited_by', label: 'הוזמן/ה על ידי', render: (row) => row.invited_by_name },
+    { key: 'created_at', label: 'תאריך הזמנה', render: (row) => formatDate(row.created_at) },
   ]
 
   return (
     <AppShell activeKey="members">
       <div className="cases-header">
         <h1 className="page-title">אנשי צוות</h1>
-        <button type="button" className="primary-button cases-new-button" onClick={() => setAddOpen(true)}>
-          + הוספת איש צוות
-        </button>
+        <div className="members-invite-buttons">
+          <button type="button" className="primary-button cases-new-button" onClick={() => setInviteRole('lawyer')}>
+            + הזמנת עורך/ת דין
+          </button>
+          <button type="button" className="primary-button cases-new-button" onClick={() => setInviteRole('client')}>
+            + הזמנת לקוח/ה
+          </button>
+        </div>
       </div>
 
       {error && <div className="cases-state cases-state-error">{error}</div>}
@@ -132,7 +163,19 @@ export default function MembersPage() {
       {!error && (
         <div className="card cases-table-card">
           <div className="cases-tabs">
-            {ROLE_TABS.map((tab) => (
+            {STATUS_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                className={`cases-tab${statusTab === tab.key ? ' active' : ''}`}
+                onClick={() => setStatusTab(tab.key)}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="cases-tabs members-role-tabs">
+            {ROLE_TABS.filter((tab) => statusTab !== 'pending' || tab.key !== 'office_manager').map((tab) => (
               <button
                 key={tab.key}
                 type="button"
@@ -142,27 +185,25 @@ export default function MembersPage() {
                 {tab.label}
               </button>
             ))}
-            <button
-              type="button"
-              className={`members-inactive-toggle${showInactive ? ' active' : ''}`}
-              onClick={() => setShowInactive((v) => !v)}
-            >
-              {showInactive ? 'מציג גם הוסרו' : 'הצג גם מי שהוסר'}
-            </button>
           </div>
 
           {rowError && <FormError message={rowError} />}
 
           <DataTable
-            columns={columns}
-            rows={result?.items}
+            columns={resultTab === 'pending' ? inviteColumns : memberColumns}
+            rows={loading ? undefined : result?.items}
             loading={loading}
-            emptyMessage="אין אנשי צוות להצגה."
+            emptyMessage={resultTab === 'pending' ? 'אין הזמנות ממתינות.' : 'אין אנשי צוות להצגה.'}
           />
         </div>
       )}
 
-      <AddMemberModal open={addOpen} onClose={() => setAddOpen(false)} onAdded={handleAdded} />
+      <InviteMemberModal
+        open={inviteRole !== null}
+        role={inviteRole}
+        onClose={() => setInviteRole(null)}
+        onInvited={handleInvited}
+      />
     </AppShell>
   )
 }

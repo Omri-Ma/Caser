@@ -1,16 +1,14 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from admin_api.core.pagination import Page, PageParams, paginate
-from admin_api.schemas.auth import AddMemberRequest, MemberResponse, MembershipResponse
+from admin_api.core.pagination import Page, PageParams
+from admin_api.schemas.auth import MemberResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Identity, Membership, Tenant
 from shared.models.enums import UserRole
-from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
 
@@ -32,27 +30,25 @@ def _to_member_response(membership: Membership, identity: Identity) -> MemberRes
 @router.get("", response_model=Page[MemberResponse])
 def list_members(
     role: Optional[UserRole] = Query(None),
-    include_inactive: bool = Query(False),
+    active: bool = Query(True),
     params: PageParams = Depends(),
     tenant: Tenant = Depends(get_current_tenant),
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    """Currently-active members at this firm, optionally filtered by role —
-    powers pickers like the case-assignment modal (lawyers/clients only,
-    never office managers/super_admin) as well as the members screen. Same
-    "active = true" convention as every other "who currently works here"
-    query (see CLAUDE.md's Memberships.active note). `include_inactive` is
-    the one exception — the members screen itself needs to also show
-    deactivated people (to re-add them), pickers never pass it.
+    """Real (accepted) memberships at this firm, optionally filtered by
+    role — powers pickers like the case-assignment modal (lawyers/clients
+    only, never office managers/super_admin) as well as the members
+    screen's "active"/"removed" tabs. `active` is an exclusive filter (not
+    an "also include" toggle) so it maps directly onto those two tabs —
+    the third tab, pending invites, comes from GET /invites instead, since
+    a pending invite isn't a Membership row at all yet.
     """
     query = (
         db.query(Membership, Identity)
         .join(Identity, Membership.identity_id == Identity.id)
-        .filter(Membership.tenant_id == tenant.id)
+        .filter(Membership.tenant_id == tenant.id, Membership.active.is_(active))
     )
-    if not include_inactive:
-        query = query.filter(Membership.active.is_(True))
     if role is not None:
         query = query.filter(Membership.role == role)
     query = query.order_by(Identity.name)
@@ -61,66 +57,6 @@ def list_members(
     rows = query.offset((params.page - 1) * params.page_size).limit(params.page_size).all()
     items = [_to_member_response(membership, identity) for membership, identity in rows]
     return Page(items=items, total=total, page=params.page, page_size=params.page_size)
-
-
-@router.post("", response_model=MembershipResponse, status_code=status.HTTP_201_CREATED)
-def add_member(
-    payload: AddMemberRequest,
-    tenant: Tenant = Depends(get_current_tenant),
-    db: Session = Depends(get_db),
-    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
-):
-    """Attach an existing global account to this firm, by email — no new
-    password is created, the person logs in with their existing account.
-
-    If this identity already has an *inactive* Membership at this tenant
-    (someone previously removed), that row is reactivated in place instead
-    of inserting a new one — a fresh insert would fail the identity_id+
-    tenant_id unique constraint while the old row still exists, active or
-    not (CLAUDE.md's Memberships.active note).
-    """
-    identity = db.query(Identity).filter(Identity.email == payload.email).first()
-    if identity is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No account found with that email — ask them to register first",
-        )
-
-    existing = (
-        db.query(Membership)
-        .filter(Membership.identity_id == identity.id, Membership.tenant_id == tenant.id)
-        .first()
-    )
-    if existing is not None and existing.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already a member of this firm")
-
-    if payload.role == UserRole.LAWYER:
-        check_plan_limit(tenant.id, "lawyer_count", db, additional=1)
-
-    if existing is not None:
-        existing.active = True
-        existing.role = payload.role
-        db.commit()
-        db.refresh(existing)
-        return MembershipResponse(id=existing.id, identity_id=existing.identity_id, tenant_id=existing.tenant_id, role=existing.role)
-
-    membership = Membership(identity_id=identity.id, tenant_id=tenant.id, role=payload.role)
-    db.add(membership)
-    try:
-        db.commit()
-    except IntegrityError:
-        # Pre-check above is a race, not a guard on its own — two concurrent
-        # adds can both pass it before either has written a row.
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already a member of this firm")
-    db.refresh(membership)
-
-    return MembershipResponse(
-        id=membership.id,
-        identity_id=membership.identity_id,
-        tenant_id=membership.tenant_id,
-        role=membership.role,
-    )
 
 
 @router.post("/{membership_id}/deactivate", response_model=MemberResponse)

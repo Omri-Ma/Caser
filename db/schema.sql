@@ -49,6 +49,23 @@ CREATE TABLE `memberships` (
   CONSTRAINT `memberships_ibfk_2` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE `membership_invites` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `role` enum('SUPER_ADMIN','OFFICE_MANAGER','LAWYER','CLIENT') NOT NULL,
+  `invited_by` int NOT NULL,
+  `status` enum('PENDING','ACCEPTED','DECLINED') NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `responded_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_membership_invites_tenant_id` (`tenant_id`),
+  KEY `ix_membership_invites_email` (`email`),
+  KEY `invited_by` (`invited_by`),
+  CONSTRAINT `membership_invites_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
+  CONSTRAINT `membership_invites_ibfk_2` FOREIGN KEY (`invited_by`) REFERENCES `memberships` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE `cases` (
   `id` int NOT NULL AUTO_INCREMENT,
   `tenant_id` int NOT NULL,

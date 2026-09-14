@@ -1,12 +1,17 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { register } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
-  const [form, setForm] = useState({ name: '', email: '', password: '' })
+  const [searchParams] = useSearchParams()
+  // Prefilled (not locked) from an invite link's ?email= — CLAUDE.md's
+  // MembershipInvites note: registering with that exact email is itself
+  // the acceptance, resolved server-side purely by email match, so nothing
+  // breaks if this gets edited before submitting.
+  const [form, setForm] = useState({ name: '', email: searchParams.get('email') || '', password: '' })
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)

@@ -3133,3 +3133,96 @@ typed)**:
   fast-refresh warning on each `PasswordConfirmFields.jsx` (exporting a
   helper function alongside the component) — not an error, and the
   standard tradeoff for the "extract before a third copy" call above.
+
+**Built (item 4, membership invite/accept flow)**:
+- New `MembershipInvites` table (`shared/models/membership_invite.py` +
+  Alembic migration `c3d4e5f6a7b8`, applied) and `InviteStatus` enum
+  (pending/accepted/declined); `db/schema.sql` snapshot updated too.
+- New `shared/invites.py` (fifth narrow `/server/shared` extension,
+  alongside storage/plan_limits/worklog_import/password_reset):
+  `create_invite` (rejects a duplicate pending invite or an already-active
+  membership at the tenant), `accept_invite`/`decline_invite`,
+  `resolve_invites_on_register` (a successful registration for an email
+  with pending invites *is* the acceptance — resolves every matching
+  pending invite, not just one, since the same unregistered person could
+  be invited by more than one firm), and `list_pending_invites_for_email`.
+- `admin_api`: new `POST /invites` (office_manager, LAWYER/CLIENT only —
+  rejects OFFICE_MANAGER with a clear error) replacing the old instant
+  `POST /members`; `GET /invites?status=` for the Members screen's
+  "pending" tab. An email with no Identity yet gets a dev-outbox link to
+  `http://<tenant-subdomain>.<BASE_DOMAIN>:<CLIENT_APP_PORT>/register` —
+  new `CLIENT_APP_PORT` env var (admin_api can't build a link into
+  client/'s own origin from its own request's Origin header, unlike
+  forgot-password's link). `GET /members` changed from an
+  `include_inactive` toggle to an exclusive `active` filter, matching the
+  new active/removed tabs (a pending invite isn't a Membership row at all,
+  so it was never part of this endpoint to begin with).
+- `client_api`: new `GET /invites` (the logged-in identity's own pending
+  invites, across tenants), `POST /invites/{id}/accept`,
+  `POST /invites/{id}/decline` — ownership checked by email match, not
+  tenant-scoped (an identity can hold a membership at one firm and a
+  pending invite at another). `POST /auth/register` now calls
+  `resolve_invites_on_register` after creating the identity.
+  `POST /auth/lobby-login`'s response gained `pending_invites` (same
+  lookup lobby-login already does for active memberships, per CLAUDE.md:
+  "the invite shows up as a pending action for them the next time they
+  log in").
+- `shared/plan_limits.py`: `check_plan_limit`'s `lawyer_count` branch now
+  counts pending LAWYER invites alongside active memberships (new
+  `count_pending_lawyer_invites`) — otherwise a firm at its limit could
+  invite far past it and have every invite land at once on acceptance.
+  Confirmed live: inviting into a tenant already over-limit (found by
+  accident — the seeded `demo` tenant already has 5 lawyers against
+  Free's limit of 3 from earlier test data) correctly shows "Lawyer limit
+  reached for your plan (3)" instead of silently succeeding.
+- `admin/`: `AddMemberModal` replaced by `InviteMemberModal` (role fixed
+  by which of two new header buttons opened it — "הזמנת עורך/ת דין" /
+  "הזמנת לקוח/ה" — not a picker inside one generic modal).
+  `MembersPage` reworked with exclusive status tabs (פעילים/ממתינים/הוסרו)
+  instead of the old "status column + show-removed toggle" (the status
+  column was flagged as redundant on the punch-list once tabs existed);
+  the pending tab hides the office_manager role tab (invites are never
+  that role) and renders a different column set (email/role/invited-
+  by/date, since a pending invite has no Identity to join against yet).
+- `client/`: new `api/invites.js`; `LobbyLoginPage` now shows a pending-
+  invites section (accept/decline buttons) above the tenant picker,
+  never auto-skipped past even when exactly one tenant already exists —
+  a pending invite must get a chance to be seen, not silently bypassed by
+  the existing "one tenant = auto-redirect" shortcut. `RegisterPage`
+  prefills (not locks) `email` from the invite link's `?email=` query
+  param — resolution is still purely by email match server-side, so
+  editing it before submitting doesn't break anything, it just means
+  that particular invite won't auto-resolve.
+- Added `server/tests/test_invites_admin.py` (9 tests) and
+  `test_invites_client.py` (7 tests): duplicate rejection (both kinds),
+  role restriction, plan-limit counting of pending invites, declined
+  invites not permanently consuming a seat, RBAC (lawyer can't invite),
+  tenant isolation on the list, accept/decline (including rejecting
+  someone else's invite or re-acting on an already-resolved one),
+  register-time auto-accept across multiple tenants, and lobby-login
+  surfacing pending invites. Updated `test_members_admin.py` for the
+  `active` filter (removed the two tests that exercised the now-deleted
+  instant-add endpoint). Full suite: 185 passed.
+- **Bug found and fixed via live testing, not just reasoning about the
+  code**: switching the Members page's status tab crashed the whole page
+  white (`DataTable`'s `formatDate(row.created_at)` throwing "Invalid time
+  value") — a real race between clicking a tab (which changes `statusTab`,
+  and therefore which column set renders, in the very next paint) and the
+  new tab's fetch actually resolving; for one frame, the new tab's columns
+  rendered against the *previous* tab's still-in-state rows (e.g. invite
+  columns reading a member row's nonexistent `created_at`). Fixed by
+  tracking which tab a given `result` actually belongs to (`resultTab`,
+  set atomically with the data itself in the fetch's `.then()`) instead of
+  deriving columns from `statusTab` directly, which changes a render
+  ahead of the data. Caught by scripting the actual click sequence in a
+  live browser (Playwright against the running dev stack) and reading the
+  page's own console/pageerror output — reasoning about the code alone had
+  missed it.
+- Regenerated `docs/openapi_*.json`/Postman/ERD via `export_docs.sh`
+  (client_api 25→28 paths, admin_api 38→39).
+- Left a few throwaway test identities from live verification in the dev
+  `casehub` database (e.g. `brandnewclient@example.com`,
+  `existinginvitee@example.com`) — consistent with how this database has
+  already accumulated plenty of prior sessions' test data
+  (`corstest1@example.com`, `planlaw1@example.com`, etc.); not worth a
+  special-case cleanup.
