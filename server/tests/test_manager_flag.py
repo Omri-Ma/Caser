@@ -1,11 +1,16 @@
 """Memberships.is_manager — the orthogonal case-oversight flag (CLAUDE.md's
-Roles/Memberships/CaseAssignments/Narratives notes). This file grows with
-the feature; so far it covers both of client_api's authorization paths:
-full-tenant case visibility (a manager-flagged lawyer sees every case, the
-same automatic visibility office_manager already has in admin_api) and
-narrative generation/export authority (manager-flagged lawyers only,
-sharing the exact same shared.narratives implementation admin_api's
-office_manager route calls).
+Roles/Memberships/CaseAssignments/Narratives notes). Covers both
+authorization paths this session's spec called out:
+
+1. client_api: a manager-flagged lawyer gets full tenant-wide case
+   visibility (list + single-case fetch) and narrative generation/export
+   authority, the same as office_manager already has in admin_api — a
+   plain lawyer (no flag) still only sees assigned cases and cannot
+   generate/export narratives.
+2. admin_api: the new PATCH /members/{id}/manager-status endpoint
+   (office_manager-only, lawyer-only target, separate from the existing
+   promote/demote-to-office_manager action) and that office_manager's own
+   pre-existing capabilities are unaffected (additive change).
 """
 from conftest import auth_for, make_assignment, make_case, make_identity, make_membership, make_tenant, make_work_log
 from shared.models.enums import UserRole
@@ -208,3 +213,98 @@ def test_manager_lawyer_narrative_matches_admin_api_narrative_generation(client_
     assert admin_resp.status_code == 201
     assert client_resp.json()["total_hours"] == admin_resp.json()["total_hours"] == "4.00"
     assert client_resp.json()["total_fee"] == admin_resp.json()["total_fee"] == "2000.00"
+
+
+# --- admin_api: manager-status endpoint + office_manager unaffected -----
+
+
+def test_office_manager_grants_manager_status_to_a_lawyer(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant, is_manager=False)
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.patch(
+        f"/members/{lawyer_membership.id}/manager-status", json={"is_manager": True}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_manager"] is True
+
+    db.refresh(lawyer_membership)
+    assert lawyer_membership.is_manager is True
+
+
+def test_office_manager_revokes_manager_status(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant, is_manager=True)
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.patch(
+        f"/members/{lawyer_membership.id}/manager-status", json={"is_manager": False}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["is_manager"] is False
+
+
+def test_manager_status_rejected_for_non_lawyer_membership(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    headers, cookies = auth_for(manager_identity, "acme")
+    case = make_case(db, tenant.id)
+    client_identity, client_membership = _client_identity(db, tenant, case)
+
+    resp = admin_client.patch(
+        f"/members/{client_membership.id}/manager-status", json={"is_manager": True}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 400
+
+
+def test_lawyer_cannot_grant_manager_status_to_themselves(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    lawyer_identity, lawyer_membership = _lawyer(db, tenant, is_manager=False)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = admin_client.patch(
+        f"/members/{lawyer_membership.id}/manager-status", json={"is_manager": True}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 403
+
+
+def test_manager_status_toggle_is_separate_from_role_promotion(admin_client, db):
+    """Granting is_manager must never change `role` — this is
+    case-oversight authority only, not the promote-to-office_manager
+    action (CLAUDE.md's Memberships note is explicit these are separate).
+    """
+    tenant = make_tenant(db, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant, is_manager=False)
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.patch(
+        f"/members/{lawyer_membership.id}/manager-status", json={"is_manager": True}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["role"] == "lawyer"
+
+
+def test_office_manager_case_oversight_unaffected_by_is_manager_feature(admin_client, db):
+    """Additive change per spec — office_manager keeps every capability it
+    already had (full case visibility, narrative generation) regardless
+    of whether any lawyer at the firm has is_manager set.
+    """
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity, _ = _manager(db, tenant)
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    case_resp = admin_client.get(f"/cases/{case.id}", headers=headers, cookies=cookies)
+    narrative_resp = admin_client.post(f"/cases/{case.id}/narratives", json=DEFAULT_PERIOD, headers=headers, cookies=cookies)
+
+    assert case_resp.status_code == 200
+    assert narrative_resp.status_code == 201

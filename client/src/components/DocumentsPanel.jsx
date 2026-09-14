@@ -26,7 +26,7 @@ function triggerBrowserDownload(blob, filename) {
 // (lawyer sees both folders, client only ever sees "client") — the server
 // enforces the real boundary regardless (CLAUDE.md: frontend checks are UX
 // convenience only).
-export default function DocumentsPanel({ caseId, role, showInternalTab, caseClosed }) {
+export default function DocumentsPanel({ caseId, role, showInternalTab, caseClosed, refreshSignal }) {
   const isLawyer = role === 'lawyer'
   const [tab, setTab] = useState('client')
   const [viewingArchive, setViewingArchive] = useState(false)
@@ -57,7 +57,8 @@ export default function DocumentsPanel({ caseId, role, showInternalTab, caseClos
 
   useEffect(() => {
     load()
-  }, [load])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [load, refreshSignal])
 
   function switchTab(nextTab) {
     setTab(nextTab)

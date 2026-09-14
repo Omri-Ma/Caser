@@ -549,7 +549,7 @@
           "cases"
         ],
         "summary": "List My Cases",
-        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unlike office_manager, a lawyer/client has no automatic\ntenant-wide visibility. Optional server-side title search + status +\npractice-area tag filter, same as the admin case list.",
+        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unless it has full tenant-wide visibility, either as\noffice_manager (never reaches this router) or a lawyer with\nMemberships.is_manager set (CLAUDE.md's CaseAssignments note), the same\nautomatic oversight office_manager already has in admin_api. Optional\nserver-side title search + status + practice-area tag filter, same as\nthe admin case list.",
         "operationId": "list_my_cases_cases_get",
         "parameters": [
           {
@@ -658,7 +658,7 @@
           "cases"
         ],
         "summary": "Get My Case",
-        "description": "view only if assigned — the case is resolved tenant-scoped first\n(404 if it doesn't even belong to this tenant), then checked for an\nassignment (403 if it exists here but this membership can't see it).",
+        "description": "View only if assigned — or, as of Memberships.is_manager, if this\nmembership has full tenant-wide case visibility instead. Delegates to\nthe same get_assigned_case helper documents.py/work_logs.py/\nnarratives.py already use, rather than duplicating the assignment\ncheck inline.",
         "operationId": "get_my_case_cases__case_id__get",
         "parameters": [
           {
@@ -1237,6 +1237,119 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Generate Narrative",
+        "description": "Manager-authority lawyer only (CLAUDE.md's Narratives note) — same\nfixed-template generation as admin_api's office_manager route, sharing\nthe exact same underlying logic (shared.narratives) so the two can\nnever silently drift apart. get_assigned_case succeeds here without an\nexplicit CaseAssignment since require_manager_lawyer already implies\nhas_full_case_visibility.",
+        "operationId": "generate_narrative_cases__case_id__narratives_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateNarrativeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/narratives/{narrative_id}/export-pdf": {
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Export Narrative Pdf",
+        "description": "Renders the narrative to PDF — including the itemized WorkLog table\nfor the narrative's own stored period — and files it as a real\nDocument on the case, internal folder by default (CLAUDE.md). The\nmanager-authority lawyer names the file at export time, same as\noffice_manager's equivalent admin_api route.",
+        "operationId": "export_narrative_pdf_cases__case_id__narratives__narrative_id__export_pdf_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "narrative_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Narrative Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportNarrativeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/cases/{case_id}/work-logs": {
@@ -1556,6 +1669,11 @@
           },
           "role": {
             "$ref": "#/components/schemas/UserRole"
+          },
+          "is_manager": {
+            "type": "boolean",
+            "title": "Is Manager",
+            "default": false
           }
         },
         "type": "object",
@@ -1788,6 +1906,22 @@
         ],
         "title": "DocumentResponse"
       },
+      "ExportNarrativeRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "ExportNarrativeRequest",
+        "description": "The manager-authority lawyer names the exported file at export\ntime, rather than it being auto-generated (CLAUDE.md's Narratives\nnote) — same as office_manager's equivalent authority in admin_api.\nThe .pdf extension is enforced server-side regardless of what's typed."
+      },
       "ForgotPasswordRequest": {
         "properties": {
           "email": {
@@ -1801,6 +1935,31 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "GenerateNarrativeRequest": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "language": {
+            "$ref": "#/components/schemas/NarrativeLanguage",
+            "default": "he"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "GenerateNarrativeRequest",
+        "description": "period_start/period_end are chosen by the manager-authority lawyer\nat generation time — real legal billing is period-by-period, not\nevery hour ever logged on the case (CLAUDE.md). No overlap-prevention\nagainst other narratives on the same case: re-covering a period\nalready billed is a legitimate correction, not an error."
       },
       "GenericMessageResponse": {
         "properties": {
@@ -1956,6 +2115,11 @@
           },
           "role": {
             "$ref": "#/components/schemas/UserRole"
+          },
+          "is_manager": {
+            "type": "boolean",
+            "title": "Is Manager",
+            "default": false
           }
         },
         "type": "object",
@@ -2449,6 +2613,11 @@
           },
           "role": {
             "$ref": "#/components/schemas/UserRole"
+          },
+          "is_manager": {
+            "type": "boolean",
+            "title": "Is Manager",
+            "default": false
           }
         },
         "type": "object",

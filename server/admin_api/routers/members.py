@@ -7,6 +7,7 @@ from admin_api.core.pagination import Page, PageParams
 from admin_api.schemas.auth import (
     MemberResponse,
     UpdateHourlyRateRequest,
+    UpdateManagerStatusRequest,
     UpdateMemberRoleRequest,
     UpdatePublicVisibilityRequest,
 )
@@ -32,6 +33,7 @@ def _to_member_response(membership: Membership, identity: Identity) -> MemberRes
         active=membership.active,
         show_on_public_page=membership.show_on_public_page,
         hourly_rate=membership.hourly_rate,
+        is_manager=membership.is_manager,
     )
 
 
@@ -203,6 +205,44 @@ def update_hourly_rate(
             tenant_id=tenant.id,
             user_id=office_manager.id,
             action="member_hourly_rate_changed",
+            target=f"membership:{membership.id}",
+        )
+    )
+    db.commit()
+    db.refresh(membership)
+
+    identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
+    return _to_member_response(membership, identity)
+
+
+@router.patch("/{membership_id}/manager-status", response_model=MemberResponse)
+def update_manager_status(
+    membership_id: int,
+    payload: UpdateManagerStatusRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Grant or revoke Memberships.is_manager (CLAUDE.md's Memberships
+    note) — deliberately separate from update_member_role's promote/
+    demote-to-office_manager action: this only grants case-oversight
+    authority (full case visibility + narrative generation in client_api),
+    never any firm-administration power. Lawyer-only, same "only
+    meaningful for lawyer memberships" gate already used for
+    hourly_rate/show_on_public_page.
+    """
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
+    if membership.role != UserRole.LAWYER:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MANAGER_STATUS_ONLY_FOR_LAWYERS)
+    if not membership.active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
+
+    membership.is_manager = payload.is_manager
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=office_manager.id,
+            action="member_manager_status_granted" if payload.is_manager else "member_manager_status_revoked",
             target=f"membership:{membership.id}",
         )
     )

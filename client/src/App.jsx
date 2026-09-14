@@ -14,21 +14,24 @@ import PublicHomePage from './pages/PublicHomePage'
 import HomePage from './pages/HomePage'
 import { apiFetch } from './api/client'
 import { isLobbyHost } from './utils/host'
-import { setStoredRole } from './api/session'
+import { setStoredIsManager, setStoredRole } from './api/session'
 
-// A lobby login redirect lands here carrying ?role=lawyer|client in the
-// URL — the tenant subdomain it lands on is a different origin from the
-// lobby, so it can't read anything the lobby page stored client-side
-// (CLAUDE.md's Multi-tenancy architecture). Read it once on mount, stash it
-// the same way a normal per-tenant login does, then strip it from the URL
-// so it doesn't linger in the address bar or get carried into a share link.
+// A lobby login redirect lands here carrying ?role=lawyer|client (and, for
+// a lawyer, ?is_manager=0|1) in the URL — the tenant subdomain it lands on
+// is a different origin from the lobby, so it can't read anything the
+// lobby page stored client-side (CLAUDE.md's Multi-tenancy architecture).
+// Read it once on mount, stash it the same way a normal per-tenant login
+// does, then strip it from the URL so it doesn't linger in the address bar
+// or get carried into a share link.
 function useLobbyRoleParam() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const role = params.get('role')
     if (!role) return
     setStoredRole(role)
+    setStoredIsManager(params.get('is_manager') === '1')
     params.delete('role')
+    params.delete('is_manager')
     const query = params.toString()
     window.history.replaceState({}, '', window.location.pathname + (query ? `?${query}` : ''))
   }, [])

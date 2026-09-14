@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import { clearStoredRole, setStoredRole } from './session'
+import { clearStoredIsManager, clearStoredRole, setStoredIsManager, setStoredRole } from './session'
 
 // A cheap "do I actually have access at this subdomain" check — 204 if so,
 // 403 (E.NO_ACCESS_TO_FIRM) otherwise. Used by AppShell to send a
@@ -28,6 +28,7 @@ export function register({ name, email, password }) {
 export async function login({ email, password }) {
   const session = await apiFetch('/auth/login', { method: 'POST', body: { email, password }, redirectOn401: false })
   setStoredRole(session.role)
+  setStoredIsManager(session.is_manager)
   return session
 }
 
@@ -59,6 +60,7 @@ export function updateProfile({ bio, photoUrl, yearsOfExperience }) {
 export async function logout() {
   await apiFetch('/auth/logout', { method: 'POST' })
   clearStoredRole()
+  clearStoredIsManager()
 }
 
 // Self-service "change my password" while logged in — every role, never an

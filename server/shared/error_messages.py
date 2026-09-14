@@ -81,6 +81,7 @@ INVITE_ALREADY_PENDING = "כבר קיימת הזמנה ממתינה עבור א�
 ROLE_CHANGE_ONLY_FOR_LAWYER_OR_MANAGER = "ניתן להחליף תפקיד רק בין עורך/ת דין למנהל/ת משרד"
 INVITE_NOT_PENDING = "ניתן לבטל רק הזמנות שממתינות למענה"
 HOURLY_RATE_ONLY_FOR_LAWYERS = "ניתן להגדיר תעריף שעתי רק לעורכי דין"
+MANAGER_STATUS_ONLY_FOR_LAWYERS = "ניתן להעניק סטטוס מנהל/ת רק לעורכי דין"
 
 # --- Subscriptions ---
 ALREADY_ON_THIS_PLAN = "המשרד כבר נמצא בתוכנית הזו"

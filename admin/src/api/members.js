@@ -33,3 +33,11 @@ export function updateMemberRole(membershipId, role) {
 export function updateHourlyRate(membershipId, hourlyRate) {
   return apiFetch(`/members/${membershipId}/hourly-rate`, { method: 'PATCH', body: { hourly_rate: hourlyRate } })
 }
+
+// Grant/revoke Memberships.is_manager (CLAUDE.md's Memberships note) —
+// case-oversight authority only (full case visibility + narrative
+// generation in client_api), never firm administration. Deliberately
+// separate from updateMemberRole's promote/demote-to-office_manager action.
+export function updateManagerStatus(membershipId, isManager) {
+  return apiFetch(`/members/${membershipId}/manager-status`, { method: 'PATCH', body: { is_manager: isManager } })
+}

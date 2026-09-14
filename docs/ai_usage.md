@@ -4443,3 +4443,71 @@ export filename, a plain assigned lawyer and a client are both rejected,
 and the cross-app consistency check described above) — 34/34 pass
 across `test_manager_flag.py` + the two narrative test files it touched
 + `test_narratives_admin.py` (confirming admin_api's side is untouched).
+
+**Item 4 — admin UI + full loop**: new `PATCH /members/{id}/manager-
+status` (office_manager-only, lawyer-only target, separate endpoint and
+separate audit-log action from the existing role-promotion route — never
+touches `role`). Admin's `RoleMembersPanel` (shared by all three per-role
+member pages) gained a "מנהל/ת תיקים" checkbox column, lawyer-page only,
+next to but independent of the existing "קידום למנהל/ת" (promote-to-
+office_manager) action.
+
+Wiring the client/ UI up properly turned out to be the bulk of this
+item's real work, beyond what the spec's four bullets state outright:
+client/'s `NarrativesPanel` needed to know *this browser's own*
+`is_manager` status to decide whether to render the generate/export
+controls at all, and nothing already handed that to the frontend — role
+travels from login to the frontend via a `?role=` query param across the
+lobby→tenant-subdomain redirect (different origins, `sessionStorage`
+doesn't carry over) specifically because CLAUDE.md's own architecture
+puts the lobby on a different origin from every tenant subdomain. Traced
+that mechanism through `SessionResponse`/`LobbyTenantOption`/
+`AcceptInviteResponse` (three separate places `role` already flows
+through) and added `is_manager` alongside it in all three, then mirrored
+the same `sessionStorage` stash/read pattern client/ already uses for
+role (`api/session.js`: `setStoredIsManager`/`getStoredIsManager`).
+Also had to restore the `documentsRefreshSignal` plumbing (client/'s
+`DocumentsPanel` + `CaseDetailPage`) that the *previous* session removed
+as dead code when narrative export left client_api entirely — it's real
+again now that export can happen from client/ once more, for a manager-
+authority lawyer specifically.
+
+**Live verification, three roles, real browser (Playwright), real dev
+DB** — not just the automated tests:
+- **Manager-flagged lawyer** (granted via the new admin UI toggle,
+  confirmed via a fresh screenshot the checkbox actually reflects true):
+  case list went from the account's real assignment count to all 9 cases
+  at the tenant; opened a case with zero assignment for this lawyer,
+  confirmed the "+ יצירת נרטיב חדש" button now renders (it didn't before
+  this session, by design — client/'s narrative UI was read-only-only
+  after last session's office_manager-only draft); generated and
+  exported a narrative through it (both requests hit port 8000 —
+  client_api, not admin_api), confirmed the resulting PDF shows up under
+  the exact typed filename in the case's internal-documents tab.
+- **office_manager**: confirmed the full 9-case oversight list is
+  unaffected, and generated a narrative through admin_api's existing
+  route on the same case the plain lawyer (below) is assigned to,
+  confirming nothing regressed.
+- **Plain lawyer, no flag** (`narrtest.lawyer@example.com`, password
+  reset through the real self-service forgot-password + dev-outbox flow
+  since the original wasn't known): case list showed exactly their 1
+  real assignment, not 9; opened that case and confirmed zero "+ יצירת
+  נרטיב חדש" buttons — the read-only narrative view (existing history,
+  no generate/export controls) rendered correctly instead.
+
+All throwaway narratives/documents created for this verification pass
+were deleted from the dev DB afterward (including the on-disk files, via
+`shared.storage.delete_file`) — the granted `is_manager` flag on
+`lior.lawyer@example.com` was left in place, since it's a legitimate
+config state rather than test debris (same call as last session leaving
+that account's `hourly_rate` set).
+
+Added the remaining 6 `test_manager_flag.py` tests for this item
+(grant/revoke, lawyer-only-target rejection, self-grant rejection,
+confirming the toggle never touches `role`, and office_manager's own
+capabilities unaffected) — 37/37 pass across `test_manager_flag.py` +
+`test_members_admin.py` + `test_member_role_and_leave.py`. Full
+`server/tests/` suite: **290/290 pass** (run once, after every item was
+code-complete but before any of the four commits, so a fresh full-suite
+number wasn't needed per commit — each item's own commit message states
+the narrower slice actually re-run for that change).
