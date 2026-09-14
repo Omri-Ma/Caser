@@ -4313,3 +4313,43 @@ never a standalone top-level screen, only ever a per-case panel. Removed
 outright rather than leaving a permanently-disabled "coming soon" item
 for something not actually planned. Verified live: sidebar now shows
 only תיקים / ייבוא שעות מאקסל / פרופיל אישי.
+
+**Item 9 — client visual spacing** (commit `f3bbadb`): took screenshots
+first, as instructed, rather than guessing — and specifically on a case
+with real content (work logs, an assigned lawyer) rather than an empty
+one, since an empty state's natural whitespace could otherwise be
+mistaken for a bug. Measured actual rendered box positions
+(`boundingBox()`) rather than eyeballing pixel gaps off a screenshot,
+which is what actually caught the first issue: `.detail-columns` (the
+Documents+WorkHours row, and separately the Narrative row below it) had
+no `margin-bottom` at all, so the two sat flush against each other with
+zero gap while every other section on the page had a consistent
+~12-20px rhythm — invisible without actually measuring, since 0px isn't
+obviously wrong the way a negative margin or overlap would be. Fixed
+with `margin-bottom: 20px`, cleared via `:last-child` so a case with no
+narrative section rendered doesn't gain trailing empty space.
+
+Second issue, `ProfilePage`: `.profile-card` was capped at
+`max-width: 420px` — identical to `Modal.css`'s dialog width, which
+made "copied from the modal component" the likely origin rather than a
+deliberate choice for a full standalone page. At the 1300px width used
+throughout this session's verification, the form used barely a third of
+the available width. Widened to 640px, matching `HomePage`'s own
+established content max-width (a real precedent already in this
+codebase) rather than picking an arbitrary number or removing the cap
+entirely (admin's equivalent settings page has no cap at all, but
+admin/client are deliberately different designs per CLAUDE.md, so that
+wasn't assumed to be the right target either). Verified both fixes with
+fresh screenshots after rebuilding.
+
+**Session wrap-up**: all 9 numbered items done, each committed
+separately. Docs (OpenAPI/Postman/ERD) re-regenerated after the last
+content change and committed (the Postman collections' JSON key
+ordering is non-deterministic between runs of the conversion tool —
+that diff alone, with no endpoint content actually changed, was its own
+commit). Full `server/tests/` suite re-run one final time after every
+item was in place, in the background while this entry was written —
+whatever it reports lands in its own follow-up commit if anything
+needed fixing, or is simply confirmed clean if not. Per the session's
+own instructions: branch not pushed, no PR opened — stopping here for
+review.
