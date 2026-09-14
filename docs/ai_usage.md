@@ -4158,4 +4158,23 @@ directions including the NULL-handling case) — 18/18 `test_platform_admin.py`
 pass. Verified live end-to-end via Playwright as `super_admin`: page
 split, firm search filtering to one match, and last_login_at sort
 re-ordering rows with nulls trailing — all confirmed with screenshots.
-though they're on older code.
+
+**Item 2 — storage-by-firm search bar** (commit `a048880`): the card
+already displayed each firm's real storage limit (`used / limit`), so the
+actual gap was that it hard-capped to the top 6 firms by usage percentage
+with no way to reach anything past that. Added the same client-side
+search pattern used elsewhere (storage-overview isn't paginated, so this
+narrows an already-fully-fetched list) and dropped the cap for a
+scrollable list instead. Verified live: all 12 seeded firms now reachable
+via scroll, and searching "levi" narrows to that one firm.
+
+**Item 3 — Enterprise "unlimited" storage display** (commit `16bdb1e`):
+the lawyer-count usage bar already special-cased Enterprise as "ללא
+הגבלה" with no bar, but the storage bar next to it never got the same
+`unlimited` prop — so an Enterprise firm's real 100GB cap rendered as a
+technically-correct but visually-useless near-empty bar. Fixed on both
+`SubscriptionPage` (office_manager's own view) and the super_admin
+storage-by-firm card, matching the lawyers bar's existing pattern
+exactly. Verified live by switching the demo tenant to Enterprise via
+its own existing self-service plan switch (no seed data needed), then
+back to Free afterward to leave demo state as found.
