@@ -6,7 +6,7 @@ from admin_api.core.file_validation import MAX_IMPORT_FILE_SIZE_BYTES, is_xlsx_f
 from admin_api.schemas.work_log_import import WorkLogImportErrorResponse, WorkLogImportResponse
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import AuditLog, Case, Membership, Tenant, WorkLog
+from shared.models import AuditLog, Case, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 from shared.tenant import get_current_tenant
 from shared.worklog_import import build_template_workbook, parse_and_validate_import
@@ -35,7 +35,19 @@ def download_import_template(
         .order_by(Case.title)
         .all()
     )
-    content = build_template_workbook(cases, include_lawyer_email=True)
+    lawyer_emails = [
+        email
+        for (email,) in db.query(Identity.email)
+        .join(Membership, Membership.identity_id == Identity.id)
+        .filter(
+            Membership.tenant_id == tenant.id,
+            Membership.role == UserRole.LAWYER,
+            Membership.active.is_(True),
+        )
+        .order_by(Identity.email)
+        .all()
+    ]
+    content = build_template_workbook(cases, include_lawyer_email=True, lawyer_emails=lawyer_emails)
     return Response(
         content=content,
         media_type=XLSX_MEDIA_TYPE,

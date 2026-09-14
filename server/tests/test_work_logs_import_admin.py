@@ -6,7 +6,7 @@ from conftest import auth_for, make_assignment, make_case, make_identity, make_m
 from shared.models import AuditLog, WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 
-HEADER = ["אימייל עורך/ת דין", "תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
+HEADER = ["אימייל עורך/ת דין", "תיק", "תאריך (DD/MM/YYYY)", "שעות", "תיאור"]
 
 
 def _office_manager(db, tenant):
@@ -64,6 +64,76 @@ def test_download_template_lists_every_open_case_and_has_email_column(admin_clie
     assert not any("Case B" in opt for opt in options)
 
 
+def test_download_template_lists_active_lawyer_emails(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id, title="Case A")
+    manager_identity, _ = _office_manager(db, tenant)
+    _lawyer_on_case(db, tenant, case, email="active@acme.com")
+    inactive_identity, inactive_membership = _lawyer_on_case(db, tenant, case, email="inactive@acme.com", name="Inactive")
+    inactive_membership.active = False
+    db.commit()
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.get("/work-logs/import/template", headers=headers, cookies=cookies)
+
+    from openpyxl import load_workbook
+
+    workbook = load_workbook(BytesIO(resp.content))
+    lawyer_emails = [cell[0] for cell in workbook["Lawyers"].iter_rows(values_only=True)]
+    assert "active@acme.com" in lawyer_emails
+    assert "inactive@acme.com" not in lawyer_emails
+
+
+def test_bulk_import_rejects_exact_duplicate_row_within_file(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id, title="Case A")
+    manager_identity, _ = _office_manager(db, tenant)
+    _lawyer_on_case(db, tenant, case)
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    content = _build_xlsx(
+        [
+            ["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "3", "Same entry"],
+            ["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "3", "Same entry"],
+        ]
+    )
+
+    resp = _upload(admin_client, content, headers, cookies)
+
+    assert resp.status_code == 422
+    assert "Duplicate" in resp.json()["row_errors"][0]["message"]
+    assert db.query(WorkLog).filter(WorkLog.tenant_id == tenant.id).count() == 0
+
+
+def test_bulk_import_rejects_row_duplicating_existing_work_log(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id, title="Case A")
+    manager_identity, _ = _office_manager(db, tenant)
+    _lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    from datetime import date
+
+    db.add(
+        WorkLog(
+            tenant_id=tenant.id,
+            case_id=case.id,
+            lawyer_id=lawyer_membership.id,
+            date=date(2026, 9, 1),
+            hours="3",
+            description="Historical entry",
+            source=WorkLogSource.MANUAL,
+        )
+    )
+    db.commit()
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "3", "Historical entry"]])
+
+    resp = _upload(admin_client, content, headers, cookies)
+
+    assert resp.status_code == 422
+    assert "already exists" in resp.json()["row_errors"][0]["message"]
+
+
 def test_bulk_import_creates_work_logs_and_audits_the_import(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id, title="Case A")
@@ -71,7 +141,7 @@ def test_bulk_import_creates_work_logs_and_audits_the_import(admin_client, db):
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(manager_identity, "acme")
 
-    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "2026-09-01", "3", "Historical entry"]])
+    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "3", "Historical entry"]])
 
     resp = _upload(admin_client, content, headers, cookies)
 
@@ -93,7 +163,7 @@ def test_bulk_import_rejects_unknown_lawyer_email(admin_client, db):
     manager_identity, _ = _office_manager(db, tenant)
     headers, cookies = auth_for(manager_identity, "acme")
 
-    content = _build_xlsx([["nobody@acme.com", f"{case.id} - Case A", "2026-09-01", "2", None]])
+    content = _build_xlsx([["nobody@acme.com", f"{case.id} - Case A", "01/09/2026", "2", None]])
 
     resp = _upload(admin_client, content, headers, cookies)
 
@@ -112,7 +182,7 @@ def test_bulk_import_rejects_lawyer_from_another_tenant(admin_client, db):
     other_case = make_case(db, tenant_b.id, title="Other Firm Case")
     _lawyer_on_case(db, tenant_b, other_case, email="cross-tenant@beta.com")
 
-    content = _build_xlsx([["cross-tenant@beta.com", f"{case_a.id} - Case A", "2026-09-01", "2", None]])
+    content = _build_xlsx([["cross-tenant@beta.com", f"{case_a.id} - Case A", "01/09/2026", "2", None]])
 
     resp = _upload(admin_client, content, headers, cookies)
 
@@ -129,7 +199,7 @@ def test_bulk_import_rejects_inactive_lawyer(admin_client, db):
     db.commit()
     headers, cookies = auth_for(manager_identity, "acme")
 
-    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "2026-09-01", "2", None]])
+    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "2", None]])
 
     resp = _upload(admin_client, content, headers, cookies)
 
@@ -143,7 +213,7 @@ def test_lawyer_cannot_use_admin_bulk_import(admin_client, db):
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "2026-09-01", "2", None]])
+    content = _build_xlsx([["lawyer@acme.com", f"{case.id} - Case A", "01/09/2026", "2", None]])
 
     resp = _upload(admin_client, content, headers, cookies)
 

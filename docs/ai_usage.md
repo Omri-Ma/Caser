@@ -3356,3 +3356,107 @@ proper project run-skill later; didn't do that myself to stay focused on the
   committed — this repo doesn't have a convention for storing ad hoc
   verification screenshots, and README screenshots are handled separately
   per CLAUDE.md's delivery requirements).
+
+**Item 2 — Narratives language/period + Hebrew RTL PDF**:
+- `Narratives` gains `language` (he/en, default HE) and `period_start`/
+  `period_end` columns (migration `f6a7b8c9d0e1` — added nullable, backfilled
+  existing rows to `HE` + a period ending at their `created_at`, then made
+  NOT NULL, since the dev DB already had narrative rows from before this
+  feature). `compute_case_totals` now sums only WorkLogs inside the chosen
+  period instead of the case's whole history, per CLAUDE.md.
+- **Font sourcing judgment call**: CLAUDE.md asks for "a font that actually
+  contains Hebrew glyphs embedded in the PDF" without naming one, and no
+  font file existed anywhere in the repo. Fetched Google Fonts' **Alef**
+  (SIL Open Font License — legally embeddable/redistributable, unlike
+  copying a Windows system font such as Arial) as static Regular+Bold TTFs
+  from the `google/fonts` GitHub repo, under `server/shared/fonts/`. Tried
+  Noto Sans Hebrew first but it's shipped there only as a variable font,
+  which reportlab's `TTFont` doesn't handle correctly — switched to Alef's
+  static instances instead of fighting that.
+- **RTL layout**: reportlab has no bidi/shaping support at all. Added
+  `python-bidi` (small, actively maintained, MIT-licensed) and run every
+  line through `get_display()` (the Unicode Bidi Algorithm) immediately
+  before drawing — this reorders Hebrew runs right-to-left while leaving
+  embedded numbers/dates in their correct reading order, then draws
+  right-aligned from the page's right margin. Word-wrapping happens on the
+  *logical* (pre-bidi) string; bidi reordering is applied per finished line,
+  right before the draw call — doing it any earlier would wrap on the wrong
+  (visual) character order.
+- Currency is now plain text everywhere it's rendered — `generated_text`,
+  the PDF, and the client UI's narrative panel — never the ₪ glyph, per
+  CLAUDE.md. Wrote genuinely separate Hebrew and English narrative
+  templates (not just a currency-token swap) since CLAUDE.md calls `he`
+  "real work, not just template text swapped in" and that reads as
+  applying to the wording, not only the font.
+- Client UI: `NarrativesPanel` gets an inline generation form (period
+  start/end date inputs + a he/en select) in place of the old single-click
+  "generate" button.
+- Tests: extended `test_narratives_client.py` for the now-required request
+  body, added `test_narrative_period_and_language.py` (period filtering,
+  currency-text assertions for both languages, a direct unit test on
+  `build_narrative_pdf` confirming the Alef font is actually embedded in
+  the PDF bytes, not silently falling back to Helvetica).
+- **Verified live**: created a throwaway QA lawyer membership directly in
+  the dev DB (no seeded lawyer account existed with a known password),
+  assigned it to a real demo-tenant case, logged work hours, generated a
+  Hebrew narrative through the real UI against the running dev stack,
+  exported it to PDF, then pulled the actual PDF file out of the
+  `client_api` container's storage volume and rasterized it (PyMuPDF) to
+  visually inspect it — real Hebrew glyphs, correct RTL layout, numbers/
+  dates staying in correct left-to-right order inside RTL sentences, no ₪
+  glyph anywhere. **Found via that check, not by reasoning about the
+  code**: the demo case's own title renders as literal `?????` in the PDF —
+  traced to the actual bytes in MySQL (`HEX(title)` is literally `3F3F3F…`,
+  the ASCII `?` character), meaning that specific case title was already
+  corrupted at the byte level before this session touched anything (some
+  earlier dev/test insert lost its Hebrew encoding on the way into MySQL).
+  Confirmed this isn't a font/rendering bug: my own template text, written
+  directly as proper UTF-8 in the Python source, renders with correct
+  glyphs throughout the same PDF. Left the stale row as-is (out of this
+  session's scope, same call as the earlier stale-`logo_url` cleanup
+  logged above) rather than silently "fixing" unrelated dev data.
+- **Environment note**: no `chromium-cli` in this shell (see the session
+  header above) — used a hand-rolled Playwright script instead, same
+  verification bar.
+
+**Item 3 — Excel bulk import polish**:
+- Office_manager's bulk-import template gets a real lawyer-email **dropdown**
+  (a hidden `Lawyers` sheet + list `DataValidation`, same mechanism the
+  existing Case dropdown already uses) sourced from the tenant's currently
+  active lawyers — a typo'd or made-up email can no longer even be entered,
+  matching the reasoning CLAUDE.md already gives for the Case dropdown.
+- Date format switched from `YYYY-MM-DD` to **DD/MM/YYYY** in both the
+  template header label, the cell number format, and the parser
+  (`_parse_date`) — CLAUDE.md's Israeli-firm context makes DD/MM/YYYY the
+  locale-correct choice; updated every existing test's fixture dates to
+  match.
+- **Exact-duplicate-row detection**, checked two ways: within the same
+  file (a `seen_in_file` dict keyed on lawyer+case+date+hours+description,
+  keeping the file the sole source of truth for what "the same row" means)
+  and against already-persisted `WorkLogs` (a matching DB query on the same
+  key). Either match rejects the row with a row-numbered error — consistent
+  with CLAUDE.md's existing "reject the whole file, report which row and
+  why" rule, just one more validation reason among the existing ones.
+- **Frontend spacing bug**: `.form-error-banner` (the shared error-banner
+  component both apps' `Form.jsx` render) only ever defined `margin-bottom`,
+  never `margin-top` — fine wherever something already provided space above
+  it, but on the Excel-import page the banner sits directly under the
+  "בחירת קובץ לייבוא" action button with nothing between them. Fixed
+  page-locally (`.work-log-import-card .form-error-banner { margin-top }`)
+  rather than adding a global top margin to the shared component, since a
+  global change risked shifting spacing on every other screen that already
+  looks correct today. Same page/CSS file exists in both `admin/` and
+  `client/` (each app's own copy, per CLAUDE.md's no-shared-frontend rule) —
+  fixed both.
+- Tests: new dropdown-content test (active lawyer emails present, inactive
+  ones excluded) and duplicate-detection tests (within-file and
+  against-existing-WorkLog) added to both the admin bulk-import and
+  client self-import test files; every existing test's date literals
+  updated to DD/MM/YYYY.
+- **Verified live**: as the same QA lawyer, opened `/work-logs/import` in
+  the real running client app — page loads, zero console errors. Full
+  upload-a-real-.xlsx-and-see-it-import round trip wasn't separately
+  screenshotted this item (the underlying parse/validate/persist path is
+  the same code exercised end-to-end by the pytest suite above, including
+  through the real multipart upload); the visual/DOM check covered what
+  pytest can't — the page actually renders with no console errors.
