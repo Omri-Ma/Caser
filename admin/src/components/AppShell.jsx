@@ -117,6 +117,12 @@ export default function AppShell({ activeKey, children }) {
   // other firm to choose from" case (see below) — everything else is a
   // straight redirect, no UI of its own needed.
   const [otherTenants, setOtherTenants] = useState(null)
+  // Every *other* active firm this office_manager also manages — powers the
+  // multi-firm switcher dropdown (CLAUDE.md's Identity vs. membership: one
+  // person can hold this role at more than one firm). Loaded best-effort,
+  // after the real shell is already showing — never worth blocking render.
+  const [switcherTenants, setSwitcherTenants] = useState([])
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -137,6 +143,11 @@ export default function AppShell({ activeKey, children }) {
           if (!cancelled) {
             setTenant(t)
             setIdentity(id)
+            myTenants()
+              .then((tenants) => {
+                if (!cancelled) setSwitcherTenants(tenants.filter((other) => other.subdomain !== t.subdomain))
+              })
+              .catch(() => {})
           }
           return
         } catch (err) {
@@ -257,6 +268,31 @@ export default function AppShell({ activeKey, children }) {
                   <div className="topbar-tenant-logo-placeholder">{tenant.name.trim().slice(0, 2)}</div>
                 )}
                 <span className="topbar-tenant-name">{tenant.name}</span>
+                {switcherTenants.length > 0 && (
+                  <div className="tenant-switcher">
+                    <button
+                      type="button"
+                      className="tenant-switcher-toggle"
+                      onClick={() => setSwitcherOpen((open) => !open)}
+                      title="מעבר בין משרדים"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {switcherOpen && (
+                      <ul className="tenant-switcher-menu">
+                        {switcherTenants.map((t) => (
+                          <li key={t.tenant_id}>
+                            <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
+                              {t.firm_name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <div className="topbar-user">

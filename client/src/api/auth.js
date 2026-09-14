@@ -9,6 +9,12 @@ export function checkMyMembership() {
   return apiFetch('/auth/my-membership')
 }
 
+// Every other active firm this identity works with, as a lawyer or client —
+// powers the multi-firm switcher (CLAUDE.md's Identity vs. membership).
+export function myTenants() {
+  return apiFetch('/auth/my-tenants')
+}
+
 // Self-service "leave this firm" — deactivates the caller's own membership
 // at the current tenant subdomain (CLAUDE.md's Memberships note).
 export function leaveFirm() {

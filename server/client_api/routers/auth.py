@@ -51,6 +51,26 @@ def _to_identity_response(identity: Identity) -> IdentityResponse:
     )
 
 
+def _lawyer_client_tenants(identity: Identity, db: Session):
+    """Every active lawyer/client Membership this identity holds, at active
+    tenants — shared by /auth/lobby-login (unauthenticated) and
+    /auth/my-tenants below (already-authenticated, used by the multi-firm
+    switcher and the no-access redirect check) so both resolve "which
+    firms does this person work with" identically.
+    """
+    return (
+        db.query(Membership, Tenant)
+        .join(Tenant, Membership.tenant_id == Tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.role.in_([UserRole.LAWYER, UserRole.CLIENT]),
+            Membership.active.is_(True),
+            Tenant.active.is_(True),
+        )
+        .all()
+    )
+
+
 @router.post("/register", response_model=IdentityResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     """Create a bare global account. Used two ways: a lawyer/client
@@ -132,17 +152,7 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     if identity is None or not verify_password(payload.password, identity.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
-    memberships = (
-        db.query(Membership, Tenant)
-        .join(Tenant, Membership.tenant_id == Tenant.id)
-        .filter(
-            Membership.identity_id == identity.id,
-            Membership.role.in_([UserRole.LAWYER, UserRole.CLIENT]),
-            Membership.active.is_(True),
-            Tenant.active.is_(True),
-        )
-        .all()
-    )
+    memberships = _lawyer_client_tenants(identity, db)
     pending_invites = (
         db.query(MembershipInvite, Tenant)
         .join(Tenant, MembershipInvite.tenant_id == Tenant.id)
@@ -218,6 +228,21 @@ def logout(
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
     return _to_identity_response(identity)
+
+
+@router.get("/my-tenants", response_model=list[LobbyTenantOption])
+def my_tenants(identity: Identity = Depends(get_current_identity), db: Session = Depends(get_db)):
+    """Every other active firm this identity works with, as a lawyer or
+    client — backs the multi-firm switcher in the authenticated app shell
+    (CLAUDE.md: one person can hold a lawyer/client membership at more than
+    one firm). Tenant-agnostic on purpose, same shape as admin_api's own
+    /auth/my-tenants.
+    """
+    memberships = _lawyer_client_tenants(identity, db)
+    return [
+        LobbyTenantOption(tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role)
+        for membership, tenant in memberships
+    ]
 
 
 @router.get("/my-membership", status_code=status.HTTP_204_NO_CONTENT)

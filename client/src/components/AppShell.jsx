@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { me, logout, checkMyMembership } from '../api/auth'
+import { me, logout, checkMyMembership, myTenants } from '../api/auth'
 import { getStoredRole } from '../api/session'
-import { lobbyHomeUrl, lobbyLoginUrl } from '../utils/host'
+import { lobbyHomeUrl, lobbyLoginUrl, redirectToTenant } from '../utils/host'
+import InvitesInbox from './InvitesInbox'
 import './AppShell.css'
 
 function navItems(role) {
@@ -63,6 +64,11 @@ export default function AppShell({ activeKey, children }) {
   const [identity, setIdentity] = useState(null)
   const [checking, setChecking] = useState(true)
   const items = useMemo(() => navItems(getStoredRole()), [identity])
+  // Every *other* active firm this identity also works with, as a lawyer
+  // or client (CLAUDE.md's Identity vs. membership) — powers the multi-firm
+  // switcher. Loaded best-effort, after the shell already renders.
+  const [switcherTenants, setSwitcherTenants] = useState([])
+  const [switcherOpen, setSwitcherOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +93,15 @@ export default function AppShell({ activeKey, children }) {
           }
           return
         }
-        if (!cancelled) setIdentity(id)
+        if (!cancelled) {
+          setIdentity(id)
+          const currentSubdomain = window.location.hostname.split('.')[0]
+          myTenants()
+            .then((tenants) => {
+              if (!cancelled) setSwitcherTenants(tenants.filter((t) => t.subdomain !== currentSubdomain))
+            })
+            .catch(() => {})
+        }
       })
       // A hard, cross-origin redirect, not react-router navigation — this
       // tenant subdomain has no /login of its own anymore, lawyer/client
@@ -156,8 +170,34 @@ export default function AppShell({ activeKey, children }) {
           <div className="topbar-user">
             <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
             <div className="user-name">{identity.name}</div>
+            {switcherTenants.length > 0 && (
+              <div className="tenant-switcher">
+                <button
+                  type="button"
+                  className="tenant-switcher-toggle"
+                  onClick={() => setSwitcherOpen((open) => !open)}
+                  title="מעבר בין משרדים"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {switcherOpen && (
+                  <ul className="tenant-switcher-menu">
+                    {switcherTenants.map((t) => (
+                      <li key={t.tenant_id}>
+                        <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
+                          {t.firm_name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
           <div className="topbar-actions">
+            <InvitesInbox />
             <a href={lobbyHomeUrl()} className="topbar-home-link">
               לדף הבית של Caser
             </a>
