@@ -106,3 +106,48 @@ def test_plain_lawyer_cannot_export_narrative_pdf(client_client, db):
     )
 
     assert resp.status_code == 403
+
+
+def test_manager_lawyer_sees_rate_check_warning_read_only(client_client, db):
+    """client_api's mirror of admin_api's rate-check route — same
+    unset/zero-rate detection, read-only here since hourly_rate is
+    office_manager-set only (CLAUDE.md). A manager-authority lawyer can see
+    the warning even though only office_manager can act on it.
+    """
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity = make_identity(db, "manager-lawyer@acme.com", "Manager Lawyer")
+    manager_membership = make_membership(db, manager_identity.id, tenant.id, UserRole.LAWYER)
+    manager_membership.is_manager = True
+    db.commit()
+    unrated_identity = make_identity(db, "unrated@acme.com", "Unrated Lawyer")
+    unrated_membership = make_membership(db, unrated_identity.id, tenant.id, UserRole.LAWYER)
+    make_work_log(db, tenant.id, case.id, unrated_membership.id, hours="1.0")
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = client_client.get(
+        f"/cases/{case.id}/narratives/rate-check",
+        params={"period_start": "2000-01-01", "period_end": "2100-01-01"},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    names = {row["name"] for row in resp.json()}
+    assert names == {"Unrated Lawyer"}
+
+
+def test_plain_lawyer_cannot_use_rate_check(client_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    resp = client_client.get(
+        f"/cases/{case.id}/narratives/rate-check",
+        params={"period_start": "2000-01-01", "period_end": "2100-01-01"},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 403

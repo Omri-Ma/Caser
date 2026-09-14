@@ -18,21 +18,25 @@ function navItems(role) {
         <path d="M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V6z" />
       ),
     },
-    {
-      key: 'hours',
-      label: 'ייבוא שעות מאקסל',
-      // WorkLogs are never client-visible (CLAUDE.md) — only a lawyer gets a
-      // real path here; a client sees the same disabled "coming soon" state
-      // the whole nav uses for not-yet-built items, since this screen would
-      // just 403 them.
-      path: role === 'lawyer' ? '/work-logs/import' : undefined,
-      icon: (
-        <>
-          <circle cx="12" cy="12" r="8.5" />
-          <path d="M12 7.5V12l3 2" />
-        </>
-      ),
-    },
+    // WorkLogs are never client-visible at all (CLAUDE.md) — unlike a
+    // not-yet-built feature, this isn't a "coming soon" for a client, so it
+    // isn't shown as a disabled nav item for them either; it's filtered out
+    // entirely below, only a lawyer ever sees this in the list.
+    ...(role === 'lawyer'
+      ? [
+          {
+            key: 'hours',
+            label: 'ייבוא שעות מאקסל',
+            path: '/work-logs/import',
+            icon: (
+              <>
+                <circle cx="12" cy="12" r="8.5" />
+                <path d="M12 7.5V12l3 2" />
+              </>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'profile',
       label: 'פרופיל אישי',
@@ -244,6 +248,10 @@ export default function AppShell({ activeKey, children }) {
               לדף הבית של Caser
             </a>
             <button type="button" className="topbar-logout" onClick={handleLogout}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M15 4.5H8a2 2 0 00-2 2v11a2 2 0 002 2h7" strokeLinecap="round" />
+                <path d="M10 12h10.5M17.5 8.5L21 12l-3.5 3.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
               התנתקות
             </button>
           </div>

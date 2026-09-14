@@ -86,7 +86,7 @@ export default function PublicHomePage() {
           {profile.name}
         </h1>
 
-        <p className="public-home-about">{profile.about || 'המשרד טרם הוסיף תיאור.'}</p>
+        {profile.about && <p className="public-home-about">{profile.about}</p>}
 
         {connected ? (
           <Link to="/cases" className="primary-button public-home-signin">

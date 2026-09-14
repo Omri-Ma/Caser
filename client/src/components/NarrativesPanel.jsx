@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FormError, FormField } from './Form'
 import DateInput from './DateInput'
-import { exportNarrativePdf, generateNarrative, listNarratives } from '../api/narratives'
+import { checkMissingRates, exportNarrativePdf, generateNarrative, listNarratives } from '../api/narratives'
 import { formatDate } from '../utils/format'
 import './NarrativesPanel.css'
 
@@ -52,6 +52,12 @@ export default function NarrativesPanel({ caseId, caseTitle, isManager, onDocume
   const [filenameDraft, setFilenameDraft] = useState('')
   const [exporting, setExporting] = useState(false)
 
+  // Same warning admin_api's NarrativesPanel shows — read-only here, since
+  // hourly_rate is office_manager-set only (CLAUDE.md's Memberships note):
+  // a manager-authority lawyer sees who's missing a rate but has to ask the
+  // office manager to fix it, rather than editing it from client_api.
+  const [missingRates, setMissingRates] = useState([])
+
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
@@ -64,6 +70,17 @@ export default function NarrativesPanel({ caseId, caseTitle, isManager, onDocume
   useEffect(() => {
     load()
   }, [load])
+
+  useEffect(() => {
+    if (!formOpen || !isManager) return
+    if (!draft.periodStart || !draft.periodEnd || draft.periodEnd < draft.periodStart) {
+      setMissingRates([])
+      return
+    }
+    checkMissingRates(caseId, draft.periodStart, draft.periodEnd)
+      .then(setMissingRates)
+      .catch(() => setMissingRates([]))
+  }, [formOpen, isManager, caseId, draft.periodStart, draft.periodEnd])
 
   function openForm() {
     setActionError(null)
@@ -137,6 +154,26 @@ export default function NarrativesPanel({ caseId, caseTitle, isManager, onDocume
               <option value="en">English</option>
             </select>
           </FormField>
+
+          {missingRates.length > 0 && (
+            <div className="narrative-rate-warning">
+              <div className="narrative-rate-warning-title">
+                לעורכי/ות הדין הבאים אין תעריף שעתי מוגדר (או תעריף אפס) בתקופה זו — שעותיהם ייכללו בסה"כ השעות אך לא
+                יתומחרו בשכר הטרחה. יש לפנות למנהל/ת המשרד לעדכון התעריף:
+              </div>
+              <ul className="narrative-rate-warning-list">
+                {missingRates.map((lawyer) => (
+                  <li key={lawyer.membership_id} className="narrative-rate-warning-row">
+                    <span>
+                      {lawyer.name}
+                      {!lawyer.active && ' (הוסר/ה מהצוות)'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {actionError && <FormError message={actionError} />}
           <div className="work-hours-form-actions">
             <button type="submit" className="secondary-button" disabled={generating}>

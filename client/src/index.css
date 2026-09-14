@@ -146,7 +146,12 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin: var(--space-3) 0 0;
+  /* bottom margin too, not just top — RegisterPage.jsx's post-registration
+     invite screen puts a "המשך" button directly after this list with no
+     element in between, so without it the button touched the last invite
+     row. LobbyLoginPage.jsx's own usage already had an intervening <p>
+     supplying its own top margin, which is why this went unnoticed there. */
+  margin: var(--space-3) 0;
   padding: 0;
 }
 

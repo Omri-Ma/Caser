@@ -1,15 +1,23 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from datetime import date
+
 from client_api.core.case_access import get_assigned_case, require_manager_lawyer
 from client_api.core.pagination import Page, PageParams, paginate
 from client_api.schemas.documents import DocumentResponse
-from client_api.schemas.narratives import ExportNarrativeRequest, GenerateNarrativeRequest, NarrativeResponse
+from client_api.schemas.narratives import ExportNarrativeRequest, GenerateNarrativeRequest, MissingRateLawyer, NarrativeResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Document, Identity, Membership, Narrative, Tenant
 from shared.models.enums import DocumentFolderType, UserRole
-from shared.narratives import build_narrative_pdf, compute_case_totals, generate_narrative_text, get_case_work_logs_in_period
+from shared.narratives import (
+    build_narrative_pdf,
+    compute_case_totals,
+    generate_narrative_text,
+    get_case_work_logs_in_period,
+    get_lawyers_with_missing_rates,
+)
 from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
 from shared.storage import save_file
@@ -31,6 +39,23 @@ def _get_case_narrative(case_id: int, narrative_id: int, tenant: Tenant, db: Ses
     if narrative.case_id != case_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.NARRATIVE_NOT_FOUND)
     return narrative
+
+
+@router.get("/rate-check", response_model=list[MissingRateLawyer])
+def check_missing_rates(
+    case_id: int,
+    period_start: date,
+    period_end: date,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    membership: Membership = Depends(require_manager_lawyer),
+):
+    """Same check as admin_api's equivalent route — read-only here, since
+    hourly_rate is office_manager-set only (CLAUDE.md): a manager-authority
+    lawyer sees the warning but can't fix it from client_api.
+    """
+    case = get_assigned_case(case_id, tenant, membership, db)
+    return get_lawyers_with_missing_rates(case.id, tenant.id, db, period_start, period_end)
 
 
 @router.get("", response_model=Page[NarrativeResponse])

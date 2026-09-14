@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FormError, FormField } from './Form'
 import DateInput from './DateInput'
-import { exportNarrativePdf, generateNarrative, listNarratives } from '../api/narratives'
+import { checkMissingRates, exportNarrativePdf, generateNarrative, listNarratives } from '../api/narratives'
+import { updateHourlyRate } from '../api/members'
 import { formatDate } from '../utils/format'
 import './NarrativesPanel.css'
 
@@ -49,6 +50,15 @@ export default function NarrativesPanel({ caseId, caseTitle, onDocumentAdded }) 
   const [filenameDraft, setFilenameDraft] = useState('')
   const [exporting, setExporting] = useState(false)
 
+  // Which lawyers contributing hours to the chosen period still have no
+  // (or a zero) hourly_rate — a legitimate but easy-to-miss state that
+  // would otherwise silently understate the narrative's total_fee
+  // (CLAUDE.md's Narratives note). Re-checked whenever the period changes.
+  const [missingRates, setMissingRates] = useState([])
+  const [rateEditingId, setRateEditingId] = useState(null)
+  const [rateDraft, setRateDraft] = useState('')
+  const [rateSaving, setRateSaving] = useState(false)
+
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
@@ -62,10 +72,49 @@ export default function NarrativesPanel({ caseId, caseTitle, onDocumentAdded }) 
     load()
   }, [load])
 
+  const refreshMissingRates = useCallback(
+    (periodStart, periodEnd) => {
+      if (!periodStart || !periodEnd || periodEnd < periodStart) {
+        setMissingRates([])
+        return
+      }
+      checkMissingRates(caseId, periodStart, periodEnd)
+        .then(setMissingRates)
+        .catch(() => setMissingRates([]))
+    },
+    [caseId],
+  )
+
+  useEffect(() => {
+    if (!formOpen) return
+    refreshMissingRates(draft.periodStart, draft.periodEnd)
+  }, [formOpen, draft.periodStart, draft.periodEnd, refreshMissingRates])
+
   function openForm() {
     setActionError(null)
+    setRateEditingId(null)
     setDraft({ periodStart: firstOfMonthIso(), periodEnd: todayIso(), language: 'he' })
     setFormOpen(true)
+  }
+
+  function startRateEdit(lawyer) {
+    setRateEditingId(lawyer.membership_id)
+    setRateDraft(lawyer.hourly_rate != null ? String(lawyer.hourly_rate) : '')
+  }
+
+  async function saveMissingRate(lawyer) {
+    const value = rateDraft.trim()
+    if (!value || Number(value) <= 0) return
+    setRateSaving(true)
+    try {
+      await updateHourlyRate(lawyer.membership_id, value)
+      setRateEditingId(null)
+      refreshMissingRates(draft.periodStart, draft.periodEnd)
+    } catch (err) {
+      setActionError(err.message)
+    } finally {
+      setRateSaving(false)
+    }
   }
 
   async function handleGenerate(event) {
@@ -134,6 +183,49 @@ export default function NarrativesPanel({ caseId, caseTitle, onDocumentAdded }) 
               <option value="en">English</option>
             </select>
           </FormField>
+
+          {missingRates.length > 0 && (
+            <div className="narrative-rate-warning">
+              <div className="narrative-rate-warning-title">
+                לעורכי/ות הדין הבאים אין תעריף שעתי מוגדר (או תעריף אפס) בתקופה זו — שעותיהם ייכללו בסה"כ השעות אך לא
+                יתומחרו בשכר הטרחה:
+              </div>
+              <ul className="narrative-rate-warning-list">
+                {missingRates.map((lawyer) => (
+                  <li key={lawyer.membership_id} className="narrative-rate-warning-row">
+                    <span>
+                      {lawyer.name}
+                      {!lawyer.active && ' (הוסר/ה מהצוות)'}
+                    </span>
+                    {rateEditingId === lawyer.membership_id ? (
+                      <span className="member-rate-edit">
+                        <input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          className="member-rate-input"
+                          value={rateDraft}
+                          onChange={(event) => setRateDraft(event.target.value)}
+                          autoFocus
+                        />
+                        <button type="button" className="member-action" onClick={() => saveMissingRate(lawyer)} disabled={rateSaving}>
+                          {rateSaving ? 'שומר…' : 'שמירה'}
+                        </button>
+                        <button type="button" className="member-action" onClick={() => setRateEditingId(null)}>
+                          ביטול
+                        </button>
+                      </span>
+                    ) : (
+                      <button type="button" className="member-rate-display" onClick={() => startRateEdit(lawyer)}>
+                        הגדרת תעריף
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {actionError && <FormError message={actionError} />}
           <div className="work-hours-form-actions">
             <button type="submit" className="secondary-button" disabled={generating}>

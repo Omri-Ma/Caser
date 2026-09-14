@@ -38,6 +38,22 @@ class GenerateNarrativeRequest(BaseModel):
         return self
 
 
+class MissingRateLawyer(BaseModel):
+    """One lawyer contributing hours to the chosen period whose
+    Memberships.hourly_rate is unset or zero — see
+    shared.narratives.get_lawyers_with_missing_rates. `active=False` means
+    they've since been removed from the firm. Read-only from client_api's
+    side: hourly_rate is office_manager-set only (CLAUDE.md), so a
+    manager-authority lawyer sees this as a warning, not something they can
+    fix here themselves.
+    """
+
+    membership_id: int
+    name: str
+    active: bool
+    hourly_rate: Decimal | None
+
+
 class ExportNarrativeRequest(BaseModel):
     """The manager-authority lawyer names the exported file at export
     time, rather than it being auto-generated (CLAUDE.md's Narratives

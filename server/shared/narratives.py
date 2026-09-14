@@ -101,6 +101,47 @@ def compute_case_totals(case_id: int, tenant_id: int, db: Session, period_start:
     return total_hours, total_fee
 
 
+def get_lawyers_with_missing_rates(
+    case_id: int, tenant_id: int, db: Session, period_start: date, period_end: date
+) -> list[dict]:
+    """Every distinct lawyer whose WorkLogs fall inside the period and whose
+    Memberships.hourly_rate is unset or zero — the same "0 for unrated
+    hours" lawyers compute_case_totals silently folds into total_fee. That's
+    a legitimate, billable state on its own (see compute_case_totals), but
+    it's also an easy way for a real fee to come out understated by
+    accident, so the caller surfaces this list as a warning rather than
+    leaving it invisible in the total.
+
+    Deliberately includes memberships with `active = False` too — a lawyer
+    who logged hours on this case and was later removed from the firm still
+    contributes those hours (and that fee) to the narrative; the normal
+    Lawyers page only lists active members, so without this they'd have no
+    reachable way to have their rate corrected at all.
+    """
+    work_logs = get_case_work_logs_in_period(case_id, tenant_id, db, period_start, period_end)
+    lawyer_ids = {wl.lawyer_id for wl, _ in work_logs}
+    if not lawyer_ids:
+        return []
+
+    rows = (
+        db.query(Membership, Identity)
+        .join(Identity, Membership.identity_id == Identity.id)
+        .filter(Membership.id.in_(lawyer_ids))
+        .order_by(Identity.name)
+        .all()
+    )
+    return [
+        {
+            "membership_id": membership.id,
+            "name": identity.name,
+            "active": membership.active,
+            "hourly_rate": membership.hourly_rate,
+        }
+        for membership, identity in rows
+        if membership.hourly_rate is None or membership.hourly_rate == 0
+    ]
+
+
 def generate_narrative_text(
     case: Case,
     total_hours: Decimal,

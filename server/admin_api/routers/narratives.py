@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 
 from admin_api.core.pagination import Page, PageParams, paginate
 from admin_api.schemas.documents import DocumentResponse
-from admin_api.schemas.narratives import ExportNarrativeRequest, GenerateNarrativeRequest, NarrativeResponse
+from datetime import date
+
+from admin_api.schemas.narratives import ExportNarrativeRequest, GenerateNarrativeRequest, MissingRateLawyer, NarrativeResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Case, Document, Identity, Membership, Narrative, Tenant
@@ -13,6 +15,7 @@ from shared.narratives import (
     compute_case_totals,
     generate_narrative_text,
     get_case_work_logs_in_period,
+    get_lawyers_with_missing_rates,
 )
 from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
@@ -72,6 +75,26 @@ def generate_narrative(
     db.commit()
     db.refresh(narrative)
     return narrative
+
+
+@router.get("/rate-check", response_model=list[MissingRateLawyer])
+def check_missing_rates(
+    case_id: int,
+    period_start: date,
+    period_end: date,
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Lawyers contributing hours in the chosen period whose hourly_rate is
+    unset or zero (CLAUDE.md's Narratives note) — the frontend calls this
+    before/while filling in the generate form so office_manager can fix a
+    rate (including for a since-removed lawyer, via the same hourly-rate
+    endpoint the Lawyers page uses) without the resulting fee silently
+    understating their hours.
+    """
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
+    return get_lawyers_with_missing_rates(case.id, tenant.id, db, period_start, period_end)
 
 
 @router.get("", response_model=Page[NarrativeResponse])

@@ -279,3 +279,82 @@ def test_hourly_rate_rejects_non_positive_value(admin_client, db):
         f"/members/{lawyer_membership.id}/hourly-rate", json={"hourly_rate": "0"}, headers=headers, cookies=cookies
     )
     assert resp.status_code == 422
+
+
+def test_rate_check_flags_unset_and_zero_rate_lawyers_only(admin_client, db):
+    """The rate-check endpoint (backs the generate form's warning banner)
+    lists only lawyers with a null/zero rate who actually logged hours in
+    the chosen period — not every lawyer on the firm, and not a lawyer
+    who's properly rated.
+    """
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity, _ = _manager(db, tenant)
+    _, rated = _lawyer(db, tenant, email="rated@acme.com", name="Rated Lawyer", hourly_rate="400.00")
+    _, unset = _lawyer(db, tenant, email="unset@acme.com", name="Unset Lawyer", hourly_rate=None)
+    _, zero = _lawyer(db, tenant, email="zero@acme.com", name="Zero Lawyer", hourly_rate="0")
+    make_work_log(db, tenant.id, case.id, rated.id, hours="1.0")
+    make_work_log(db, tenant.id, case.id, unset.id, hours="1.0")
+    make_work_log(db, tenant.id, case.id, zero.id, hours="1.0")
+    headers, cookies = auth_for(manager_identity, "acme")
+
+    resp = admin_client.get(
+        f"/cases/{case.id}/narratives/rate-check",
+        params=DEFAULT_PERIOD,
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    names = {row["name"] for row in resp.json()}
+    assert names == {"Unset Lawyer", "Zero Lawyer"}
+
+
+def test_rate_check_includes_removed_lawyers_who_logged_hours(admin_client, db):
+    """A lawyer removed from the firm after logging hours still contributes
+    those hours (and a fee) to a narrative covering that period — the
+    warning has to surface them too, since the normal Lawyers page (active
+    members only) no longer would.
+    """
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id)
+    manager_identity, _ = _manager(db, tenant)
+    _, removed = _lawyer(db, tenant, email="removed@acme.com", name="Removed Lawyer", hourly_rate=None)
+    make_work_log(db, tenant.id, case.id, removed.id, hours="2.0")
+    headers, cookies = auth_for(manager_identity, "acme")
+    admin_client.post(f"/members/{removed.id}/deactivate", headers=headers, cookies=cookies)
+
+    resp = admin_client.get(
+        f"/cases/{case.id}/narratives/rate-check",
+        params=DEFAULT_PERIOD,
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    assert rows[0]["name"] == "Removed Lawyer"
+    assert rows[0]["active"] is False
+
+
+def test_hourly_rate_settable_for_a_removed_lawyer(admin_client, db):
+    """Regression test: the hourly-rate endpoint used to reject inactive
+    memberships outright, leaving a removed lawyer's rate permanently
+    stuck once they were removed — even though their already-logged hours
+    still feed into a narrative's total_fee. office_manager must be able
+    to correct it from the rate-check warning even after removal.
+    """
+    tenant = make_tenant(db, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant)
+    headers, cookies = auth_for(manager_identity, "acme")
+    admin_client.post(f"/members/{lawyer_membership.id}/deactivate", headers=headers, cookies=cookies)
+
+    resp = admin_client.patch(
+        f"/members/{lawyer_membership.id}/hourly-rate", json={"hourly_rate": "350.00"}, headers=headers, cookies=cookies
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["hourly_rate"] == "350.00"
+    assert resp.json()["active"] is False

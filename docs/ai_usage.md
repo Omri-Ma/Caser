@@ -4652,3 +4652,199 @@ redirecting). Branch: `feature/single-admin-and-nav`.
   apps, multiple real accounts including a freshly-registered throwaway
   second firm for the multi-firm switcher/leave-a-firm checks) — full
   pass, no unexpected console errors.
+
+## 2026-09-15 (branch `feature/billing-bugs-polish`) — 11-item punch list: forgot-password race condition, RTL currency bidi, narrative missing-rate warning, wordmark font-weight collision, profile spacing, client case-detail card-height mismatch, client logout button, hide Excel-import nav for clients, invite/continue spacing, empty about-blurb, storage-limit display verification
+
+**Asked**: pulled `feature/single-admin-and-nav` (merged to master as PR #26)
+first. 11 items, spanning a real live-only concurrency bug, an RTL bidi
+fix, a new warn-and-edit feature for narrative generation, and several
+spacing/consistency polish items — explicitly told to verify everything
+live in a browser rather than trust code review alone, since more than
+one of these ("supposedly fixed already" per the prompt) had already
+resisted a code-only fix in an earlier session.
+
+**1. Forgot-password token invalidation — real concurrency bug, not a
+logic bug**: the code (`shared/password_reset.py`) looked completely
+correct on read — `create_reset_token` marks every earlier unused,
+unexpired token as `used_at` before issuing a new one. Sequential
+`curl` requests (even back-to-back) redeemed correctly every time,
+matching what an earlier session's code review would have concluded.
+The actual bug only appears under genuine *concurrent* requests (a
+double-click, two open tabs): fired 3-5 simultaneous `forgot-password`
+requests via backgrounded `curl` jobs and confirmed via direct
+`password_reset_tokens.used_at` inspection that multiple tokens came
+back simultaneously valid (`used_at IS NULL`). Root-caused with a
+`with_for_update()` row lock on the `Identity` row to serialize
+concurrent requests for the same identity — first attempt still failed
+under load: MySQL REPEATABLE READ fixes a transaction's read-view
+snapshot at the moment a statement is *issued*, not when a blocked lock
+is actually *granted*, so a request that had to wait on the identity
+lock still read the *pre-wait* snapshot on its follow-up plain
+`SELECT`, missing whatever the lock-holder had just committed.
+Confirmed this exact mechanism with a raw multi-threaded Python
+reproduction (`with_for_update()` alone genuinely serializes — proved
+via direct timing — but the stale-snapshot read still slipped past it).
+Fix: made the stale-token `SELECT` a locking read too
+(`.with_for_update()`), which bypasses the snapshot for those specific
+rows. Verified with 12 concurrent cross-app (`admin_api` + `client_api`)
+requests — exactly one token ends up valid every time, repeatedly.
+New regression test: `test_concurrent_forgot_password_requests_still_leave_only_one_valid_token`,
+using two real independent DB sessions from separate threads (the
+existing `client_client`/`admin_client` test fixtures share one `db`
+session across all requests in a test, which can't reproduce a
+cross-session race at all — this is why the two *existing* sequential
+tests for this feature never caught it).
+
+**2. ש"ח bidi rendering on the hourly-rate column**: `RoleMembersPanel.jsx`
+wrapped the whole `"500.00 ש"ח"` string (digits *and* Hebrew currency
+text) in `dir="ltr"`, which visually swapped which side the currency
+word landed on relative to the number — comparing against
+`NarrativesPanel.jsx`'s already-correct `feeLabel()` (same string
+shape, no `dir` override at all, relying on the page's natural RTL flow
+for correct digit/word ordering) confirmed the `dir="ltr"` wrapper was
+the actual defect, not a missing one. Removed it. Live-verified: number
+now reads first (rightmost, correct RTL reading order) with the
+currency word to its left, matching `NarrativesPanel`'s pattern exactly.
+
+**3. Narrative generation missing-rate warning (new feature, not just a
+bug fix)**: `compute_case_totals` already silently treated an unset/zero
+`hourly_rate` as 0 (by design, per CLAUDE.md), but nothing surfaced
+*which* lawyers were unrated, and a lawyer removed from the firm after
+logging hours had no reachable way to have their rate fixed at all
+(`update_hourly_rate` explicitly rejected inactive memberships). Added
+`shared/narratives.get_lawyers_with_missing_rates` (new, in
+`server/shared` alongside the narrative generation logic itself, since
+both apps need the identical check) plus a `GET
+/cases/{id}/narratives/rate-check` route on both `admin_api` (full
+warning + inline rate-edit, reusing the same `member-rate-*` UI pattern
+`RoleMembersPanel.jsx` already has) and `client_api` (read-only warning
+only — `hourly_rate` stays office_manager-set-only per CLAUDE.md, so a
+manager-authority lawyer sees who's unrated but can't fix it from
+`client_api`). Relaxed `admin_api`'s `update_hourly_rate` to allow
+inactive lawyer memberships (narrow, deliberate: normal Lawyers page
+still only lists active members, so this doesn't expose anything new
+there — it just unblocks the one legitimate reason to touch a removed
+lawyer's rate). 4 new backend tests
+(`test_rate_check_flags_unset_and_zero_rate_lawyers_only`,
+`test_rate_check_includes_removed_lawyers_who_logged_hours`,
+`test_hourly_rate_settable_for_a_removed_lawyer`,
+`test_manager_lawyer_sees_rate_check_warning_read_only`,
+`test_plain_lawyer_cannot_use_rate_check`). Live-verified end to end in
+`admin_api`'s UI: opened the generate-narrative form on a case with an
+unrated lawyer's hours in it, saw the warning banner, clicked "הגדרת
+תעריף", saved a rate, watched the warning disappear on refetch —
+repeated the same for a lawyer already deactivated (`active=0`),
+confirming the rate saves without accidentally reactivating them.
+
+**4. Lobby vs. sidebar wordmark font inconsistency — a CSS collision, not
+a markup difference**: the JSX (`<span className="wordmark">Caser</span> ·
+ניהול`) is byte-for-byte identical between `Layout.jsx` (logged-out
+lobby) and `AppShell.jsx` (logged-in sidebar), and computed
+`font-family` matched exactly too — ruled out via direct
+`getComputedStyle` inspection before looking further. The actual
+divergence was `font-weight`: `.sidebar-brand-link`'s `font: inherit`
+*shorthand* resets font-weight (among other sub-properties) to inherit
+from the button's own parent, silently overriding `.sidebar-brand`'s
+`font-weight: 700` back down to 400 — same specificity, later rule
+wins. The lobby's `.app-brand` has no such competing rule, so it kept
+its bold weight. At sidebar size, "ניהול" at weight 400 vs. 700 reads as
+a different typeface, not just a different weight. Fixed by narrowing
+both `.sidebar-brand-link` rules (admin/ *and* client/ have the
+identical pattern — client/'s sidebar just doesn't have a second word
+after "Caser" for it to be visible on, but fixed for consistency) to
+`font-family: inherit` only. Live-verified via computed-style diff
+before/after and a side-by-side zoomed screenshot comparison.
+
+**5. Profile page password-section spacing**: not a literal padding
+bug — `.settings-card`'s `padding: 24px` was identical on both cards.
+`.detail-card-title` had no `margin-bottom` at all; every other card
+using it happened to have a hint paragraph or checkbox with its own
+top margin right after the title, masking the gap. The password card's
+title is followed directly by `{error/success && ...}` (renders `null`
+most of the time), so there was nothing to create visual separation.
+Added `margin-bottom: var(--space-3)` to `.detail-card-title` itself
+(the earlier fix this was a "follow-up" to evidently patched individual
+cards' *content* rather than the shared title rule).
+
+**6. Client case-detail spacing — took screenshots first, as asked**:
+the vague report turned out to be a real, screenshot-visible defect:
+`.detail-columns` (client/'s own side-by-side work-hours + documents
+layout) used `align-items: flex-start` instead of the flex default
+(`stretch`), so two cards in the same row kept whatever height their
+own content needed — a short "no entries yet" card sat next to a
+taller one with a visibly ragged bottom edge. Removed the
+`align-items: flex-start` override. (Compared against admin/'s
+case-detail page for a baseline first, then realized admin/ uses an
+entirely different layout structure — no `.detail-columns` there at
+all — so it wasn't a valid comparison; the defect was self-contained
+within client/'s own design.)
+
+**7. Client logout button**: was a bare text link (`background: none;
+border: none`) while admin/'s was already a proper bordered/padded
+button with an icon and error-red hover. Ported the icon SVG and the
+full button styling to client/'s `AppShell.jsx`/`.css`.
+
+**8. Excel-import nav item for clients**: was rendered as a disabled
+"coming soon" item (`path: undefined` falls into the nav's generic
+disabled-item branch) — but WorkLogs are never client-visible at all
+per CLAUDE.md, so this isn't a not-yet-built feature for a client, it's
+permanently N/A. Filtered the whole nav-item entry out of the array for
+non-lawyer roles instead of leaving it with no path.
+
+**9. Invite/continue-button spacing**: `LobbyLoginPage.jsx`'s invite +
+tenant-picker flow (where this exact bug report pointed) turned out to
+already have a normal 16px gap on inspection — its invite `<ul>` is
+always followed by a `<p>` with its own top margin. The real bug was in
+`RegisterPage.jsx`'s post-registration invite screen (CLAUDE.md:
+registering doesn't auto-accept an invite, so a freshly-registered
+invitee lands on this same accept/decline UI) — its "המשך" (Continue)
+button sits *directly* after the invite `<ul>` with no intervening
+element, and `.tenant-picker`'s shared CSS only had `margin-top`, no
+`margin-bottom`. Added `margin-bottom` to `.tenant-picker` itself.
+Verified live by creating a real pending invite for a not-yet-registered
+email via the admin API and running through the actual registration
+form.
+
+**10. Empty about-blurb on the firm public homepage**: was
+`{profile.about || 'המשרד טרם הוסיף תיאור.'}` — replaced with
+`{profile.about && <p>...}` so the section is omitted outright when
+empty. Verified against a freshly-signed-up test firm with no `about`
+set.
+
+**11. Super_admin storage-by-firm plan-limit display**: checked, already
+correct — `PlatformDashboardPage.jsx` already renders `used / limit`
+(or "· ללא הגבלה" for Enterprise) with a progress bar, backed by
+`GET /platform/storage-overview`'s `storage_limit_bytes` field. No
+code change; confirmed live as super_admin (`platform.lvh.me`) rather
+than trusting the code alone, per this session's own stated lesson from
+item #1.
+
+**Test data used for live verification** (real API calls against the
+running dev containers, not fixtures — same established pattern as
+`lior.lawyer@example.com` from earlier sessions): a throwaway
+`Spacing Test Firm` tenant (`spacingtest` subdomain) plus a
+`newperson@example.com` invite with no prior Identity, used to exercise
+the registration+invite screen for item #9. Left in the dev DB
+deliberately, same reasoning as prior sessions' throwaway test data.
+
+**Learned**: a bug that "looks structurally correct" on read and passes
+every *sequential* test can still be a genuine concurrency bug —
+proving it requires actually firing concurrent requests and inspecting
+raw DB state, not re-reading the code more carefully. And even once a
+lock is confirmed to correctly serialize (verified independently via a
+raw multi-threaded timing test), that alone doesn't guarantee
+correctness under MySQL's default isolation level — a *locking* read
+and a *snapshot* read within the same transaction can legitimately see
+different data depending on when the transaction's read-view was
+fixed. Separately: a "same bug, different place" report is worth
+checking in more than one plausible location before fixing the first
+match — item #9's actual bug was in `RegisterPage.jsx`, not the
+`LobbyLoginPage.jsx` location the report's wording most naturally
+pointed to.
+
+Full `server/tests/` suite (run alone, no concurrent pytest process —
+see the prior session's own note above about why that matters):
+**293 passed, 0 failed** (up from 287 — the 6 new tests for items #1 and
+#3). `docs/openapi_admin.json`, `docs/openapi_client.json`,
+`docs/postman_collection_admin.json`, `docs/postman_collection_client.json`
+regenerated via `server/scripts/export_docs.sh`.
