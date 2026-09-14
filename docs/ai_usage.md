@@ -4390,3 +4390,24 @@ meaningful "unset" third state for is_manager, so no backfill pass
 needed. Applied to the real dev DB; `db/schema.sql` updated by hand
 (same as last session, since that file has no dedicated regen script —
 it's a manual mirror of the live schema per its own header comment).
+
+**Item 2 — full case visibility extended to `is_manager` lawyers**
+(client_api): added `has_full_case_visibility(membership)` to
+`client_api/core/case_access.py` (`role == LAWYER and is_manager` —
+always False for a client, whose `is_manager` is never set). Threaded
+through three places: `get_assigned_case` (skips the CaseAssignment
+check entirely when true — shared by documents.py/work_logs.py/
+narratives.py, so all three pick this up automatically once narratives.py
+is wired to use it too, not just the cases router), `list_my_cases`
+(no-join full-tenant query instead of the assignment-joined one), and
+`get_my_case` (now just delegates to `get_assigned_case` instead of
+duplicating the assignment-check logic inline — a small cleanup that
+fell out of doing this properly rather than copy-pasting the new branch
+a third time). New `server/tests/test_manager_flag.py` (6 tests so far,
+grows with the next two items): manager-lawyer sees every case in the
+list and can fetch an unassigned one directly, a plain lawyer still
+can't, the same visibility flows through documents/work-logs already
+(confirming the shared get_assigned_case change, not a per-router
+re-implementation), and a client's is_manager is never honored even if
+set directly on the row (not just that the admin endpoint refuses to set
+it).
