@@ -1174,57 +1174,6 @@
       }
     },
     "/cases/{case_id}/narratives": {
-      "post": {
-        "tags": [
-          "narratives"
-        ],
-        "summary": "Generate Narrative",
-        "description": "Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always\ninserts a new row — never edits an existing one; the newest row for a\ncase is the current/authoritative one, older rows stay as history (same\n\"rows accumulate, newest wins\" pattern as Subscriptions). period/language\nare chosen by the lawyer at generation time and stored as a fixed\nsnapshot on the row, same reasoning as total_hours/total_fee.",
-        "operationId": "generate_narrative_cases__case_id__narratives_post",
-        "parameters": [
-          {
-            "name": "case_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Case Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/GenerateNarrativeRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NarrativeResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
       "get": {
         "tags": [
           "narratives"
@@ -1273,58 +1222,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page_NarrativeResponse_"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/cases/{case_id}/narratives/{narrative_id}/export-pdf": {
-      "post": {
-        "tags": [
-          "narratives"
-        ],
-        "summary": "Export Narrative Pdf",
-        "description": "Renders the narrative to PDF and files it as a real Document on the\ncase, internal folder by default (CLAUDE.md). This is what makes a\nnarrative reachable by the client at all — sharing it afterwards is just\nthe existing Documents reclassify-to-client-folder action, no separate\nvisibility mechanism needed here.",
-        "operationId": "export_narrative_pdf_cases__case_id__narratives__narrative_id__export_pdf_post",
-        "parameters": [
-          {
-            "name": "case_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Case Id"
-            }
-          },
-          {
-            "name": "narrative_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Narrative Id"
-            }
-          }
-        ],
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DocumentResponse"
                 }
               }
             }
@@ -1904,31 +1801,6 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
-      },
-      "GenerateNarrativeRequest": {
-        "properties": {
-          "period_start": {
-            "type": "string",
-            "format": "date",
-            "title": "Period Start"
-          },
-          "period_end": {
-            "type": "string",
-            "format": "date",
-            "title": "Period End"
-          },
-          "language": {
-            "$ref": "#/components/schemas/NarrativeLanguage",
-            "default": "he"
-          }
-        },
-        "type": "object",
-        "required": [
-          "period_start",
-          "period_end"
-        ],
-        "title": "GenerateNarrativeRequest",
-        "description": "period_start/period_end are chosen by the lawyer at generation time —\nreal legal billing is period-by-period, not every hour ever logged on\nthe case (CLAUDE.md). No overlap-prevention against other narratives on\nthe same case: re-covering a period already billed is a legitimate\ncorrection, not an error."
       },
       "GenericMessageResponse": {
         "properties": {

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from conftest import (
     auth_for,
@@ -266,6 +266,58 @@ def test_platform_users_view_search_filters_by_name_or_email(admin_client, db):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["email"] == "findme@acme.com"
+
+
+def test_platform_tenant_list_search_filters_by_name_or_subdomain(admin_client, db):
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
+    headers, cookies = auth_for(super_admin, "platform")
+    make_tenant(db, "acme", name="Acme Law")
+    make_tenant(db, "globex", name="Globex Legal")
+
+    resp = admin_client.get("/platform/tenants", params={"search": "acme"}, headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["subdomain"] == "acme"
+
+    # Matches on subdomain too, not just the display name.
+    resp = admin_client.get("/platform/tenants", params={"search": "globex"}, headers=headers, cookies=cookies)
+    assert resp.json()["total"] == 1
+
+
+def test_platform_users_view_sortable_by_last_login(admin_client, db):
+    """CLAUDE.md's super_admin cross-tenant users view — sortable by
+    last_login_at so the platform team can find the most/least recently
+    active accounts. MySQL has no NULLS FIRST/LAST syntax, so this also
+    guards the never-logged-in (NULL) case: they must sort to the end
+    regardless of direction, not crash the query or flip to the front.
+    """
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
+    headers, cookies = auth_for(super_admin, "platform")
+
+    older = make_identity(db, "older@acme.com", "Older Login")
+    newer = make_identity(db, "newer@acme.com", "Newer Login")
+    never = make_identity(db, "never@acme.com", "Never Logged In")
+    older.last_login_at = datetime.now(timezone.utc) - timedelta(days=10)
+    newer.last_login_at = datetime.now(timezone.utc) - timedelta(days=1)
+    db.commit()
+
+    resp = admin_client.get(
+        "/platform/users", params={"sort": "last_login_at", "order": "asc"}, headers=headers, cookies=cookies
+    )
+    assert resp.status_code == 200
+    emails = [row["email"] for row in resp.json()["items"]]
+    assert emails.index(older.email) < emails.index(newer.email) < emails.index(never.email)
+
+    resp = admin_client.get(
+        "/platform/users", params={"sort": "last_login_at", "order": "desc"}, headers=headers, cookies=cookies
+    )
+    assert resp.status_code == 200
+    emails = [row["email"] for row in resp.json()["items"]]
+    # Descending: most recent login first, but NULLs still trail rather than
+    # jumping to the front just because the direction flipped.
+    assert emails.index(newer.email) < emails.index(older.email) < emails.index(never.email)
 
 
 def test_lawyer_cannot_reach_new_platform_routes(admin_client, db):

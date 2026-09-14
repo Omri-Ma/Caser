@@ -59,6 +59,11 @@
   display: flex;
   gap: 20px;
   align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.detail-columns:last-child {
+  margin-bottom: 0;
 }
 
 .detail-card {

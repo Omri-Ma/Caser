@@ -1,5 +1,9 @@
 .profile-card {
-  max-width: 420px;
+  /* 640px, matching HomePage's own content max-width — the old 420px
+     (copied from Modal's dialog width) left most of the page empty at any
+     normal viewport width, since this is a full standalone page, not a
+     modal dialog. */
+  max-width: 640px;
   margin-top: var(--space-4);
 }
 

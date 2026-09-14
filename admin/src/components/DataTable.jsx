@@ -3,7 +3,18 @@ import './DataTable.css'
 // Reusable list display for every future data screen (cases, members,
 // subscriptions, ...). Always handles the three required states explicitly —
 // Loading / Error / Empty — instead of leaving that to each caller.
-export default function DataTable({ columns, rows, loading, error, emptyMessage = 'אין נתונים להצגה.', onRowClick }) {
+// Sorting is optional and per-column (column.sortable: true) — a column
+// without it renders a plain header, unaffected by the sort/onSortChange props.
+export default function DataTable({
+  columns,
+  rows,
+  loading,
+  error,
+  emptyMessage = 'אין נתונים להצגה.',
+  onRowClick,
+  sort,
+  onSortChange,
+}) {
   if (loading) {
     return <div className="data-table-state">טוען…</div>
   }
@@ -20,9 +31,24 @@ export default function DataTable({ columns, rows, loading, error, emptyMessage 
     <table className="data-table">
       <thead>
         <tr>
-          {columns.map((column) => (
-            <th key={column.key}>{column.label}</th>
-          ))}
+          {columns.map((column) =>
+            column.sortable ? (
+              <th key={column.key}>
+                <button
+                  type="button"
+                  className="data-table-sort-button"
+                  onClick={() => onSortChange?.(column.key)}
+                >
+                  {column.label}
+                  {sort?.key === column.key && (
+                    <span className="data-table-sort-arrow">{sort.dir === 'desc' ? ' ▼' : ' ▲'}</span>
+                  )}
+                </button>
+              </th>
+            ) : (
+              <th key={column.key}>{column.label}</th>
+            ),
+          )}
         </tr>
       </thead>
       <tbody>

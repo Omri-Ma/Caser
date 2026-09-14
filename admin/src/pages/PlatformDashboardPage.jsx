@@ -14,28 +14,19 @@ import {
   YAxis,
 } from 'recharts'
 import PlatformAppShell from '../components/PlatformAppShell'
-import DataTable from '../components/DataTable'
-import { FormError } from '../components/Form'
-import {
-  getPlatformEarnings,
-  getPlatformStats,
-  getStorageOverview,
-  getTenantGrowth,
-  listTenants,
-  reactivateTenant,
-  suspendTenant,
-} from '../api/platform'
+import { getPlatformEarnings, getPlatformStats, getStorageOverview, getTenantGrowth } from '../api/platform'
 import { formatFileSize, formatMonthLabel } from '../utils/format'
 import './PlatformDashboardPage.css'
 
 const PLAN_LABELS = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
 const PLAN_COLORS = { free: 'var(--color-gray)', pro: 'var(--color-info)', enterprise: 'var(--color-primary)' }
 
-// super_admin's dashboard (CLAUDE.md's Roles: firm-level/aggregate data
-// only) — platform-wide stats, plan distribution, tenant growth and
-// earnings trends, per-tenant storage overview, plus the cross-tenant firm
-// list with suspend/reactivate. Everything here comes from admin_api's
-// /platform/* routes, the one place a query legitimately spans every tenant.
+// super_admin's data/graphs overview (CLAUDE.md's Roles: firm-level/
+// aggregate data only) — platform-wide stats, plan distribution, tenant
+// growth and earnings trends, per-tenant storage overview. The cross-tenant
+// firm list itself (with suspend/reactivate) lives on its own page
+// (PlatformFirmsPage) — split out so this screen stays purely the data/
+// graphs view, kept separate from both the firm list and the users view.
 export default function PlatformDashboardPage() {
   const [stats, setStats] = useState(null)
   const [statsError, setStatsError] = useState(null)
@@ -45,13 +36,7 @@ export default function PlatformDashboardPage() {
   const [earnings, setEarnings] = useState(null)
   const [storage, setStorage] = useState(null)
   const [chartsError, setChartsError] = useState(null)
-
-  const [page, setPage] = useState(1)
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [actioningId, setActioningId] = useState(null)
-  const [actionError, setActionError] = useState(null)
+  const [storageSearch, setStorageSearch] = useState('')
 
   const loadStats = useCallback(() => {
     setStatsLoading(true)
@@ -73,107 +58,30 @@ export default function PlatformDashboardPage() {
       .catch((err) => setChartsError(err.message))
   }, [])
 
-  const loadTenants = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    listTenants({ page })
-      .then(setResult)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [page])
-
   useEffect(() => {
     loadStats()
     loadCharts()
   }, [loadStats, loadCharts])
-
-  useEffect(() => {
-    loadTenants()
-  }, [loadTenants])
-
-  async function handleToggle(tenant) {
-    const suspending = tenant.active
-    const message = suspending
-      ? `להשעות את ${tenant.name}? כל אנשי הצוות והלקוחות במשרד ייחסמו מיידית מגישה למערכת.`
-      : `להפעיל מחדש את ${tenant.name}?`
-    if (!window.confirm(message)) return
-
-    setActioningId(tenant.id)
-    setActionError(null)
-    try {
-      if (suspending) {
-        await suspendTenant(tenant.id)
-      } else {
-        await reactivateTenant(tenant.id)
-      }
-      loadTenants()
-      loadStats()
-      loadCharts()
-    } catch (err) {
-      setActionError(err.message)
-    } finally {
-      setActioningId(null)
-    }
-  }
-
-  const totalPages = result ? Math.max(1, Math.ceil(result.total / result.page_size)) : 1
-
-  const columns = [
-    {
-      key: 'name',
-      label: 'משרד',
-      render: (row) => (
-        <div>
-          <div className="member-name">{row.name}</div>
-          <div className="member-email">{row.subdomain}.lvh.me</div>
-        </div>
-      ),
-    },
-    {
-      key: 'plan',
-      label: 'תוכנית',
-      render: (row) => <span className="chip member-role-chip">{PLAN_LABELS[row.plan] || row.plan}</span>,
-    },
-    {
-      key: 'lawyer_count',
-      label: 'עורכי דין',
-      render: (row) => <span dir="ltr">{row.lawyer_count}</span>,
-    },
-    {
-      key: 'case_count',
-      label: 'תיקים',
-      render: (row) => <span dir="ltr">{row.case_count}</span>,
-    },
-    {
-      key: 'active',
-      label: 'סטטוס',
-      render: (row) => (
-        <span className={`chip ${row.active ? 'member-status-active' : 'tenant-status-suspended'}`}>
-          {row.active ? 'פעיל' : 'מושעה'}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (row) => (
-        <button
-          type="button"
-          className={row.active ? 'member-action member-action-danger' : 'member-action'}
-          onClick={() => handleToggle(row)}
-          disabled={actioningId === row.id}
-        >
-          {row.active ? 'השעיה' : 'הפעלה מחדש'}
-        </button>
-      ),
-    },
-  ]
 
   const growthChartData = growth?.map((point) => ({ label: formatMonthLabel(point.month), new_tenants: point.new_tenants }))
   const earningsChartData = earnings?.trend.map((point) => ({ label: formatMonthLabel(point.month), earnings: point.earnings_ils }))
   const planPieData = stats?.plan_distribution
     .filter((entry) => entry.tenant_count > 0)
     .map((entry) => ({ name: PLAN_LABELS[entry.plan] || entry.plan, value: entry.tenant_count, plan: entry.plan }))
+
+  // Search filters the storage-by-firm list client-side — storage-overview
+  // isn't paginated (bounded by tenant count, per the backend's own note),
+  // so this just narrows what's already fetched in full, the same reasoning
+  // that lets the list drop its old top-6 cap now that a firm can be found
+  // by name/subdomain directly instead.
+  const term = storageSearch.trim().toLowerCase()
+  const storageEntries = (storage || [])
+    .filter((entry) => !term || entry.name.toLowerCase().includes(term) || entry.subdomain.toLowerCase().includes(term))
+    .slice()
+    .sort((a, b) => {
+      const pctOf = (entry) => (entry.plan === 'enterprise' || entry.storage_limit_bytes <= 0 ? 0 : entry.storage_used_bytes / entry.storage_limit_bytes)
+      return pctOf(b) - pctOf(a)
+    })
 
   return (
     <PlatformAppShell>
@@ -269,70 +177,51 @@ export default function PlatformDashboardPage() {
           </div>
 
           <div className="card platform-card">
-            <div className="platform-card-title">אחסון לפי משרד</div>
+            <div className="platform-card-title-row">
+              <div className="platform-card-title">אחסון לפי משרד</div>
+              <input
+                type="text"
+                className="cases-search-input platform-storage-search"
+                placeholder="חיפוש משרד…"
+                value={storageSearch}
+                onChange={(event) => setStorageSearch(event.target.value)}
+              />
+            </div>
             {!storage || storage.length === 0 ? (
               <div className="dashboard-chart-empty">אין עדיין משרדים להצגה.</div>
+            ) : storageEntries.length === 0 ? (
+              <div className="dashboard-chart-empty">לא נמצאו משרדים התואמים את החיפוש.</div>
             ) : (
               <ul className="platform-storage-list">
-                {storage
-                  .slice()
-                  .sort((a, b) => b.storage_used_bytes / b.storage_limit_bytes - a.storage_used_bytes / a.storage_limit_bytes)
-                  .slice(0, 6)
-                  .map((entry) => {
-                    const pct = entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
-                    const over = pct >= 90
-                    return (
-                      <li key={entry.tenant_id} className="platform-storage-row">
-                        <div className="platform-storage-row-header">
-                          <span className="platform-storage-name">{entry.name}</span>
+                {storageEntries.map((entry) => {
+                  const unlimited = entry.plan === 'enterprise'
+                  const pct = !unlimited && entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
+                  const over = !unlimited && pct >= 90
+                  return (
+                    <li key={entry.tenant_id} className="platform-storage-row">
+                      <div className="platform-storage-row-header">
+                        <span className="platform-storage-name">{entry.name}</span>
+                        {unlimited ? (
+                          <span dir="ltr" className="platform-storage-pct">
+                            {formatFileSize(entry.storage_used_bytes)} · ללא הגבלה
+                          </span>
+                        ) : (
                           <span dir="ltr" className={`platform-storage-pct${over ? ' over' : ''}`}>
                             {formatFileSize(entry.storage_used_bytes)} / {formatFileSize(entry.storage_limit_bytes)}
                           </span>
-                        </div>
+                        )}
+                      </div>
+                      {!unlimited && (
                         <div className="usage-bar-track">
                           <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${Math.min(100, pct)}%` }} />
                         </div>
-                      </li>
-                    )
-                  })}
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>
-        </div>
-      )}
-
-      <h2 className="platform-tenants-title">משרדים</h2>
-
-      {error && <div className="cases-state cases-state-error">{error}</div>}
-
-      {!error && (
-        <div className="card cases-table-card">
-          <FormError message={actionError} />
-          <DataTable
-            columns={columns}
-            rows={result?.items}
-            loading={loading}
-            emptyMessage="אין משרדים רשומים במערכת עדיין."
-          />
-
-          {!loading && result && result.total > 0 && (
-            <div className="cases-pagination">
-              <button type="button" className="secondary-button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                הקודם
-              </button>
-              <span className="cases-pagination-info">
-                עמוד {result.page} מתוך {totalPages} · {result.total} משרדים
-              </span>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                הבא
-              </button>
-            </div>
-          )}
         </div>
       )}
     </PlatformAppShell>

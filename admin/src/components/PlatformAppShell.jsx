@@ -63,6 +63,17 @@ export default function PlatformAppShell({ children }) {
           </button>
           <button
             type="button"
+            className={`sidebar-nav-item${location.pathname === '/firms' ? ' active' : ''}`}
+            onClick={() => navigate('/firms')}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+              <path d="M3.5 9.5h17M9 9.5V20.5" />
+            </svg>
+            משרדים
+          </button>
+          <button
+            type="button"
             className={`sidebar-nav-item${location.pathname === '/users' ? ' active' : ''}`}
             onClick={() => navigate('/users')}
           >

@@ -51,11 +51,15 @@ export default function ProfilePage() {
     setProfileSaved(false)
     setProfileSaving(true)
     try {
-      await updateProfile({
+      const updated = await updateProfile({
         bio,
         photoUrl,
         yearsOfExperience: yearsOfExperience === '' ? null : Number(yearsOfExperience),
       })
+      // AppShell's header (photo/name) fetched the identity once on mount —
+      // tell it about the fresh one so the avatar updates immediately,
+      // without needing a page reload or navigation away and back.
+      window.dispatchEvent(new CustomEvent('caser:identity-updated', { detail: updated }))
       setProfileSaved(true)
     } catch (err) {
       setProfileError(err.message)

@@ -703,6 +703,59 @@
         }
       }
     },
+    "/members/{membership_id}/hourly-rate": {
+      "patch": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Update Hourly Rate",
+        "description": "office_manager-set per-lawyer billing rate (CLAUDE.md's Memberships\nnote) — feeds Narratives.total_fee, replacing the old flat placeholder\nrate. Lawyer-only, same \"only meaningful for lawyer memberships\" gate\nalready used for show_on_public_page/role changes.",
+        "operationId": "update_hourly_rate_members__membership_id__hourly_rate_patch",
+        "parameters": [
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Membership Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHourlyRateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/invites": {
       "get": {
         "tags": [
@@ -2008,6 +2061,185 @@
         }
       }
     },
+    "/cases/{case_id}/narratives": {
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Generate Narrative",
+        "description": "Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always\ninserts a new row — never edits an existing one; the newest row for a\ncase is the current/authoritative one, older rows stay as history (same\n\"rows accumulate, newest wins\" pattern as Subscriptions). period/language\nare chosen by office_manager at generation time and stored as a fixed\nsnapshot on the row, same reasoning as total_hours/total_fee.",
+        "operationId": "generate_narrative_cases__case_id__narratives_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateNarrativeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NarrativeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "List Narratives",
+        "description": "Full history, newest first — the first row returned is always the\ncurrent/authoritative narrative for the case.",
+        "operationId": "list_narratives_cases__case_id__narratives_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_NarrativeResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/cases/{case_id}/narratives/{narrative_id}/export-pdf": {
+      "post": {
+        "tags": [
+          "narratives"
+        ],
+        "summary": "Export Narrative Pdf",
+        "description": "Renders the narrative to PDF — including the itemized WorkLog table\nfor the narrative's own stored period (CLAUDE.md's Narratives note) —\nand files it as a real Document on the case, internal folder by\ndefault. This is what makes a narrative reachable by the client at\nall — sharing it afterwards is just the existing Documents\nreclassify-to-client-folder action, no separate visibility mechanism\nneeded here. office_manager names the file at export time rather than\nit being auto-generated (CLAUDE.md); the .pdf extension is enforced\nhere regardless of what was typed.",
+        "operationId": "export_narrative_pdf_cases__case_id__narratives__narrative_id__export_pdf_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "narrative_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Narrative Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportNarrativeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/tenant": {
       "get": {
         "tags": [
@@ -2201,6 +2433,24 @@
         "description": "Every Tenant, regardless of subdomain — the cross-tenant firm list\nthe platform dashboard shows. Note this query intentionally omits the\n`active = True` filter get_current_tenant applies: a super_admin has to\nsee suspended firms too, in order to reactivate them.",
         "operationId": "list_tenants_platform_tenants_get",
         "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Partial, case-insensitive match on name or subdomain",
+              "title": "Search"
+            },
+            "description": "Partial, case-insensitive match on name or subdomain"
+          },
           {
             "name": "page",
             "in": "query",
@@ -2456,6 +2706,30 @@
               "title": "Search"
             },
             "description": "Partial, case-insensitive match on name or email"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Column to sort by: name or last_login_at",
+              "default": "name",
+              "title": "Sort"
+            },
+            "description": "Column to sort by: name or last_login_at"
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "asc or desc",
+              "default": "asc",
+              "title": "Order"
+            },
+            "description": "asc or desc"
           },
           {
             "name": "page",
@@ -3079,6 +3353,22 @@
         ],
         "title": "EarningsPoint"
       },
+      "ExportNarrativeRequest": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename"
+        ],
+        "title": "ExportNarrativeRequest",
+        "description": "office_manager names the exported file at export time, rather than\nit being auto-generated (CLAUDE.md's Narratives note) — same \"person\ndoing the export controls the presentation\" reasoning already used for\nchoosing the narrative's language. The .pdf extension is enforced\nserver-side regardless of what's typed, since the file is always a PDF."
+      },
       "ForgotPasswordRequest": {
         "properties": {
           "email": {
@@ -3092,6 +3382,31 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "GenerateNarrativeRequest": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "language": {
+            "$ref": "#/components/schemas/NarrativeLanguage",
+            "default": "he"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "GenerateNarrativeRequest",
+        "description": "period_start/period_end are chosen by office_manager at generation\ntime — real legal billing is period-by-period, not every hour ever\nlogged on the case (CLAUDE.md). No overlap-prevention against other\nnarratives on the same case: re-covering a period already billed is a\nlegitimate correction, not an error."
       },
       "GenericMessageResponse": {
         "properties": {
@@ -3370,6 +3685,18 @@
           "show_on_public_page": {
             "type": "boolean",
             "title": "Show On Public Page"
+          },
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hourly Rate"
           }
         },
         "type": "object",
@@ -3451,6 +3778,71 @@
         ],
         "title": "MonthlyCaseActivityPoint",
         "description": "One point on the case-activity trend chart — the count of cases\n*created* in that calendar month, oldest to newest."
+      },
+      "NarrativeLanguage": {
+        "type": "string",
+        "enum": [
+          "he",
+          "en"
+        ],
+        "title": "NarrativeLanguage"
+      },
+      "NarrativeResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "case_id": {
+            "type": "integer",
+            "title": "Case Id"
+          },
+          "generated_text": {
+            "type": "string",
+            "title": "Generated Text"
+          },
+          "total_hours": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Hours"
+          },
+          "total_fee": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Fee"
+          },
+          "language": {
+            "$ref": "#/components/schemas/NarrativeLanguage"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "case_id",
+          "generated_text",
+          "total_hours",
+          "total_fee",
+          "language",
+          "period_start",
+          "period_end",
+          "created_at"
+        ],
+        "title": "NarrativeResponse"
       },
       "Page_AuditLogEntryResponse_": {
         "properties": {
@@ -3637,6 +4029,37 @@
           "page_size"
         ],
         "title": "Page[MemberResponse]"
+      },
+      "Page_NarrativeResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/NarrativeResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[NarrativeResponse]"
       },
       "Page_PlatformAuditLogEntryResponse_": {
         "properties": {
@@ -4333,6 +4756,29 @@
           "title"
         ],
         "title": "UpdateCaseTitleRequest"
+      },
+      "UpdateHourlyRateRequest": {
+        "properties": {
+          "hourly_rate": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Hourly Rate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hourly_rate"
+        ],
+        "title": "UpdateHourlyRateRequest",
+        "description": "office_manager-set billing rate for a lawyer membership (CLAUDE.md's\nMemberships note) — a fact about their employment at *this* firm, not a\nglobal attribute of the person. Must be positive: a rate of exactly 0\nwould silently zero out every narrative fee for that lawyer, which is\nnever the intent of *setting* a rate (an unset rate — None — already\ncovers \"no rate yet\" without conflating it with \"billed at zero\")."
       },
       "UpdateMemberRoleRequest": {
         "properties": {

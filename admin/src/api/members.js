@@ -27,3 +27,9 @@ export function updatePublicVisibility(membershipId, showOnPublicPage) {
 export function updateMemberRole(membershipId, role) {
   return apiFetch(`/members/${membershipId}/role`, { method: 'PATCH', body: { role } })
 }
+
+// Lawyer-only billing rate, feeds Narratives.total_fee (CLAUDE.md's
+// Memberships note).
+export function updateHourlyRate(membershipId, hourlyRate) {
+  return apiFetch(`/members/${membershipId}/hourly-rate`, { method: 'PATCH', body: { hourly_rate: hourlyRate } })
+}

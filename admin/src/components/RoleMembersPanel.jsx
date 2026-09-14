@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import DataTable from './DataTable'
 import InviteMemberModal from './InviteMemberModal'
 import { FormError } from './Form'
-import { deactivateMember, listMembers, updateMemberRole, updatePublicVisibility } from '../api/members'
+import { deactivateMember, listMembers, updateHourlyRate, updateMemberRole, updatePublicVisibility } from '../api/members'
 import { listInvites, revokeInvite } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
@@ -53,6 +53,9 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
   const [actioningId, setActioningId] = useState(null)
   const [inviting, setInviting] = useState(false)
   const [myEmail, setMyEmail] = useState(null)
+  const [rateEditingId, setRateEditingId] = useState(null)
+  const [rateDraft, setRateDraft] = useState('')
+  const [rateSaving, setRateSaving] = useState(false)
 
   useEffect(() => {
     me().then((identity) => setMyEmail(identity.email)).catch(() => {})
@@ -132,6 +135,31 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
     }
   }
 
+  function startRateEdit(member) {
+    setRateEditingId(member.id)
+    setRateDraft(member.hourly_rate != null ? String(member.hourly_rate) : '')
+    setRowError(null)
+  }
+
+  async function saveRate(member) {
+    const value = Number(rateDraft)
+    if (!rateDraft || !Number.isFinite(value) || value <= 0) {
+      setRowError('יש להזין תעריף שעתי חיובי')
+      return
+    }
+    setRateSaving(true)
+    setRowError(null)
+    try {
+      await updateHourlyRate(member.id, value)
+      setRateEditingId(null)
+      load()
+    } catch (err) {
+      setRowError(err.message)
+    } finally {
+      setRateSaving(false)
+    }
+  }
+
   async function handleTogglePublicVisibility(member) {
     setActioningId(member.id)
     setRowError(null)
@@ -158,6 +186,43 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
         </div>
       ),
     },
+    ...(role === 'lawyer'
+      ? [
+          {
+            key: 'hourly_rate',
+            label: 'תעריף שעתי',
+            render: (row) => {
+              if (statusTab !== 'active') return null
+              if (rateEditingId === row.id) {
+                return (
+                  <div className="member-rate-edit">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      className="member-rate-input"
+                      value={rateDraft}
+                      onChange={(event) => setRateDraft(event.target.value)}
+                      autoFocus
+                    />
+                    <button type="button" className="member-action" onClick={() => saveRate(row)} disabled={rateSaving}>
+                      {rateSaving ? 'שומר…' : 'שמירה'}
+                    </button>
+                    <button type="button" className="member-action" onClick={() => setRateEditingId(null)}>
+                      ביטול
+                    </button>
+                  </div>
+                )
+              }
+              return (
+                <button type="button" className="member-rate-display" onClick={() => startRateEdit(row)}>
+                  {row.hourly_rate != null ? <span dir="ltr">{`${Number(row.hourly_rate).toFixed(2)} ש"ח`}</span> : 'הגדרת תעריף'}
+                </button>
+              )
+            },
+          },
+        ]
+      : []),
     ...(showPublicToggle
       ? [
           {

@@ -195,6 +195,26 @@ cross-logs into the other app (see Multi-tenancy architecture for how
     single-firm user, which is one extra hop that still lands them right
     back in immediately since the lobby resolves a one-firm identity
     automatically anyway.
+  - **Landing somewhere you have no access** (a different tenant's
+    subdomain, or a mismatched app) is never a blank/broken page — always a
+    real redirect: an `admin/` session hitting a subdomain/app it has no
+    membership at goes to its own firm's dashboard (resolved the same way
+    the lobby already resolves "which firm"); a logged-out visitor hitting
+    a protected route goes to the lobby login; a `client/` visitor with no
+    matching access lands on the general product homepage (see below) —
+    that's the client-side equivalent of "somewhere real and useful,"
+    since a client isn't necessarily trying to reach a specific firm the
+    way an office_manager/lawyer already knows theirs.
+  - The lobby also hosts a **general, non-tenant product homepage** —
+    what Caser is, plus a public firm directory (name/logo/subdomain only,
+    same non-sensitive-firm-profile boundary as each tenant's own public
+    homepage) letting a visitor find a firm and click through to its page.
+    Reachable from `client/` (a logged-in client can navigate back to it,
+    not just anonymous visitors) — deliberately not linked from `admin/`,
+    since an office_manager/lawyer is already working inside their one firm
+    and browsing other firms isn't relevant to that work. This is genuinely
+    new scope, not a small fix — build it before the smaller redirect/UX
+    fixes above that assume it exists.
 - `super_admin` is the only role allowed to query across tenants — this goes
   through a clearly separate, explicitly named code path (never the default
   tenant-filtered query functions), so it can't accidentally leak into normal
@@ -213,7 +233,18 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   `super_admin` is never a value there. The first `super_admin` account is a
   fixed row in `db/seed.sql` with a pre-hashed password — no route ever
   creates or promotes one; there's no self-service platform-staff signup in
-  this exercise.
+  this exercise. The same reasoning excludes `super_admin` from the
+  self-service forgot-password flow too (see `PasswordResetTokens`,
+  below): every other account type manages its own password recovery
+  through it, but `super_admin` is the single most powerful account in the
+  system — a compromised or spoofed reset flow there has a far bigger blast
+  radius (cross-tenant data, the ability to suspend any firm) than for
+  anyone else, and it's already treated as manually-provisioned everywhere
+  else. `POST /auth/forgot-password` explicitly excludes any
+  `is_super_admin` identity — still returns the same generic response
+  either way (never reveal that this is why it "didn't work"). A forgotten
+  `super_admin` password is a manual/direct fix (e.g. re-seeding the hash),
+  not a self-service one.
 - RBAC enforcement happens in BOTH backend (`Depends()` checks, mandatory) and
   frontend (route guards, UX only — never trust the frontend for real security).
 - A pytest test proving tenant A cannot retrieve tenant B's data is required —
@@ -252,7 +283,14 @@ are built — avoids painful migrations later.
   change to actually invalidate outstanding JWTs (see Multi-tenancy
   architecture — JWTs aren't stored server-side, so this is the only way to
   revoke one early).
-- `Memberships` (id, identity_id, tenant_id, role, show_on_public_page, active) —
+- `Memberships` (id, identity_id, tenant_id, role, show_on_public_page,
+  hourly_rate, active) — `hourly_rate`: `office_manager`-set, per-membership
+  (not on `Identities`) — a lawyer's billing rate is a fact about their
+  employment at *this* firm, not a global attribute of the person, same
+  reasoning as `show_on_public_page`. Only meaningful for `lawyer`
+  memberships; replaces the old flat, platform-wide placeholder rate
+  narrative generation used to use (see `Narratives`, below) — a real
+  per-lawyer number now feeds `total_fee` instead of one hardcoded constant.
   one person's role (`office_manager` / `lawyer` / `client` only — never
   `super_admin`) at one firm; `identity_id` + `tenant_id` unique together. A
   `Memberships` row only ever represents a real, accepted membership — a
@@ -274,7 +312,17 @@ are built — avoids painful migrations later.
   `MembershipInvites` flow again, reactivating their existing (inactive) row
   on acceptance instead of inserting a new one — the `identity_id`+
   `tenant_id` unique constraint means a fresh insert would fail while the
-  old row still exists, active or not.
+  old row still exists, active or not. `role` can also change on an
+  existing accepted `Membership` — `office_manager` can promote a `lawyer`
+  to `office_manager` or demote an `office_manager` back to `lawyer`, at
+  their own firm (never `client` in or out of this, promoting/demoting is
+  a lawyer-only ↔ office_manager-only toggle). This is also why a lawyer
+  self-service-leaving as the firm's *only* office_manager isn't treated as
+  a dangerous edge case worth blocking: any office_manager can promote
+  someone else before or after the fact, so a firm is never actually
+  strandable — worst case, `super_admin` exists as the last-resort fallback
+  (see Roles), but this promote/demote action is the normal, expected fix,
+  not an emergency path.
 - `MembershipInvites` (id, tenant_id, email, role, invited_by, status,
   created_at, responded_at) — an office manager inviting someone is a
   request, not an instant action: nobody should find themselves listed as a
@@ -296,11 +344,14 @@ are built — avoids painful migrations later.
     forgot-password flow already uses (see Future additions — same "real
     email delivery" gap applies here too, not a separate problem to solve).
     Following that link takes them to registration (`POST /auth/register`)
-    for that exact email; a *successful* registration is itself the
-    acceptance — no separate confirmation step after that, since actively
-    registering from an invite link already is the person agreeing. On
-    success, any matching `pending` `MembershipInvites` row for that email
-    resolves to `accepted` and its `Memberships` row is created immediately.
+    for that exact email. Registering does **not** by itself accept the
+    invite (reversed from an earlier draft of this decision) — creating an
+    account and agreeing to join a specific firm are two separate acts, and
+    collapsing them removed the person's real chance to decline. After a
+    successful registration, they land on the same explicit accept/decline
+    screen an already-registered invitee sees — one extra click, but the
+    acceptance is always a deliberate step, never an automatic side effect
+    of something else.
   - Inviting an email that already has a `pending` invite at the same
     tenant, or an already-active `Memberships` row there, is rejected with a
     clear message rather than creating a duplicate.
@@ -450,9 +501,16 @@ are built — avoids painful migrations later.
   pattern already used for `Subscriptions` — not a new mechanism, reused on
   purpose. This is also why `total_hours`/`total_fee` are stored as columns
   at all rather than computed live from `WorkLogs` on every read: they're a
-  fixed snapshot of what a specific narrative said, by design. Generating one
-  is any-lawyer-assigned authority, same as everything else on a case — not
-  office_manager-gated, even though it produces a fee figure.
+  fixed snapshot of what a specific narrative said, by design.
+
+  Generating one is `office_manager`-only (reversed from an earlier draft
+  of this decision, which treated it as any-lawyer-assigned authority like
+  everything else on a case). Reversed once `total_fee` stopped being a
+  flat platform-wide placeholder rate and started depending on each
+  lawyer's real, office_manager-set `hourly_rate` (see `Memberships`,
+  below) — generating a narrative is now closer to a billing/administrative
+  action than day-to-day casework, the same reasoning that already makes
+  Case status changes `office_manager`-only.
 
   `period_start`/`period_end` are chosen by the lawyer at generation time —
   real legal billing is period-by-period (typically monthly), not "every
@@ -461,10 +519,10 @@ are built — avoids painful migrations later.
   history. Stored per row for the same fixed-snapshot reason as
   `total_hours`/`total_fee`/`language`: which period a narrative actually
   covered shouldn't be reconstructable-only-by-guessing later. No
-  overlap-prevention needed across a case's narratives — a lawyer
-  re-covering a period they already billed (correcting a mistake, e.g.) is
-  a legitimate use of "generate a new row for the same case," not an error
-  to block.
+  overlap-prevention needed across a case's narratives — office_manager
+  re-covering a period already billed (correcting a mistake, e.g.) is a
+  legitimate use of "generate a new row for the same case," not an error to
+  block.
 
   `language` (`he` / `en`) is chosen at generation time, not a global
   setting — stored per row for the same "fixed snapshot" reason as
@@ -472,11 +530,20 @@ are built — avoids painful migrations later.
   sent in shouldn't silently change later. The fee amount is always rendered
   as plain text (`ש"ח` for `he`, `ILS` for `en`), never the `₪` glyph — a
   currency symbol is a font-rendering problem for no real benefit here, an
-  abbreviation reads identically either way. `en` is the easy case (any
-  default font renders it correctly); `he` is real work, not just template
-  text swapped in — it needs a font that actually contains Hebrew glyphs
-  embedded in the PDF, and correct right-to-left layout, since PDF libraries
-  don't do RTL shaping automatically the way a browser does.
+  abbreviation reads identically either way.
+
+  `language` only changes the generated *template sentences* ("Billed at a
+  flat rate of..." vs. its Hebrew equivalent) — it does not mean the whole
+  PDF is guaranteed to be one script. Real domain data embedded in either
+  version (the case title, `WorkLog` descriptions in the itemized table, a
+  lawyer/client's name) is typed in Hebrew regardless of which narrative
+  language was chosen, since that's how the data was actually entered
+  everywhere else in the app. So the Hebrew-glyph embedded font and RTL
+  layout are required in **both** the `he` and `en` PDF, not just `he` — an
+  earlier version of this decision assumed `en` needed no special handling,
+  which was wrong: it produced missing-glyph boxes wherever Hebrew data
+  appeared inside an otherwise-English document. Only the template
+  sentences differ by language; font/glyph handling doesn't.
 
   Narratives themselves are always firm-internal (never directly client-
   visible) — the `Narrative` row is raw material for the PDF export (Phase 3
@@ -487,6 +554,14 @@ are built — avoids painful migrations later.
   Narratives at all. This does mean client-visible narratives depend on the
   PDF-export feature existing, not generation alone, which is fine — it's
   the natural order Phase 3 already lists them in (generate, then export).
+
+  The PDF export itself includes an itemized table of every `WorkLog` in
+  the chosen period (date, description, hours) underneath the narrative
+  text, not just the summary totals — the underlying detail a client or
+  auditor would actually want to check against the fee figure. `office_manager`
+  also chooses the exported file's name at export time, rather than it
+  being auto-generated — same "person doing the export controls the
+  presentation" reasoning already used for choosing `language`.
 - `AuditLogs` (id, tenant_id, user_id, action, target, timestamp) — add-on
   feature. `user_id` references `memberships.id`. Logs deliberate,
   file-changing actions only — document uploaded, archived, restored,

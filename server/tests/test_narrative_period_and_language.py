@@ -1,14 +1,21 @@
 from datetime import date
 
-from conftest import auth_for, make_assignment, make_case, make_identity, make_membership, make_tenant
+from conftest import auth_for, make_case, make_identity, make_membership, make_tenant
 from shared.models import WorkLog
 from shared.models.enums import WorkLogSource, UserRole
 
 
-def _lawyer_on_case(db, tenant, case):
+def _manager(db, tenant):
+    identity = make_identity(db, "manager@acme.com", "Noa Manager")
+    membership = make_membership(db, identity.id, tenant.id, UserRole.OFFICE_MANAGER)
+    return identity, membership
+
+
+def _lawyer(db, tenant, hourly_rate="450.00"):
     identity = make_identity(db, "lawyer@acme.com", "Lior Lawyer")
     membership = make_membership(db, identity.id, tenant.id, UserRole.LAWYER)
-    make_assignment(db, tenant.id, case.id, membership.id)
+    membership.hourly_rate = hourly_rate
+    db.commit()
     return identity, membership
 
 
@@ -27,15 +34,16 @@ def _work_log_on(db, tenant_id, case_id, lawyer_id, on_date, hours="2.0"):
     return work_log
 
 
-def test_narrative_only_sums_hours_inside_period(client_client, db):
+def test_narrative_only_sums_hours_inside_period(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
-    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant)
     _work_log_on(db, tenant.id, case.id, lawyer_membership.id, date(2026, 1, 15), hours="3.0")  # inside
     _work_log_on(db, tenant.id, case.id, lawyer_membership.id, date(2026, 3, 1), hours="10.0")  # outside
-    headers, cookies = auth_for(lawyer_identity, "acme")
+    headers, cookies = auth_for(manager_identity, "acme")
 
-    resp = client_client.post(
+    resp = admin_client.post(
         f"/cases/{case.id}/narratives",
         json={"period_start": "2026-01-01", "period_end": "2026-01-31", "language": "he"},
         headers=headers,
@@ -49,13 +57,13 @@ def test_narrative_only_sums_hours_inside_period(client_client, db):
     assert body["period_end"] == "2026-01-31"
 
 
-def test_narrative_rejects_period_end_before_start(client_client, db):
+def test_narrative_rejects_period_end_before_start(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
-    lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
-    headers, cookies = auth_for(lawyer_identity, "acme")
+    manager_identity, _ = _manager(db, tenant)
+    headers, cookies = auth_for(manager_identity, "acme")
 
-    resp = client_client.post(
+    resp = admin_client.post(
         f"/cases/{case.id}/narratives",
         json={"period_start": "2026-02-01", "period_end": "2026-01-01", "language": "he"},
         headers=headers,
@@ -65,14 +73,15 @@ def test_narrative_rejects_period_end_before_start(client_client, db):
     assert resp.status_code == 422
 
 
-def test_hebrew_narrative_never_uses_shekel_glyph(client_client, db):
+def test_hebrew_narrative_never_uses_shekel_glyph(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
-    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant)
     _work_log_on(db, tenant.id, case.id, lawyer_membership.id, date.today(), hours="2.0")
-    headers, cookies = auth_for(lawyer_identity, "acme")
+    headers, cookies = auth_for(manager_identity, "acme")
 
-    resp = client_client.post(
+    resp = admin_client.post(
         f"/cases/{case.id}/narratives",
         json={"period_start": "2000-01-01", "period_end": "2100-01-01", "language": "he"},
         headers=headers,
@@ -85,14 +94,15 @@ def test_hebrew_narrative_never_uses_shekel_glyph(client_client, db):
     assert body["language"] == "he"
 
 
-def test_english_narrative_uses_ils_not_shekel_glyph(client_client, db):
+def test_english_narrative_uses_ils_not_shekel_glyph(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
-    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant)
     _work_log_on(db, tenant.id, case.id, lawyer_membership.id, date.today(), hours="2.0")
-    headers, cookies = auth_for(lawyer_identity, "acme")
+    headers, cookies = auth_for(manager_identity, "acme")
 
-    resp = client_client.post(
+    resp = admin_client.post(
         f"/cases/{case.id}/narratives",
         json={"period_start": "2000-01-01", "period_end": "2100-01-01", "language": "en"},
         headers=headers,
@@ -105,15 +115,16 @@ def test_english_narrative_uses_ils_not_shekel_glyph(client_client, db):
     assert body["language"] == "en"
 
 
-def test_export_pdf_renders_for_both_languages(client_client, db):
+def test_export_pdf_renders_for_both_languages(admin_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
-    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    manager_identity, _ = _manager(db, tenant)
+    _, lawyer_membership = _lawyer(db, tenant)
     _work_log_on(db, tenant.id, case.id, lawyer_membership.id, date.today(), hours="1.0")
-    headers, cookies = auth_for(lawyer_identity, "acme")
+    headers, cookies = auth_for(manager_identity, "acme")
 
     for language in ("he", "en"):
-        narrative_resp = client_client.post(
+        narrative_resp = admin_client.post(
             f"/cases/{case.id}/narratives",
             json={"period_start": "2000-01-01", "period_end": "2100-01-01", "language": language},
             headers=headers,
@@ -121,8 +132,11 @@ def test_export_pdf_renders_for_both_languages(client_client, db):
         )
         narrative_id = narrative_resp.json()["id"]
 
-        export_resp = client_client.post(
-            f"/cases/{case.id}/narratives/{narrative_id}/export-pdf", headers=headers, cookies=cookies
+        export_resp = admin_client.post(
+            f"/cases/{case.id}/narratives/{narrative_id}/export-pdf",
+            json={"filename": f"narrative-{language}"},
+            headers=headers,
+            cookies=cookies,
         )
         assert export_resp.status_code == 201
         assert export_resp.json()["content_type"] == "application/pdf"
@@ -134,7 +148,7 @@ def test_hebrew_pdf_embeds_real_hebrew_font(db):
     `he` narrative rather than silently falling back to Helvetica (which has
     no Hebrew glyphs at all).
     """
-    from client_api.core.narratives import build_narrative_pdf
+    from admin_api.core.narratives import build_narrative_pdf
     from shared.models import Case, Narrative
     from shared.models.enums import CaseStatus, NarrativeLanguage
     from datetime import date, datetime
@@ -154,7 +168,46 @@ def test_hebrew_pdf_embeds_real_hebrew_font(db):
         created_at=datetime(2026, 2, 1, 10, 0),
     )
 
-    pdf_bytes = build_narrative_pdf(case, narrative)
+    pdf_bytes = build_narrative_pdf(case, narrative, [])
 
     assert pdf_bytes.startswith(b"%PDF")
     assert b"Alef" in pdf_bytes  # embedded font name present in the PDF object stream
+
+
+def test_english_pdf_also_embeds_hebrew_font(db):
+    """CLAUDE.md's corrected Narratives note: `language` only changes which
+    template sentences were used, not whether the document is guaranteed to
+    be one script — a case title, WorkLog description, or person's name is
+    typed in Hebrew regardless of narrative language, so the `en` PDF must
+    embed the same real Hebrew font as `he`, not fall back to Helvetica
+    (which has no Hebrew glyphs and would render them as missing-glyph
+    boxes). Regression test for the earlier version of this that only
+    registered/used the Hebrew font for `he`.
+    """
+    from admin_api.core.narratives import build_narrative_pdf
+    from shared.models import Case, Narrative
+    from shared.models.enums import CaseStatus, NarrativeLanguage
+    from datetime import date, datetime
+    from decimal import Decimal
+
+    # A Hebrew case title embedded inside an otherwise-English narrative —
+    # exactly the scenario CLAUDE.md calls out (real domain data is typed in
+    # Hebrew everywhere else in the app, independent of narrative language).
+    case = Case(id=1, tenant_id=1, title='תיק לדוגמה', status=CaseStatus.OPEN)
+    narrative = Narrative(
+        id=1,
+        tenant_id=1,
+        case_id=1,
+        generated_text='Narrative summary for case "תיק לדוגמה" (case #1).',
+        total_hours=Decimal("2.00"),
+        total_fee=Decimal("900.00"),
+        language=NarrativeLanguage.EN,
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        created_at=datetime(2026, 2, 1, 10, 0),
+    )
+
+    pdf_bytes = build_narrative_pdf(case, narrative, [])
+
+    assert pdf_bytes.startswith(b"%PDF")
+    assert b"Alef" in pdf_bytes

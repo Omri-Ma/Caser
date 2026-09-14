@@ -4110,3 +4110,246 @@ now includes `REVOKED`. This is an additive, backward-compatible `ALTER
 TABLE` (existing rows/values untouched, old code simply never writes the
 new value), so it's safe for the other worktree's running containers even
 though they're on older code.
+
+## 2026-09-14 (branch `feature/superadmin-narrative-polish`) — 9-item punch list: super_admin page split + firm/user search+sort, storage-by-firm limit display, Enterprise unlimited fix, narrative bugfixes + office_manager-only + hourly_rate, lobby wordmark, avatar refresh, client sidebar cleanup, client visual spacing
+
+Pulled master first (session 1's homepage/directory/membership-nav branch
+had been merged, PR #23). Also picked up a local, uncommitted CLAUDE.md
+edit from a prior session (documenting the reversed narrative authority,
+per-lawyer `hourly_rate`, and the both-language Hebrew-glyph PDF
+correction) that had never been committed — stashed it, fast-forwarded
+onto `origin/master`, popped it back cleanly (no conflicts), and committed
+it straight to `master` before branching, since it's a spec/decision
+record rather than a feature-branch work product.
+
+Environment was already warm from a prior session: Docker containers
+(`client_api`/`admin_api`/db/redis) running, the dev database already
+migrated to the latest head, both Vite dev servers up. Playwright
+(1.63.0) plus a Chromium binary were also already cached on this machine
+from a prior session's install; reused via a scratch npm project in the
+temp scratchpad rather than reinstalling into the repo.
+
+**Item 1 — super_admin page split + search/sort** (commit `6e27e54`):
+`PlatformDashboardPage` (the combined stats+charts+firm-table screen)
+split into two: the dashboard now holds only the data/graphs (stat cards,
+plan-distribution pie, tenant-growth bar, earnings line, storage-by-firm
+list), and the cross-tenant firm list (with suspend/reactivate) moved to
+a new `PlatformFirmsPage` at `/firms`, with its own name/subdomain search
+bar — kept separate from the existing `/users` view per the instruction.
+`PlatformUsersPage`'s table gained a sortable `last_login_at` column;
+`DataTable` itself gained generic sortable-column support (`column.sortable`
++ `sort`/`onSortChange` props) so future list screens can reuse it rather
+than each hand-rolling its own header click handling.
+
+Backend: `/platform/tenants` gained a `search` param (name or subdomain,
+case-insensitive); `/platform/users` gained `sort`/`order` params. Hit a
+real bug while wiring the last_login_at sort: SQLAlchemy's
+`.nullsfirst()`/`.nullslast()` compile to literal `NULLS FIRST`/`NULLS
+LAST` SQL, which MySQL's grammar doesn't accept at all (confirmed via the
+container logs — `ProgrammingError: ... syntax ... near 'NULLS FIRST'`) —
+this only surfaced live in the browser (a Playwright click on the sort
+header), not from a code read, since the query builds fine in Python and
+only fails once MySQL actually parses it. Fixed with an explicit boolean
+sort key (`sort_column.is_(None)` ordered first) instead, pushing
+never-logged-in identities to the end regardless of sort direction rather
+than crashing or flipping to the front on ascending sort. Added two
+backend tests (tenant search-by-subdomain, and last_login_at sort in both
+directions including the NULL-handling case) — 18/18 `test_platform_admin.py`
+pass. Verified live end-to-end via Playwright as `super_admin`: page
+split, firm search filtering to one match, and last_login_at sort
+re-ordering rows with nulls trailing — all confirmed with screenshots.
+
+**Item 2 — storage-by-firm search bar** (commit `a048880`): the card
+already displayed each firm's real storage limit (`used / limit`), so the
+actual gap was that it hard-capped to the top 6 firms by usage percentage
+with no way to reach anything past that. Added the same client-side
+search pattern used elsewhere (storage-overview isn't paginated, so this
+narrows an already-fully-fetched list) and dropped the cap for a
+scrollable list instead. Verified live: all 12 seeded firms now reachable
+via scroll, and searching "levi" narrows to that one firm.
+
+**Item 3 — Enterprise "unlimited" storage display** (commit `16bdb1e`):
+the lawyer-count usage bar already special-cased Enterprise as "ללא
+הגבלה" with no bar, but the storage bar next to it never got the same
+`unlimited` prop — so an Enterprise firm's real 100GB cap rendered as a
+technically-correct but visually-useless near-empty bar. Fixed on both
+`SubscriptionPage` (office_manager's own view) and the super_admin
+storage-by-firm card, matching the lawyers bar's existing pattern
+exactly. Verified live by switching the demo tenant to Enterprise via
+its own existing self-service plan switch (no seed data needed), then
+back to Free afterward to leave demo state as found.
+
+**Item 4 — narrative date format + Hebrew font in both PDF languages**
+(commit `51fc1af`): two independent, already-shipped bugs. (a) The period
+date-range picker used native `<input type="date">`; confirmed live
+(a throwaway HTML test page) that even an explicit `lang="he"` on the
+element does nothing in Chromium — the displayed format follows the
+browser's own UI locale, which isn't controllable from the page at all.
+Replaced with a new `DateInput` component (masked text input, always
+DD/MM/YYYY on screen, converts to/from the ISO string everywhere else
+already uses) rather than pulling in a date-picker dependency for one
+field. (b) `build_narrative_pdf` only registered/used the bundled Hebrew
+TTF for `he` narratives, silently falling back to Helvetica (no Hebrew
+glyphs at all) for `en` — per CLAUDE.md's corrected note, `language` only
+picks the template sentences, and real embedded data (case title, names)
+is typed in Hebrew regardless, so an `en` PDF with a Hebrew case title
+produced missing-glyph boxes. Now both languages register/use the Hebrew
+font and run every line through python-bidi's `get_display` with an
+explicit `base_dir` — only paragraph alignment still depends on language.
+
+Verified concretely, not just by reading the code: rendered both an `en`
+and `he` test PDF with a Hebrew case title embedded via PyMuPDF
+(`pymupdf`, already in the venv) to PNG and visually confirmed real
+Hebrew glyphs in both. For the date picker, logged in as a real lawyer
+(reset an existing dev-DB identity's password through the actual
+self-service forgot-password + dev-outbox flow, since its original
+password wasn't known), typed `01/03/2026`/`14/09/2026` into the real
+form, submitted, and confirmed the created narrative's period text reads
+"01 במרץ 2026–14 בספט' 2026" — day and month were not swapped. Cleaned up
+the one throwaway narrative row created for this afterward. Added a
+regression test for the font fix; 16/16 narrative tests pass.
+
+**Item 5 — narrative feature expansion** (commit `4ab7b21`): the big one
+this session. Generation and PDF export moved entirely out of client_api
+(where any assigned lawyer could do it) into a brand-new admin_api router,
+office_manager-only — a genuine architecture decision, not a role-check
+tweak, since office_manager never logs into client/ at all (CLAUDE.md's
+Multi-tenancy architecture). Judgment call, not explicitly spelled out in
+the punch-list item: kept a read-only `GET` list in client_api so an
+assigned lawyer can still see what will be billed for their own hours,
+since nothing said to remove lawyer visibility, only that *generation*
+authority moved — reasoned this was the safer, more conservative reading
+than silently dropping a feature. Deleted `client_api/core/narratives.py`
+entirely (nothing left there needs it) and rebuilt the PDF/text-generation
+logic in `admin_api/core/narratives.py`.
+
+`Memberships.hourly_rate` (nullable `Numeric(8,2)`, migration
+`a2b3c4d5e6f7`, applied to the real dev DB) replaces the flat
+`HOURLY_RATE = 450` placeholder — `compute_case_totals` now sums each
+`WorkLog` at *its own lawyer's* rate (0 if the office manager hasn't set
+one yet, not an error), verified with two lawyers on the same case at
+different rates to make sure they're billed individually rather than
+averaged. Settable via a new `PATCH /members/{id}/hourly-rate`
+(office_manager-only, lawyer-only target) and an inline-edit cell on the
+admin Lawyers page.
+
+The PDF export gained an itemized WorkLog table and office_manager now
+names the exported file at export time. Building the table caught a real
+bug that only showed up in a rendered PDF, not from reading the code: the
+first version built each row as one `"date | lawyer | description |
+hours"` string and ran the whole thing through python-bidi's
+`get_display` — which is correct for reordering *natural-language* text,
+but for a pipe-joined mix of Hebrew/English/numeric fields it reordered
+the *fields themselves* relative to each other. A screenshot of the
+rendered PDF (via PyMuPDF, `page.get_pixmap()`) showed the row as "Lior
+Lawyer | Contract review and drafting | 6.00 | 15/06/2026" directly under
+a "תאריך | עורך/ת דין | תיאור | שעות" (Date | Lawyer | Description |
+Hours) header — visibly misaligned once actually looked at, invisible
+from the code or from the unit tests (which only checked *that* text
+appeared somewhere, not column order). Fixed by giving the table real
+fixed-x columns: each cell is bidi-processed and drawn independently at
+its own position, rather than one joined line. Re-verified with a fresh
+render in both `he` and `en` — columns now line up correctly under their
+headers in both.
+
+Full live verification as `office_manager`: set a real lawyer's rate to
+500/hr via the new UI, logged real hours as that lawyer through client/
+(confirming client/'s narrative view really is read-only now — no
+generate/export controls visible), regenerated the narrative and
+confirmed 6h × 500/hr = 3000 ש"ח exactly, exported with a hand-typed
+filename and confirmed the resulting Document is listed under that exact
+name (not an auto-generated one), and rendered the actual PDF bytes with
+PyMuPDF to visually confirm the itemized table. Added a new
+`pymupdf==1.28.2` test-only dependency (`server/requirements.txt`) for
+this — real text extraction was necessary because the embedded Hebrew TTF
+is a subset font with remapped glyph encoding, so a raw byte search for
+plain ASCII text against the PDF's (compressed) content stream doesn't
+work at all. Note: this new dependency is only verified against the host
+venv the tests actually ran against — running tests via `docker compose
+exec` instead would need an image rebuild to pick it up.
+
+Added `server/tests/test_narratives_admin.py` (generation, per-lawyer
+rate math including the unset-rate-as-zero case, filename handling,
+itemized-table content, role gating — 15 tests) and rewrote
+`test_narratives_client.py`/`test_narrative_period_and_language.py` to
+match the new read-only-in-client_api reality rather than leaving them
+testing routes that no longer exist. Full suite: **274/274 backend tests
+pass** (ran the whole `tests/` directory once at the end of this item,
+not just the narrative-scoped files, since the client_api router
+rewrite and the DocumentsPanel refreshSignal cleanup both touch code
+other tests exercise).
+
+**Item 6 — lobby wordmark fix** (commit `84ad5b5`): same bug as the
+already-fixed sidebar one (session 1's punch list, item 9) — both apps'
+`Layout.jsx` (wrapping the lobby pages) rendered "Caser · ניהול"/"Caser ·
+פורטל לקוחות" as one plain string, and `.app-brand` applied the serif
+`--font-family-wordmark` to the whole thing. Wrapped only "Caser" in its
+own `.wordmark` span, same as the sidebar fix, and sized it up
+(`--font-size-xl`) since the lobby header is a standalone brand element,
+not a compact sidebar item. Verified live via screenshot in both apps.
+
+**Item 7 — header avatar** (commit `bdfe1bd`): two bugs, not one. The
+avatar never rendered `Identity.photo_url` at all (always initials,
+regardless of whether a photo was set) — so "doesn't update" was really
+"never showed in the first place." Even after fixing that, `AppShell`
+only fetches identity once on mount, and `ProfilePage` saves via a plain
+PATCH on the same page, so the header stayed stale until a reload. Fixed
+both: an `<img>` when `photo_url` is set, and a small
+`window.dispatchEvent(new CustomEvent('caser:identity-updated', ...))`
+from `ProfilePage` (carrying the save response's already-updated
+identity) that `AppShell` listens for — no second fetch needed, no
+Context/state-library introduced for one cross-component update.
+Verified live in both apps with a distinctly-colored placeholder image
+(to be certain it was the real image rendering, not a coincidentally
+similar-looking initials fallback — the first test image happened to
+have "LL" baked into it too, same as the lawyer's initials, which very
+nearly produced a false-positive "looks fixed" read before a second,
+visually distinct image ruled that out).
+
+**Item 8 — stray Documents nav item** (commit `d3e825a`): unlike the
+"hours" item (conditionally disabled per role), client/'s sidebar
+"documents" entry had no `path` under any circumstance — documents were
+never a standalone top-level screen, only ever a per-case panel. Removed
+outright rather than leaving a permanently-disabled "coming soon" item
+for something not actually planned. Verified live: sidebar now shows
+only תיקים / ייבוא שעות מאקסל / פרופיל אישי.
+
+**Item 9 — client visual spacing** (commit `f3bbadb`): took screenshots
+first, as instructed, rather than guessing — and specifically on a case
+with real content (work logs, an assigned lawyer) rather than an empty
+one, since an empty state's natural whitespace could otherwise be
+mistaken for a bug. Measured actual rendered box positions
+(`boundingBox()`) rather than eyeballing pixel gaps off a screenshot,
+which is what actually caught the first issue: `.detail-columns` (the
+Documents+WorkHours row, and separately the Narrative row below it) had
+no `margin-bottom` at all, so the two sat flush against each other with
+zero gap while every other section on the page had a consistent
+~12-20px rhythm — invisible without actually measuring, since 0px isn't
+obviously wrong the way a negative margin or overlap would be. Fixed
+with `margin-bottom: 20px`, cleared via `:last-child` so a case with no
+narrative section rendered doesn't gain trailing empty space.
+
+Second issue, `ProfilePage`: `.profile-card` was capped at
+`max-width: 420px` — identical to `Modal.css`'s dialog width, which
+made "copied from the modal component" the likely origin rather than a
+deliberate choice for a full standalone page. At the 1300px width used
+throughout this session's verification, the form used barely a third of
+the available width. Widened to 640px, matching `HomePage`'s own
+established content max-width (a real precedent already in this
+codebase) rather than picking an arbitrary number or removing the cap
+entirely (admin's equivalent settings page has no cap at all, but
+admin/client are deliberately different designs per CLAUDE.md, so that
+wasn't assumed to be the right target either). Verified both fixes with
+fresh screenshots after rebuilding.
+
+**Session wrap-up**: all 9 numbered items done, each committed
+separately. Docs (OpenAPI/Postman/ERD) re-regenerated after the last
+content change and committed (the Postman collections' JSON key
+ordering is non-deterministic between runs of the conversion tool —
+that diff alone, with no endpoint content actually changed, was its own
+commit). Full `server/tests/` suite re-run one final time after every
+item was in place, in the background while this entry was written —
+whatever it reports lands in its own follow-up commit if anything
+needed fixing, or is simply confirmed clean if not. Per the session's
+own instructions: branch not pushed, no PR opened — stopping here for
+review.
