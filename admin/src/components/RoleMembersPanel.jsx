@@ -1,25 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import AppShell from '../components/AppShell'
-import DataTable from '../components/DataTable'
-import InviteMemberModal from '../components/InviteMemberModal'
-import { FormError } from '../components/Form'
+import DataTable from './DataTable'
+import InviteMemberModal from './InviteMemberModal'
+import { FormError } from './Form'
 import { deactivateMember, listMembers, updateMemberRole, updatePublicVisibility } from '../api/members'
 import { listInvites, revokeInvite } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
-import './MembersPage.css'
+import './RoleMembersPanel.css'
 
 const STATUS_TABS = [
   { key: 'active', label: 'פעילים' },
   { key: 'pending', label: 'ממתינים' },
   { key: 'removed', label: 'הוסרו' },
-]
-
-const ROLE_TABS = [
-  { key: 'all', label: 'הכול' },
-  { key: 'lawyer', label: 'עורכי דין' },
-  { key: 'client', label: 'לקוחות' },
-  { key: 'office_manager', label: 'מנהלי משרד' },
 ]
 
 const ROLE_LABELS = {
@@ -28,23 +20,38 @@ const ROLE_LABELS = {
   office_manager: 'מנהל/ת משרד',
 }
 
-export default function MembersPage() {
+// Shared table + tab logic behind all three per-role member pages
+// (LawyersPage / ClientsPage / AdminsPage) — CLAUDE.md's reusable
+// -component rule: the active/pending/removed table itself only differs
+// per page in which role it's scoped to and which actions apply, so that's
+// the one thing parameterized here rather than duplicating the whole
+// fetch/tabs/table logic three times.
+//
+// role: 'lawyer' | 'client' | 'office_manager' — which membership role this
+//   page manages (also the role a new invite gets created as, when
+//   inviteRole is set).
+// inviteRole: pass the role to invite as (only lawyer/client can be
+//   invited directly — CLAUDE.md: an office_manager only ever comes from
+//   promoting an existing lawyer, never a direct invite) to show the
+//   "+ invite" button; omit for the Admins page.
+// toggleToRole + toggleLabel: pass the *other* role this page's members can
+//   be switched to, and the button label, to show a promote/demote action
+//   per row (lawyer page -> promote to office_manager; admins page ->
+//   demote to lawyer). Omit for the Clients page — CLAUDE.md is explicit
+//   this toggle never involves client in or out of it.
+export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggleLabel, noInviteHint }) {
   const [statusTab, setStatusTab] = useState('active')
-  const [roleFilter, setRoleFilter] = useState('all')
   const [result, setResult] = useState(null)
   // Which tab `result` actually belongs to — set together with the data
   // itself (not read off `statusTab` directly), so columns never render
-  // against rows from the *previous* tab's shape. `statusTab` changes the
-  // instant a tab is clicked, but the fetch (and this) only resolve later;
-  // rendering pending's invite-shaped columns against a still-in-flight
-  // active tab's member rows (or vice versa) crashes on the mismatched shape
-  // (e.g. an invite column reading a member row's missing `created_at`).
+  // against rows from the *previous* tab's shape (see MembersPage's
+  // original note this carries forward from).
   const [resultTab, setResultTab] = useState('active')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [rowError, setRowError] = useState(null)
   const [actioningId, setActioningId] = useState(null)
-  const [inviteRole, setInviteRole] = useState(null)
+  const [inviting, setInviting] = useState(false)
   const [myEmail, setMyEmail] = useState(null)
 
   useEffect(() => {
@@ -54,10 +61,11 @@ export default function MembersPage() {
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    const role = roleFilter === 'all' ? undefined : roleFilter
     const tabAtRequestTime = statusTab
     const request =
-      statusTab === 'pending' ? listInvites({ role, status: 'pending' }) : listMembers({ role, active: statusTab === 'active' })
+      statusTab === 'pending'
+        ? listInvites({ role, status: 'pending' })
+        : listMembers({ role, active: statusTab === 'active' })
     request
       .then((data) => {
         setResult(data)
@@ -65,14 +73,14 @@ export default function MembersPage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [roleFilter, statusTab])
+  }, [statusTab, role])
 
   useEffect(() => {
     load()
   }, [load])
 
   function handleInvited() {
-    setInviteRole(null)
+    setInviting(false)
     if (statusTab !== 'pending') setStatusTab('pending')
     else load()
   }
@@ -108,15 +116,14 @@ export default function MembersPage() {
   }
 
   async function handleToggleRole(member) {
-    const nextRole = member.role === 'office_manager' ? 'lawyer' : 'office_manager'
-    const verb = nextRole === 'office_manager' ? 'לקדם' : 'להוריד'
-    if (!window.confirm(`${verb} את ${member.identity_name} ל${ROLE_LABELS[nextRole]}?`)) {
+    const verb = toggleToRole === 'office_manager' ? 'לקדם' : 'להוריד'
+    if (!window.confirm(`${verb} את ${member.identity_name} ל${ROLE_LABELS[toggleToRole]}?`)) {
       return
     }
     setActioningId(member.id)
     setRowError(null)
     try {
-      await updateMemberRole(member.id, nextRole)
+      await updateMemberRole(member.id, toggleToRole)
       load()
     } catch (err) {
       setRowError(err.message)
@@ -138,6 +145,8 @@ export default function MembersPage() {
     }
   }
 
+  const showPublicToggle = role === 'office_manager' || role === 'lawyer'
+
   const memberColumns = [
     {
       key: 'name',
@@ -149,49 +158,43 @@ export default function MembersPage() {
         </div>
       ),
     },
-    {
-      key: 'role',
-      label: 'תפקיד',
-      render: (row) => <span className="chip member-role-chip">{ROLE_LABELS[row.role] || row.role}</span>,
-    },
-    {
-      key: 'public_page',
-      label: 'עמוד ציבורי',
-      render: (row) => {
-        // Only office_manager/lawyer memberships are eligible at all (a
-        // client is never "the firm" the way staff are, CLAUDE.md), and
-        // only meaningful for an active membership — the removed tab never
-        // shows this control.
-        if (statusTab !== 'active' || (row.role !== 'office_manager' && row.role !== 'lawyer')) return null
-        return (
-          <label className="member-public-toggle">
-            <input
-              type="checkbox"
-              checked={row.show_on_public_page}
-              disabled={actioningId === row.id}
-              onChange={() => handleTogglePublicVisibility(row)}
-            />
-            מוצג/ת
-          </label>
-        )
-      },
-    },
+    ...(showPublicToggle
+      ? [
+          {
+            key: 'public_page',
+            label: 'עמוד ציבורי',
+            render: (row) => {
+              if (statusTab !== 'active') return null
+              return (
+                <label className="member-public-toggle">
+                  <input
+                    type="checkbox"
+                    checked={row.show_on_public_page}
+                    disabled={actioningId === row.id}
+                    onChange={() => handleTogglePublicVisibility(row)}
+                  />
+                  מוצג/ת
+                </label>
+              )
+            },
+          },
+        ]
+      : []),
     {
       key: 'actions',
       label: '',
       render: (row) => {
         const isSelf = row.identity_email === myEmail
-        const canToggleRole = row.role === 'office_manager' || row.role === 'lawyer'
         return statusTab === 'active' ? (
           <div className="member-actions">
-            {canToggleRole && (
+            {toggleToRole && (
               <button
                 type="button"
                 className="member-action"
                 onClick={() => handleToggleRole(row)}
                 disabled={actioningId === row.id}
               >
-                {row.role === 'office_manager' ? 'הורדה לעו״ד' : 'קידום למנהל/ת'}
+                {toggleLabel}
               </button>
             )}
             <button
@@ -213,11 +216,6 @@ export default function MembersPage() {
 
   const inviteColumns = [
     { key: 'email', label: 'אימייל', render: (row) => row.email },
-    {
-      key: 'role',
-      label: 'תפקיד',
-      render: (row) => <span className="chip member-role-chip">{ROLE_LABELS[row.role] || row.role}</span>,
-    },
     { key: 'invited_by', label: 'הוזמן/ה על ידי', render: (row) => row.invited_by_name },
     { key: 'created_at', label: 'תאריך הזמנה', render: (row) => formatDate(row.created_at) },
     {
@@ -237,18 +235,17 @@ export default function MembersPage() {
   ]
 
   return (
-    <AppShell activeKey="members">
+    <>
       <div className="cases-header">
-        <h1 className="page-title">אנשי צוות</h1>
-        <div className="members-invite-buttons">
-          <button type="button" className="primary-button cases-new-button" onClick={() => setInviteRole('lawyer')}>
-            + הזמנת עורך/ת דין
+        <h1 className="page-title">{ROLE_LABELS[role]} · אנשי צוות</h1>
+        {inviteRole && (
+          <button type="button" className="primary-button cases-new-button" onClick={() => setInviting(true)}>
+            + הזמנת {ROLE_LABELS[inviteRole]}
           </button>
-          <button type="button" className="primary-button cases-new-button" onClick={() => setInviteRole('client')}>
-            + הזמנת לקוח/ה
-          </button>
-        </div>
+        )}
       </div>
+
+      {noInviteHint && <p className="role-panel-hint">{noInviteHint}</p>}
 
       {error && <div className="cases-state cases-state-error">{error}</div>}
 
@@ -266,18 +263,6 @@ export default function MembersPage() {
               </button>
             ))}
           </div>
-          <div className="cases-tabs members-role-tabs">
-            {ROLE_TABS.filter((tab) => statusTab !== 'pending' || tab.key !== 'office_manager').map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                className={`cases-tab${roleFilter === tab.key ? ' active' : ''}`}
-                onClick={() => setRoleFilter(tab.key)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
 
           {rowError && <FormError message={rowError} />}
 
@@ -290,12 +275,9 @@ export default function MembersPage() {
         </div>
       )}
 
-      <InviteMemberModal
-        open={inviteRole !== null}
-        role={inviteRole}
-        onClose={() => setInviteRole(null)}
-        onInvited={handleInvited}
-      />
-    </AppShell>
+      {inviteRole && (
+        <InviteMemberModal open={inviting} role={inviteRole} onClose={() => setInviting(false)} onInvited={handleInvited} />
+      )}
+    </>
   )
 }

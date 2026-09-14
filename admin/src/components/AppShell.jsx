@@ -15,15 +15,37 @@ const NAV_ITEMS = [
     ),
   },
   {
-    key: 'members',
-    label: 'אנשי צוות',
-    path: '/members',
+    key: 'lawyers',
+    label: 'עורכי דין',
+    path: '/members/lawyers',
     icon: (
       <>
         <circle cx="9" cy="8" r="3.2" />
         <path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5" />
         <circle cx="17" cy="8.5" r="2.4" />
         <path d="M15.5 13.7c2.4.4 4 2.4 4 5.3" />
+      </>
+    ),
+  },
+  {
+    key: 'clients',
+    label: 'לקוחות',
+    path: '/members/clients',
+    icon: (
+      <>
+        <circle cx="12" cy="8.5" r="3.2" />
+        <path d="M5.5 19.5c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2" />
+      </>
+    ),
+  },
+  {
+    key: 'admins',
+    label: 'מנהלי משרד',
+    path: '/members/admins',
+    icon: (
+      <>
+        <path d="M12 3.5l7 3v5c0 4.5-3 7.5-7 8.5-4-1-7-4-7-8.5v-5z" />
+        <path d="M9.5 12l1.8 1.8L14.8 10" />
       </>
     ),
   },
@@ -199,18 +221,20 @@ export default function AppShell({ activeKey, children }) {
 
   if (otherTenants) {
     return (
-      <div className="no-access-picker">
-        <h1>אין לך גישה למשרד הזה</h1>
-        <p>בחרו את המשרד שאליו תרצו לעבור:</p>
-        <ul className="no-access-picker-list">
-          {otherTenants.map((t) => (
-            <li key={t.tenant_id}>
-              <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
-                {t.firm_name}
-              </button>
-            </li>
-          ))}
-        </ul>
+      <div className="no-access-page">
+        <div className="no-access-picker">
+          <h1>אין לך גישה למשרד הזה</h1>
+          <p>בחרו את המשרד שאליו תרצו לעבור:</p>
+          <ul className="no-access-picker-list">
+            {otherTenants.map((t) => (
+              <li key={t.tenant_id}>
+                <button type="button" className="primary-button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
+                  {t.firm_name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     )
   }
