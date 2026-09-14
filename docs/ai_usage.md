@@ -4208,3 +4208,73 @@ form, submitted, and confirmed the created narrative's period text reads
 "01 במרץ 2026–14 בספט' 2026" — day and month were not swapped. Cleaned up
 the one throwaway narrative row created for this afterward. Added a
 regression test for the font fix; 16/16 narrative tests pass.
+
+**Item 5 — narrative feature expansion** (commit `4ab7b21`): the big one
+this session. Generation and PDF export moved entirely out of client_api
+(where any assigned lawyer could do it) into a brand-new admin_api router,
+office_manager-only — a genuine architecture decision, not a role-check
+tweak, since office_manager never logs into client/ at all (CLAUDE.md's
+Multi-tenancy architecture). Judgment call, not explicitly spelled out in
+the punch-list item: kept a read-only `GET` list in client_api so an
+assigned lawyer can still see what will be billed for their own hours,
+since nothing said to remove lawyer visibility, only that *generation*
+authority moved — reasoned this was the safer, more conservative reading
+than silently dropping a feature. Deleted `client_api/core/narratives.py`
+entirely (nothing left there needs it) and rebuilt the PDF/text-generation
+logic in `admin_api/core/narratives.py`.
+
+`Memberships.hourly_rate` (nullable `Numeric(8,2)`, migration
+`a2b3c4d5e6f7`, applied to the real dev DB) replaces the flat
+`HOURLY_RATE = 450` placeholder — `compute_case_totals` now sums each
+`WorkLog` at *its own lawyer's* rate (0 if the office manager hasn't set
+one yet, not an error), verified with two lawyers on the same case at
+different rates to make sure they're billed individually rather than
+averaged. Settable via a new `PATCH /members/{id}/hourly-rate`
+(office_manager-only, lawyer-only target) and an inline-edit cell on the
+admin Lawyers page.
+
+The PDF export gained an itemized WorkLog table and office_manager now
+names the exported file at export time. Building the table caught a real
+bug that only showed up in a rendered PDF, not from reading the code: the
+first version built each row as one `"date | lawyer | description |
+hours"` string and ran the whole thing through python-bidi's
+`get_display` — which is correct for reordering *natural-language* text,
+but for a pipe-joined mix of Hebrew/English/numeric fields it reordered
+the *fields themselves* relative to each other. A screenshot of the
+rendered PDF (via PyMuPDF, `page.get_pixmap()`) showed the row as "Lior
+Lawyer | Contract review and drafting | 6.00 | 15/06/2026" directly under
+a "תאריך | עורך/ת דין | תיאור | שעות" (Date | Lawyer | Description |
+Hours) header — visibly misaligned once actually looked at, invisible
+from the code or from the unit tests (which only checked *that* text
+appeared somewhere, not column order). Fixed by giving the table real
+fixed-x columns: each cell is bidi-processed and drawn independently at
+its own position, rather than one joined line. Re-verified with a fresh
+render in both `he` and `en` — columns now line up correctly under their
+headers in both.
+
+Full live verification as `office_manager`: set a real lawyer's rate to
+500/hr via the new UI, logged real hours as that lawyer through client/
+(confirming client/'s narrative view really is read-only now — no
+generate/export controls visible), regenerated the narrative and
+confirmed 6h × 500/hr = 3000 ש"ח exactly, exported with a hand-typed
+filename and confirmed the resulting Document is listed under that exact
+name (not an auto-generated one), and rendered the actual PDF bytes with
+PyMuPDF to visually confirm the itemized table. Added a new
+`pymupdf==1.28.2` test-only dependency (`server/requirements.txt`) for
+this — real text extraction was necessary because the embedded Hebrew TTF
+is a subset font with remapped glyph encoding, so a raw byte search for
+plain ASCII text against the PDF's (compressed) content stream doesn't
+work at all. Note: this new dependency is only verified against the host
+venv the tests actually ran against — running tests via `docker compose
+exec` instead would need an image rebuild to pick it up.
+
+Added `server/tests/test_narratives_admin.py` (generation, per-lawyer
+rate math including the unset-rate-as-zero case, filename handling,
+itemized-table content, role gating — 15 tests) and rewrote
+`test_narratives_client.py`/`test_narrative_period_and_language.py` to
+match the new read-only-in-client_api reality rather than leaving them
+testing routes that no longer exist. Full suite: **274/274 backend tests
+pass** (ran the whole `tests/` directory once at the end of this item,
+not just the narrative-scoped files, since the client_api router
+rewrite and the DocumentsPanel refreshSignal cleanup both touch code
+other tests exercise).
