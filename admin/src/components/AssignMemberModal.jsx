@@ -5,11 +5,17 @@ import { listMembers } from '../api/members'
 import { assignToCase } from '../api/cases'
 import './AssignMemberModal.css'
 
+const ROLE_TITLES = { lawyer: 'שיוך עורך דין לתיק', client: 'שיוך לקוח לתיק' }
+const ROLE_EMPTY = { lawyer: 'אין עורכי דין זמינים לשיוך.', client: 'אין לקוחות זמינים לשיוך.' }
+
 // Assign flow for a case: pick an existing lawyer or client membership at
 // this firm — never free text (CLAUDE.md requires assignment by picking
 // from real memberships, resolved server-side through get_tenant_scoped).
-export default function AssignMemberModal({ open, caseId, excludeMembershipIds, onClose, onAssigned }) {
-  const [roleTab, setRoleTab] = useState('lawyer')
+// Fixed to one `role` per modal instance — two distinct actions (one per
+// AssignmentGroup column on CaseDetailPage), not a single mixed picker with
+// an internal role tab, since a lawyer and a client are never actually
+// interchangeable choices in this flow.
+export default function AssignMemberModal({ open, role, caseId, excludeMembershipIds, onClose, onAssigned }) {
   const [members, setMembers] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -24,11 +30,11 @@ export default function AssignMemberModal({ open, caseId, excludeMembershipIds, 
     setError(null)
     setSelectedId(null)
     setSubmitError(null)
-    listMembers({ role: roleTab })
+    listMembers({ role })
       .then((page) => setMembers(page.items))
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [open, roleTab])
+  }, [open, role])
 
   function handleClose() {
     onClose()
@@ -51,31 +57,10 @@ export default function AssignMemberModal({ open, caseId, excludeMembershipIds, 
   }
 
   return (
-    <Modal open={open} title="שיוך לתיק" onClose={handleClose}>
-      <div className="assign-tabs">
-        <button
-          type="button"
-          className={`assign-tab${roleTab === 'lawyer' ? ' active' : ''}`}
-          onClick={() => setRoleTab('lawyer')}
-        >
-          עורכי דין
-        </button>
-        <button
-          type="button"
-          className={`assign-tab${roleTab === 'client' ? ' active' : ''}`}
-          onClick={() => setRoleTab('client')}
-        >
-          לקוחות
-        </button>
-      </div>
-
+    <Modal open={open} title={ROLE_TITLES[role]} onClose={handleClose}>
       {loading && <div className="assign-state">טוען…</div>}
       {!loading && error && <div className="assign-state assign-state-error">{error}</div>}
-      {!loading && !error && availableMembers.length === 0 && (
-        <div className="assign-state">
-          {roleTab === 'lawyer' ? 'אין עורכי דין זמינים לשיוך.' : 'אין לקוחות זמינים לשיוך.'}
-        </div>
-      )}
+      {!loading && !error && availableMembers.length === 0 && <div className="assign-state">{ROLE_EMPTY[role]}</div>}
 
       {!loading && !error && availableMembers.length > 0 && (
         <div className="assign-picker-list">

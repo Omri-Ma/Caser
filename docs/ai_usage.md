@@ -3475,3 +3475,23 @@ proper project run-skill later; didn't do that myself to stay focused on the
   ללא הגבלה" with no progress track instead of "37 / 10000" — the storage
   usage bar is untouched (Enterprise's storage cap is a real, still-visible
   ceiling per CLAUDE.md, only the lawyer count is framed as unlimited).
+
+**Item 4 — Split the mixed lawyer/client assignment picker**:
+- `CaseDetailPage`'s "שיוכים לתיק" card previously had one "+ שיוך" button
+  opening one `AssignMemberModal` with an internal lawyer/client tab
+  switcher inside it. Replaced with two distinct actions: each
+  `AssignmentGroup` column (עורכי דין / לקוחות) now has its own "+ שיוך
+  עורך דין" / "+ שיוך לקוח" button, each opening the *same* modal component
+  but with a fixed `role` prop and no internal tab — a lawyer and a client
+  were never actually interchangeable choices in this flow, so a shared
+  entry point with a mode switch was hiding two different actions behind
+  one button.
+- `AssignMemberModal` simplified accordingly: dropped `roleTab` state and
+  the tab buttons, takes `role` directly, title changes per role
+  ("שיוך עורך דין לתיק" / "שיוך לקוח לתיק"). Removed the now-dead
+  `.assign-tabs`/`.assign-tab` CSS.
+- Backend untouched — `POST /cases/{id}/assignments` already resolves the
+  membership's actual role server-side and rejects a mismatch; this was a
+  frontend-only ask.
+- Verified live: both buttons render with distinct labels, each opens the
+  correctly-titled modal scoped to that role, zero console errors.

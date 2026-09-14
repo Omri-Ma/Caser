@@ -29,7 +29,7 @@ export default function CaseDetailPage() {
   const [assignments, setAssignments] = useState(null)
   const [assignmentsLoading, setAssignmentsLoading] = useState(true)
   const [assignmentsError, setAssignmentsError] = useState(null)
-  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [assignModalRole, setAssignModalRole] = useState(null)
   const [removingId, setRemovingId] = useState(null)
   const [assignmentsActionError, setAssignmentsActionError] = useState(null)
 
@@ -109,7 +109,7 @@ export default function CaseDetailPage() {
 
   function handleAssigned(assignment) {
     setAssignments((prev) => [...(prev ?? []), assignment])
-    setAssignModalOpen(false)
+    setAssignModalRole(null)
   }
 
   async function handleUnassign(assignment) {
@@ -261,12 +261,7 @@ export default function CaseDetailPage() {
           {deleteError && <FormError message={deleteError} />}
 
           <div className="card detail-card">
-            <div className="detail-assign-header">
-              <div className="detail-card-title">שיוכים לתיק</div>
-              <button type="button" className="secondary-button detail-assign-button" onClick={() => setAssignModalOpen(true)}>
-                + שיוך
-              </button>
-            </div>
+            <div className="detail-card-title">שיוכים לתיק</div>
 
             {assignmentsLoading && <div className="detail-state">טוען שיוכים…</div>}
             {!assignmentsLoading && assignmentsError && (
@@ -282,6 +277,8 @@ export default function CaseDetailPage() {
                   emptyMessage="אין עורכי דין משויכים לתיק זה."
                   onRemove={handleUnassign}
                   removingId={removingId}
+                  onAdd={() => setAssignModalRole('lawyer')}
+                  addLabel="+ שיוך עורך דין"
                 />
                 <AssignmentGroup
                   title="לקוחות"
@@ -289,16 +286,19 @@ export default function CaseDetailPage() {
                   emptyMessage="אין לקוחות משויכים לתיק זה."
                   onRemove={handleUnassign}
                   removingId={removingId}
+                  onAdd={() => setAssignModalRole('client')}
+                  addLabel="+ שיוך לקוח"
                 />
               </div>
             )}
           </div>
 
           <AssignMemberModal
-            open={assignModalOpen}
+            open={assignModalRole !== null}
+            role={assignModalRole}
             caseId={caseId}
             excludeMembershipIds={assignedMembershipIds}
-            onClose={() => setAssignModalOpen(false)}
+            onClose={() => setAssignModalRole(null)}
             onAssigned={handleAssigned}
           />
 
@@ -310,11 +310,16 @@ export default function CaseDetailPage() {
   )
 }
 
-function AssignmentGroup({ title, items, emptyMessage, onRemove, removingId }) {
+function AssignmentGroup({ title, items, emptyMessage, onRemove, removingId, onAdd, addLabel }) {
   return (
     <div className="assign-group">
-      <div className="assign-group-title">
-        {title} <span className="assign-group-count">({items.length})</span>
+      <div className="assign-group-header">
+        <div className="assign-group-title">
+          {title} <span className="assign-group-count">({items.length})</span>
+        </div>
+        <button type="button" className="secondary-button assign-group-add" onClick={onAdd}>
+          {addLabel}
+        </button>
       </div>
       {items.length === 0 && <div className="assign-group-empty">{emptyMessage}</div>}
       {items.length > 0 && (
