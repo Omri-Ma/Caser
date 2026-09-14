@@ -17,14 +17,15 @@ from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
 from shared.storage import get_file_url, save_file
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/cases/{case_id}/documents", tags=["documents"])
 
 
 def _get_case_document(case: Case, document_id: int, tenant: Tenant, db: Session) -> Document:
-    document = get_tenant_scoped(Document, document_id, tenant.id, db, "Document not found")
+    document = get_tenant_scoped(Document, document_id, tenant.id, db, E.DOCUMENT_NOT_FOUND)
     if document.case_id != case.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.DOCUMENT_NOT_FOUND)
     return document
 
 
@@ -72,23 +73,23 @@ async def upload_document(
     case = get_assigned_case(case_id, tenant, membership, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — new documents can't be added")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_ADD_DOCUMENTS)
 
     if membership.role == UserRole.CLIENT and folder_type != DocumentFolderType.CLIENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clients can only upload to the client folder")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.CLIENTS_UPLOAD_TO_CLIENT_FOLDER_ONLY)
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds the {MAX_FILE_SIZE_BYTES // (1024 * 1024)}MB limit",
+            detail=E.document_file_exceeds_limit(MAX_FILE_SIZE_BYTES // (1024 * 1024)),
         )
 
     detected = detect_file_type(content)
     if detected is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported file type — allowed: PDF, DOCX, JPEG, PNG",
+            detail=E.UNSUPPORTED_FILE_TYPE_DOCUMENT,
         )
 
     original_filename = file.filename or "upload"
@@ -107,7 +108,7 @@ async def upload_document(
     if existing_active is not None and not confirm_replace:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f'A document named "{original_filename}" already exists in this folder — resubmit to replace it',
+            detail=E.document_name_already_exists(original_filename),
         )
 
     check_plan_limit(tenant.id, "storage_bytes", db, additional=len(content))
@@ -160,7 +161,7 @@ def list_documents(
     case = get_assigned_case(case_id, tenant, membership, db)
 
     if archived and membership.role == UserRole.CLIENT:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clients can't browse the archive")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.CLIENTS_CANNOT_BROWSE_ARCHIVE)
 
     query = (
         db.query(Document, Identity)
@@ -174,7 +175,7 @@ def list_documents(
 
     if membership.role == UserRole.CLIENT:
         if folder_type is not None and folder_type != DocumentFolderType.CLIENT:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clients can only see the client folder")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.CLIENTS_SEE_CLIENT_FOLDER_ONLY)
         query = query.filter(Document.folder_type == DocumentFolderType.CLIENT)
     elif folder_type is not None:
         query = query.filter(Document.folder_type == folder_type)
@@ -218,7 +219,7 @@ def download_document(
     if membership.role == UserRole.CLIENT and (
         document.folder_type != DocumentFolderType.CLIENT or document.archived_at is not None
     ):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.DOCUMENT_NOT_FOUND)
 
     path = get_file_url(document.file_url)
     return FileResponse(path, media_type=document.content_type, filename=document.original_filename)
@@ -240,10 +241,10 @@ def archive_document(
     document = _get_case_document(case, document_id, tenant, db)
 
     if membership.role == UserRole.CLIENT and document.uploaded_by != membership.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Clients can only archive their own uploads")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.CLIENTS_ARCHIVE_OWN_UPLOADS_ONLY)
 
     if document.archived_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ALREADY_ARCHIVED)
 
     document.archived_at = datetime.now(timezone.utc)
     db.add(
@@ -274,7 +275,7 @@ def restore_document(
     document = _get_case_document(case, document_id, tenant, db)
 
     if document.archived_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document is not archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.DOCUMENT_NOT_ARCHIVED)
 
     document.archived_at = None
     db.add(

@@ -14,6 +14,7 @@ from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
 from shared.storage import save_file
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 # Lawyer-only, same as work_logs.py — narratives are always firm-internal
 # (CLAUDE.md), never client-visible directly. Any lawyer assigned to the
@@ -23,9 +24,9 @@ router = APIRouter(prefix="/cases/{case_id}/narratives", tags=["narratives"])
 
 
 def _get_case_narrative(case_id: int, narrative_id: int, tenant: Tenant, db: Session) -> Narrative:
-    narrative = get_tenant_scoped(Narrative, narrative_id, tenant.id, db, "Narrative not found")
+    narrative = get_tenant_scoped(Narrative, narrative_id, tenant.id, db, E.NARRATIVE_NOT_FOUND)
     if narrative.case_id != case_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Narrative not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.NARRATIVE_NOT_FOUND)
     return narrative
 
 

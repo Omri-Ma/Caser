@@ -198,7 +198,7 @@ def test_upload_over_storage_quota_rejected(client_client, db, monkeypatch):
     )
 
     assert resp.status_code == 400
-    assert "quota" in resp.json()["error"].lower()
+    assert "מכסת האחסון" in resp.json()["error"]
 
 
 def test_lawyer_searches_documents_by_filename(client_client, db):

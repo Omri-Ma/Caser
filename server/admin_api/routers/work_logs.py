@@ -9,14 +9,15 @@ from shared.models import AuditLog, Case, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/cases/{case_id}/work-logs", tags=["work-logs"])
 
 
 def _get_case_work_log(case: Case, work_log_id: int, tenant: Tenant, db: Session) -> WorkLog:
-    work_log = get_tenant_scoped(WorkLog, work_log_id, tenant.id, db, "Work log entry not found")
+    work_log = get_tenant_scoped(WorkLog, work_log_id, tenant.id, db, E.WORK_LOG_NOT_FOUND)
     if work_log.case_id != case.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work log entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.WORK_LOG_NOT_FOUND)
     return work_log
 
 
@@ -50,7 +51,7 @@ def list_work_logs(
     """office_manager sees every case's work logs automatically — no
     CaseAssignment check, same oversight authority as Documents.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
 
     query = (
         db.query(WorkLog, Identity)
@@ -89,11 +90,11 @@ def update_work_log(
     lawyer (CLAUDE.md: "office_manager can too, as with everything else").
     Locked once the case is closed, same as the lawyer-facing route.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     work_log = _get_case_work_log(case, work_log_id, tenant, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — work log entries can't be edited")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_EDIT_WORK_LOGS)
 
     work_log.date = payload.date
     work_log.hours = payload.hours
@@ -119,11 +120,11 @@ def delete_work_log(
     db: Session = Depends(get_db),
     office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     work_log = _get_case_work_log(case, work_log_id, tenant, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — work log entries can't be deleted")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_DELETE_WORK_LOGS)
 
     db.add(
         AuditLog(

@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 
-def get_tenant_scoped(model, obj_id: int, tenant_id: int, db: Session, not_found_detail: str = "Not found"):
+def get_tenant_scoped(model, obj_id: int, tenant_id: int, db: Session, not_found_detail: str = "לא נמצא"):
     """Look up a row by id, but only if it belongs to the given tenant.
 
     Every route that accepts a foreign id from the request (e.g. a

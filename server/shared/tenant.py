@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from shared.database import get_db
 from shared.models import Tenant
+from shared import error_messages as E
 
 BASE_DOMAIN = os.getenv("BASE_DOMAIN", "lvh.me")
 
@@ -54,7 +55,7 @@ def get_current_tenant(request: Request, db: Session = Depends(get_db)) -> Tenan
     if not hostname.endswith(suffix) or hostname == BASE_DOMAIN:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Request must be made to a tenant subdomain (e.g. acme.lvh.me)",
+            detail=E.REQUEST_MUST_BE_TO_TENANT_SUBDOMAIN,
         )
 
     subdomain = hostname[: -len(suffix)]
@@ -65,7 +66,7 @@ def get_current_tenant(request: Request, db: Session = Depends(get_db)) -> Tenan
         .first()
     )
     if tenant is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.TENANT_NOT_FOUND)
 
     # Read by the request-logging middleware after the route finishes, so
     # every tenant-scoped request is traceable to a tenant_id in the logs

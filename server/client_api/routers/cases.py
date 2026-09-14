@@ -11,6 +11,7 @@ from shared.models import Case, CaseAssignment, CaseTag, Membership, Tenant
 from shared.models.enums import CaseStatus, PracticeArea, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -61,7 +62,7 @@ def get_my_case(
     (404 if it doesn't even belong to this tenant), then checked for an
     assignment (403 if it exists here but this membership can't see it).
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
 
     assigned = (
         db.query(CaseAssignment)
@@ -73,6 +74,6 @@ def get_my_case(
         .first()
     )
     if assigned is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not assigned to this case")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NOT_ASSIGNED_TO_CASE)
 
     return case

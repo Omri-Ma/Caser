@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from shared.models import Identity, Membership, MembershipInvite
 from shared.models.enums import InviteStatus, UserRole
+from shared import error_messages as E
 
 # Fifth narrow extension to server/shared (alongside storage.py,
 # plan_limits.py, worklog_import.py, password_reset.py — see CLAUDE.md's
@@ -27,7 +28,7 @@ def create_invite(tenant_id: int, email: str, role: UserRole, invited_by_members
             .first()
         )
         if existing_membership is not None and existing_membership.active:
-            raise DuplicateInviteError("This person is already a member of your firm")
+            raise DuplicateInviteError(E.ALREADY_MEMBER_OF_FIRM)
 
     existing_pending = (
         db.query(MembershipInvite)
@@ -39,7 +40,7 @@ def create_invite(tenant_id: int, email: str, role: UserRole, invited_by_members
         .first()
     )
     if existing_pending is not None:
-        raise DuplicateInviteError("An invite is already pending for this email")
+        raise DuplicateInviteError(E.INVITE_ALREADY_PENDING)
 
     invite = MembershipInvite(tenant_id=tenant_id, email=email, role=role, invited_by=invited_by_membership_id)
     db.add(invite)

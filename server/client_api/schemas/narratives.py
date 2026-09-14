@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel, model_validator
 
 from shared.models.enums import NarrativeLanguage
+from shared import error_messages as E
 
 
 class GenerateNarrativeRequest(BaseModel):
@@ -21,7 +22,7 @@ class GenerateNarrativeRequest(BaseModel):
     @model_validator(mode="after")
     def _check_period(self):
         if self.period_end < self.period_start:
-            raise ValueError("period_end must not be before period_start")
+            raise ValueError(E.PERIOD_END_BEFORE_START)
         return self
 
 

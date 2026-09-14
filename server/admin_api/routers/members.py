@@ -11,6 +11,7 @@ from shared.models import AuditLog, Identity, Membership, Tenant
 from shared.models.enums import UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -73,9 +74,9 @@ def deactivate_member(
     WorkLogs/Documents/CaseAssignments/AuditLogs referencing this
     membership_id keep resolving correctly regardless.
     """
-    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, "Member not found")
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
     if membership.id == office_manager.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You can't deactivate your own membership")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CANNOT_DEACTIVATE_OWN_MEMBERSHIP)
 
     membership.active = False
     db.add(
@@ -111,11 +112,11 @@ def update_public_visibility(
     now only ever comes to exist via an accepted invite, or a pre-existing
     one predating that flow, either way a real agreed membership).
     """
-    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, "Member not found")
+    membership = get_tenant_scoped(Membership, membership_id, tenant.id, db, E.MEMBER_NOT_FOUND)
     if membership.role not in (UserRole.OFFICE_MANAGER, UserRole.LAWYER):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only office managers and lawyers can appear on the public page")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ONLY_MANAGERS_LAWYERS_ON_PUBLIC_PAGE)
     if not membership.active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This membership isn't active")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.MEMBERSHIP_NOT_ACTIVE)
 
     membership.show_on_public_page = payload.show_on_public_page
     db.commit()

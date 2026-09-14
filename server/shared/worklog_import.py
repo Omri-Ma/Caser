@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 from shared.models import Case, CaseAssignment, Identity, Membership, WorkLog
 from shared.models.enums import CaseStatus, UserRole
+from shared import error_messages as E
 
 # Same upper bound as CreateWorkLogRequest/UpdateWorkLogRequest's `le=24` —
 # one hours sanity threshold, not two independently-chosen numbers.
@@ -210,24 +211,24 @@ def parse_and_validate_import(
     try:
         workbook = load_workbook(BytesIO(content), data_only=True)
     except Exception:
-        return [], [ImportRowError(row=0, message="Could not read this file — is it a valid .xlsx workbook?")]
+        return [], [ImportRowError(row=0, message=E.import_could_not_read_file())]
 
     sheet = workbook["Import"] if "Import" in workbook.sheetnames else workbook.active
     expected_headers = HEADER_WITH_LAWYER_EMAIL if include_lawyer_email else HEADER_SELF
 
     rows = list(sheet.iter_rows(values_only=True))
     if not rows:
-        return [], [ImportRowError(row=0, message="The file is empty")]
+        return [], [ImportRowError(row=0, message=E.import_file_is_empty())]
 
     header_row = [str(cell).strip() if cell is not None else "" for cell in rows[0][: len(expected_headers)]]
     if header_row != expected_headers:
-        return [], [ImportRowError(row=1, message=f"Expected columns: {', '.join(expected_headers)} — use the downloaded template")]
+        return [], [ImportRowError(row=1, message=E.import_expected_columns(", ".join(expected_headers)))]
 
     data_rows = [row for row in rows[1:] if row is not None and any(cell is not None for cell in row)]
     if not data_rows:
-        return [], [ImportRowError(row=0, message="The file has no data rows")]
+        return [], [ImportRowError(row=0, message=E.import_no_data_rows())]
     if len(data_rows) > MAX_IMPORT_ROWS:
-        return [], [ImportRowError(row=0, message=f"Too many rows — max {MAX_IMPORT_ROWS} per import")]
+        return [], [ImportRowError(row=0, message=E.import_too_many_rows(MAX_IMPORT_ROWS))]
 
     results: list[ImportRowResult] = []
     errors: list[ImportRowError] = []
@@ -245,7 +246,7 @@ def parse_and_validate_import(
             email = str(raw_row[column]).strip() if raw_row[column] is not None else ""
             column += 1
             if not email:
-                errors.append(ImportRowError(offset, "Lawyer email is required"))
+                errors.append(ImportRowError(offset, E.import_lawyer_email_required()))
                 continue
             lawyer_membership = (
                 db.query(Membership)
@@ -259,25 +260,25 @@ def parse_and_validate_import(
                 .first()
             )
             if lawyer_membership is None:
-                errors.append(ImportRowError(offset, f"No active lawyer at this firm with email '{email}'"))
+                errors.append(ImportRowError(offset, E.import_no_active_lawyer(email)))
                 continue
 
         case_id = _parse_case_id(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if case_id is None:
-            errors.append(ImportRowError(offset, "Case is required — choose one from the dropdown"))
+            errors.append(ImportRowError(offset, E.import_case_required()))
             continue
 
         row_date = _parse_date(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if row_date is None:
-            errors.append(ImportRowError(offset, "Date is not a valid date (expected DD/MM/YYYY)"))
+            errors.append(ImportRowError(offset, E.import_invalid_date()))
             continue
 
         hours = _parse_hours(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if hours is None or hours <= 0 or hours > MAX_HOURS_PER_ROW:
-            errors.append(ImportRowError(offset, f"Hours must be a positive number up to {MAX_HOURS_PER_ROW}"))
+            errors.append(ImportRowError(offset, E.import_invalid_hours(MAX_HOURS_PER_ROW)))
             continue
 
         description = None
@@ -286,10 +287,10 @@ def parse_and_validate_import(
 
         case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == tenant_id).first()
         if case is None:
-            errors.append(ImportRowError(offset, f"Case {case_id} was not found at this firm"))
+            errors.append(ImportRowError(offset, E.import_case_not_found(case_id)))
             continue
         if case.status == CaseStatus.CLOSED:
-            errors.append(ImportRowError(offset, f"Case {case_id} ('{case.title}') is closed"))
+            errors.append(ImportRowError(offset, E.import_case_closed(case_id, case.title)))
             continue
 
         assigned = (
@@ -302,12 +303,12 @@ def parse_and_validate_import(
             .first()
         )
         if assigned is None:
-            errors.append(ImportRowError(offset, f"That lawyer is not assigned to case {case_id}"))
+            errors.append(ImportRowError(offset, E.import_lawyer_not_assigned(case_id)))
             continue
 
         duplicate_key = (case_id, lawyer_membership.id, row_date, hours, description or "")
         if duplicate_key in seen_in_file:
-            errors.append(ImportRowError(offset, f"Duplicate of row {seen_in_file[duplicate_key]} in this file"))
+            errors.append(ImportRowError(offset, E.import_duplicate_within_file(seen_in_file[duplicate_key])))
             continue
         existing = (
             db.query(WorkLog)
@@ -322,7 +323,7 @@ def parse_and_validate_import(
             .first()
         )
         if existing is not None:
-            errors.append(ImportRowError(offset, "This exact entry already exists in the work log"))
+            errors.append(ImportRowError(offset, E.import_duplicate_of_existing()))
             continue
         seen_in_file[duplicate_key] = offset
 

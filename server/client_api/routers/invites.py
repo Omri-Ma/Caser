@@ -7,6 +7,7 @@ from shared.identity import get_current_identity
 from shared.invites import accept_invite, decline_invite
 from shared.models import Identity, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus
+from shared import error_messages as E
 
 router = APIRouter(prefix="/invites", tags=["invites"])
 
@@ -29,7 +30,7 @@ def _get_own_pending_invite(invite_id: int, identity: Identity, db: Session) -> 
         .first()
     )
     if invite is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invite not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.INVITE_NOT_FOUND)
     return invite
 
 

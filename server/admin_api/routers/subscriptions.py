@@ -10,6 +10,7 @@ from shared.models import Membership, Subscription, Tenant
 from shared.models.enums import UserRole
 from shared.plan_limits import get_plan_usage
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/subscription", tags=["subscription"])
 
@@ -43,7 +44,7 @@ def switch_plan(
         .first()
     )
     if current is not None and current.plan == payload.plan:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already on this plan")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ALREADY_ON_THIS_PLAN)
 
     if current is not None:
         current.active = False

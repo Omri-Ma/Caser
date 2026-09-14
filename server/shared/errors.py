@@ -2,9 +2,15 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from shared.error_messages import translate_pydantic_error
+
 
 def register_error_handlers(app: FastAPI) -> None:
-    """Make every error response share one JSON shape: {"error": ..., "field": ...}."""
+    """Make every error response share one JSON shape: {"error": ..., "field": ...}.
+    Every message text — HTTPException.detail (set by application code from
+    shared/error_messages.py) and Pydantic's own auto-generated validation
+    messages (translated here) — is Hebrew, per CLAUDE.md's app-wide rule.
+    """
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
@@ -16,5 +22,5 @@ def register_error_handlers(app: FastAPI) -> None:
         field = ".".join(str(part) for part in first_error["loc"] if part != "body")
         return JSONResponse(
             status_code=422,
-            content={"error": first_error["msg"], "field": field},
+            content={"error": translate_pydantic_error(first_error), "field": field},
         )

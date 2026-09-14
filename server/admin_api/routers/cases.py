@@ -20,6 +20,7 @@ from shared.models import Case, CaseAssignment, CaseTag, Document, Identity, Mem
 from shared.models.enums import CaseStatus, PracticeArea, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -74,7 +75,7 @@ def get_case(
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    return get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    return get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
 
 
 @router.patch("/{case_id}", response_model=CaseResponse)
@@ -88,7 +89,7 @@ def update_case_title(
     """Editing case metadata is office_manager-only — lawyers work within a
     case, office_manager controls its administrative facts.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     case.title = payload.title
     db.commit()
     db.refresh(case)
@@ -106,7 +107,7 @@ def update_case_status(
     """office_manager-only, no restriction on timing — reopening a closed
     case is explicitly allowed, same as any other transition.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     case.status = payload.status
     db.commit()
     db.refresh(case)
@@ -128,14 +129,14 @@ def delete_case(
     CaseAssignments aren't "content" (just access grants), so they're
     cleaned up as part of the same delete rather than blocking it.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
 
     has_work_logs = db.query(WorkLog).filter(WorkLog.case_id == case.id).first() is not None
     has_documents = db.query(Document).filter(Document.case_id == case.id).first() is not None
     if has_work_logs or has_documents:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This case has work logs or documents attached and can't be deleted — close it instead",
+            detail=E.CASE_HAS_CONTENT_CANNOT_DELETE,
         )
 
     db.query(CaseAssignment).filter(CaseAssignment.case_id == case.id).delete()
@@ -151,7 +152,7 @@ def list_case_assignments(
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     query = (
         db.query(CaseAssignment, Membership, Identity)
         .join(Membership, CaseAssignment.membership_id == Membership.id)
@@ -188,13 +189,13 @@ def assign_to_case(
     either would only prove the row exists *somewhere*, not that it belongs
     to this tenant.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
-    membership = get_tenant_scoped(Membership, payload.membership_id, tenant.id, db, "Membership not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
+    membership = get_tenant_scoped(Membership, payload.membership_id, tenant.id, db, E.MEMBERSHIP_NOT_FOUND)
 
     if membership.role not in (UserRole.LAWYER, UserRole.CLIENT):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only lawyers and clients can be assigned to a case — an office manager already has access to every case",
+            detail=E.ONLY_LAWYERS_CLIENTS_CAN_BE_ASSIGNED,
         )
 
     existing = (
@@ -203,7 +204,7 @@ def assign_to_case(
         .first()
     )
     if existing is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already assigned to this case")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ALREADY_ASSIGNED_TO_CASE)
 
     assignment = CaseAssignment(tenant_id=tenant.id, case_id=case.id, membership_id=membership.id)
     db.add(assignment)
@@ -211,7 +212,7 @@ def assign_to_case(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already assigned to this case")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ALREADY_ASSIGNED_TO_CASE)
     db.refresh(assignment)
 
     identity = db.query(Identity).filter(Identity.id == membership.identity_id).first()
@@ -238,10 +239,10 @@ def unassign_from_case(
     full loss of access to that case, including documents/hours already
     tied to it (CaseAssignment is the one access gate, no carve-outs).
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
-    assignment = get_tenant_scoped(CaseAssignment, assignment_id, tenant.id, db, "Assignment not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
+    assignment = get_tenant_scoped(CaseAssignment, assignment_id, tenant.id, db, E.ASSIGNMENT_NOT_FOUND)
     if assignment.case_id != case.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Assignment not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.ASSIGNMENT_NOT_FOUND)
 
     db.delete(assignment)
     db.commit()
@@ -259,7 +260,7 @@ def set_case_tags(
     only, same reasoning as case title/status: administrative facts about a
     case are the office manager's authority (CLAUDE.md's CaseTags).
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     db.query(CaseTag).filter(CaseTag.case_id == case.id).delete()
     for area in dict.fromkeys(payload.practice_areas):
         db.add(CaseTag(tenant_id=tenant.id, case_id=case.id, practice_area=area))

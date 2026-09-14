@@ -101,7 +101,7 @@ def test_bulk_import_rejects_exact_duplicate_row_within_file(admin_client, db):
     resp = _upload(admin_client, content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "Duplicate" in resp.json()["row_errors"][0]["message"]
+    assert "שורה כפולה" in resp.json()["row_errors"][0]["message"]
     assert db.query(WorkLog).filter(WorkLog.tenant_id == tenant.id).count() == 0
 
 
@@ -131,7 +131,7 @@ def test_bulk_import_rejects_row_duplicating_existing_work_log(admin_client, db)
     resp = _upload(admin_client, content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "already exists" in resp.json()["row_errors"][0]["message"]
+    assert "כבר קיים" in resp.json()["row_errors"][0]["message"]
 
 
 def test_bulk_import_creates_work_logs_and_audits_the_import(admin_client, db):
@@ -168,7 +168,7 @@ def test_bulk_import_rejects_unknown_lawyer_email(admin_client, db):
     resp = _upload(admin_client, content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "No active lawyer" in resp.json()["row_errors"][0]["message"]
+    assert "לא נמצא/ה עורך/ת דין פעיל/ה" in resp.json()["row_errors"][0]["message"]
 
 
 def test_bulk_import_rejects_lawyer_from_another_tenant(admin_client, db):
@@ -187,7 +187,7 @@ def test_bulk_import_rejects_lawyer_from_another_tenant(admin_client, db):
     resp = _upload(admin_client, content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "No active lawyer" in resp.json()["row_errors"][0]["message"]
+    assert "לא נמצא/ה עורך/ת דין פעיל/ה" in resp.json()["row_errors"][0]["message"]
 
 
 def test_bulk_import_rejects_inactive_lawyer(admin_client, db):
@@ -204,7 +204,7 @@ def test_bulk_import_rejects_inactive_lawyer(admin_client, db):
     resp = _upload(admin_client, content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "No active lawyer" in resp.json()["row_errors"][0]["message"]
+    assert "לא נמצא/ה עורך/ת דין פעיל/ה" in resp.json()["row_errors"][0]["message"]
 
 
 def test_lawyer_cannot_use_admin_bulk_import(admin_client, db):

@@ -117,7 +117,7 @@ def test_import_rejects_unassigned_case(client_client, db):
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "not assigned" in resp.json()["row_errors"][0]["message"]
+    assert "אינו/ה משויך/ת" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_closed_case(client_client, db):
@@ -131,7 +131,7 @@ def test_import_rejects_closed_case(client_client, db):
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "closed" in resp.json()["row_errors"][0]["message"]
+    assert "סגור" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_exact_duplicate_row_within_file(client_client, db):
@@ -150,7 +150,7 @@ def test_import_rejects_exact_duplicate_row_within_file(client_client, db):
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "Duplicate" in resp.json()["row_errors"][0]["message"]
+    assert "שורה כפולה" in resp.json()["row_errors"][0]["message"]
     assert db.query(WorkLog).filter(WorkLog.tenant_id == tenant.id).count() == 0
 
 
@@ -179,7 +179,7 @@ def test_import_rejects_row_duplicating_existing_work_log(client_client, db):
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "already exists" in resp.json()["row_errors"][0]["message"]
+    assert "כבר קיים" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_non_positive_hours(client_client, db):
@@ -193,7 +193,7 @@ def test_import_rejects_non_positive_hours(client_client, db):
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "positive" in resp.json()["row_errors"][0]["message"]
+    assert "חיובי" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_non_xlsx_file(client_client, db):

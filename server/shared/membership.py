@@ -5,6 +5,7 @@ from shared.database import get_db
 from shared.identity import get_current_identity
 from shared.tenant import get_current_tenant
 from shared.models import Identity, Membership, Tenant
+from shared import error_messages as E
 
 
 def get_current_membership(
@@ -33,7 +34,7 @@ def get_current_membership(
         # views, or it wouldn't be a real removal from the firm.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this firm",
+            detail=E.NO_ACCESS_TO_FIRM,
         )
     return membership
 
@@ -45,7 +46,7 @@ def require_role(*allowed_roles):
 
     def _check(membership: Membership = Depends(get_current_membership)) -> Membership:
         if membership.role not in allowed_roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed for your role")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NOT_ALLOWED_FOR_ROLE)
         return membership
 
     return _check

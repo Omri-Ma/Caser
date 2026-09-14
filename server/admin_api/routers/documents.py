@@ -14,14 +14,15 @@ from shared.models.enums import DocumentFolderType, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.storage import delete_file, get_file_url
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/cases/{case_id}/documents", tags=["documents"])
 
 
 def _get_case_document(case: Case, document_id: int, tenant: Tenant, db: Session) -> Document:
-    document = get_tenant_scoped(Document, document_id, tenant.id, db, "Document not found")
+    document = get_tenant_scoped(Document, document_id, tenant.id, db, E.DOCUMENT_NOT_FOUND)
     if document.case_id != case.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.DOCUMENT_NOT_FOUND)
     return document
 
 
@@ -61,7 +62,7 @@ def list_documents(
     CaseAssignment check — and both folders, no client-folder restriction,
     per CLAUDE.md's oversight role.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
 
     query = (
         db.query(Document, Identity)
@@ -106,7 +107,7 @@ def download_document(
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     document = _get_case_document(case, document_id, tenant, db)
     path = get_file_url(document.file_url)
     return FileResponse(path, media_type=document.content_type, filename=document.original_filename)
@@ -124,11 +125,11 @@ def archive_document(
     the three archive authorities (client: own uploads only, lawyer: any
     document on an assigned case, office_manager: anything).
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     document = _get_case_document(case, document_id, tenant, db)
 
     if document.archived_at is not None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ALREADY_ARCHIVED)
 
     document.archived_at = datetime.now(timezone.utc)
     db.add(
@@ -152,11 +153,11 @@ def restore_document(
     db: Session = Depends(get_db),
     office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     document = _get_case_document(case, document_id, tenant, db)
 
     if document.archived_at is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document is not archived")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.DOCUMENT_NOT_ARCHIVED)
 
     document.archived_at = None
     db.add(
@@ -181,7 +182,7 @@ def reclassify_document(
     db: Session = Depends(get_db),
     _office_manager: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
 ):
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     document = _get_case_document(case, document_id, tenant, db)
 
     document.folder_type = payload.folder_type
@@ -204,13 +205,13 @@ def permanently_delete_document(
     only this actually frees storage quota (an archived document still
     counts against it).
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     document = _get_case_document(case, document_id, tenant, db)
 
     if document.archived_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only archived documents can be permanently deleted — archive it first",
+            detail=E.ONLY_ARCHIVED_CAN_BE_PERMANENTLY_DELETED,
         )
 
     delete_file(document.file_url)

@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status
 
 from shared.identity import get_current_identity
 from shared.models import Identity
+from shared import error_messages as E
 
 
 def require_super_admin(identity: Identity = Depends(get_current_identity)) -> Identity:
@@ -13,5 +14,5 @@ def require_super_admin(identity: Identity = Depends(get_current_identity)) -> I
     admin_api sits behind.
     """
     if not identity.is_super_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Platform staff only")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.PLATFORM_STAFF_ONLY)
     return identity

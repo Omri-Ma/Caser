@@ -9,6 +9,7 @@ from shared.models.enums import UserRole
 from shared.settings import ABOUT_KEY, get_setting
 from shared.storage import get_file_url
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/public", tags=["public"])
 
@@ -70,5 +71,5 @@ def get_public_logo(tenant: Tenant = Depends(get_current_tenant)):
     used for the BrandingPage's own preview.
     """
     if not tenant.logo_url:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo uploaded")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.NO_LOGO_UPLOADED)
     return FileResponse(get_file_url(tenant.logo_url))
