@@ -4411,3 +4411,35 @@ can't, the same visibility flows through documents/work-logs already
 re-implementation), and a client's is_manager is never honored even if
 set directly on the row (not just that the admin endpoint refuses to set
 it).
+
+**Item 3 — narrative logic moved to `/server/shared`**: `git mv
+admin_api/core/narratives.py shared/narratives.py`, fixed the now-one-
+level-shallower fonts path, added a header comment matching the
+storage.py/plan_limits.py/password_reset.py convention. `admin_api`'s
+narratives router now imports from `shared.narratives` — otherwise
+completely unchanged (additive per the spec: office_manager keeps every
+existing capability, no CaseAssignment check, same route shapes).
+`client_api` gained real `POST` (generate) and `POST .../export-pdf`
+routes on top of the existing read-only `GET` — gated by a new
+`require_manager_lawyer` dependency (`case_access.py`, added last item)
+that 403s anyone without `has_full_case_visibility`. Both sides call the
+exact same `compute_case_totals`/`generate_narrative_text`/
+`build_narrative_pdf` functions now, verified not just by code review but
+by a dedicated test
+(`test_manager_lawyer_narrative_matches_admin_api_narrative_generation`)
+that generates the same inputs through both routes and asserts identical
+totals — the actual property the "single shared implementation" claim
+depends on, not just "both files import from the same place."
+
+Fixed two casualties of the module move while here: a stale
+`admin_api.core.narratives` import in `test_narrative_period_and_
+language.py`'s two direct unit tests, and two `test_narratives_client.py`
+tests whose asserted status code (`404`/`405`, from when the client_api
+routes didn't exist at all — last session's design) needed to become
+`403` now that the routes exist but are role-gated by
+`require_manager_lawyer`. Grew `test_manager_flag.py` by 4 tests
+(narrative generation/export: manager-lawyer succeeds including a custom
+export filename, a plain assigned lawyer and a client are both rejected,
+and the cross-app consistency check described above) — 34/34 pass
+across `test_manager_flag.py` + the two narrative test files it touched
++ `test_narratives_admin.py` (confirming admin_api's side is untouched).

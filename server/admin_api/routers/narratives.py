@@ -1,12 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from admin_api.core.narratives import (
-    build_narrative_pdf,
-    compute_case_totals,
-    generate_narrative_text,
-    get_case_work_logs_in_period,
-)
 from admin_api.core.pagination import Page, PageParams, paginate
 from admin_api.schemas.documents import DocumentResponse
 from admin_api.schemas.narratives import ExportNarrativeRequest, GenerateNarrativeRequest, NarrativeResponse
@@ -14,6 +8,12 @@ from shared.database import get_db
 from shared.membership import require_role
 from shared.models import AuditLog, Case, Document, Identity, Membership, Narrative, Tenant
 from shared.models.enums import DocumentFolderType, UserRole
+from shared.narratives import (
+    build_narrative_pdf,
+    compute_case_totals,
+    generate_narrative_text,
+    get_case_work_logs_in_period,
+)
 from shared.plan_limits import check_plan_limit
 from shared.scoped import get_tenant_scoped
 from shared.storage import save_file

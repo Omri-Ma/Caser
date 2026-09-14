@@ -14,6 +14,16 @@ from sqlalchemy.orm import Session
 from shared.models import Case, Identity, Membership, WorkLog
 from shared.models.enums import NarrativeLanguage
 
+# In server/shared on purpose, not duplicated per app (unlike pagination.py/
+# errors.py) — same reasoning as storage.py/plan_limits.py/password_reset.py:
+# narrative generation/export is manager-level authority now (CLAUDE.md's
+# Narratives note), and a manager-authority lawyer still only ever uses
+# client/, never admin/. Both admin_api (office_manager) and client_api
+# (a lawyer with Memberships.is_manager set) expose their own thin route
+# to these functions, each enforcing its own side's authorization check —
+# the actual PDF/text-generation logic itself must be identical either way,
+# which is exactly the kind of cross-app invariant this package is for.
+
 # Currency is always rendered as plain text, never the ₪ glyph (CLAUDE.md:
 # a currency symbol is a font-rendering problem for no real benefit here).
 CURRENCY_TEXT = {
@@ -21,7 +31,7 @@ CURRENCY_TEXT = {
     NarrativeLanguage.EN: "ILS",
 }
 
-_FONTS_DIR = Path(__file__).resolve().parents[2] / "shared" / "fonts"
+_FONTS_DIR = Path(__file__).resolve().parent / "fonts"
 _HEBREW_FONT_NAME = "Alef"
 _HEBREW_FONT_BOLD_NAME = "Alef-Bold"
 _hebrew_font_registered = False
