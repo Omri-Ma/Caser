@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { getPublicProfile } from '../api/public'
 import { apiBaseUrl } from '../api/client'
+import { checkMyMembership } from '../api/auth'
 import './PublicHomePage.css'
 
 const ROLE_LABELS = {
@@ -9,14 +10,21 @@ const ROLE_LABELS = {
   lawyer: 'עורך/ת דין',
 }
 
-// Unauthenticated tenant landing page (CLAUDE.md's public homepage
-// requirement) — shown at "/" to anyone who isn't logged in. Renders only
+// This firm's public landing page — shown at "/" to EVERY visitor, logged
+// in or not, connected to this firm or not (CLAUDE.md's directory
+// click-through fix: clicking through to an already-connected firm must
+// still land here first, never skip straight to /cases). Renders only
 // non-sensitive firm profile info (name/logo/color/about); never touches
-// cases, documents, or members.
+// cases, documents, or members. The one thing that changes with auth state
+// is the call-to-action at the bottom (see `connected`, below).
 export default function PublicHomePage() {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Whether this visitor has real access at THIS firm specifically (not
+  // just "logged in somewhere") — resolved separately from the public
+  // profile fetch, and never blocks rendering the page itself.
+  const [connected, setConnected] = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -25,6 +33,9 @@ export default function PublicHomePage() {
       .then(setProfile)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
+    checkMyMembership({ redirectOn401: false })
+      .then(() => setConnected(true))
+      .catch(() => setConnected(false))
   }, [])
 
   if (loading) {
@@ -77,9 +88,15 @@ export default function PublicHomePage() {
 
         <p className="public-home-about">{profile.about || 'המשרד טרם הוסיף תיאור.'}</p>
 
-        <Link to="/login" className="primary-button public-home-signin">
-          כניסה לפורטל
-        </Link>
+        {connected ? (
+          <Link to="/cases" className="primary-button public-home-signin">
+            כניסה לתיקים שלי
+          </Link>
+        ) : (
+          <Link to="/login" className="primary-button public-home-signin">
+            כניסה לפורטל
+          </Link>
+        )}
       </div>
 
       {team.length > 0 && (

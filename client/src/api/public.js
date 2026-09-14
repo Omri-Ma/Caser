@@ -7,6 +7,8 @@ export function getPublicProfile() {
 }
 
 // Lobby firm directory — also unauthenticated, no session cookie expected.
-export function getPublicDirectory(page = 1) {
-  return apiFetch(`/public/directory?page=${page}`, { redirectOn401: false })
+export function getPublicDirectory(page = 1, search = '') {
+  const params = new URLSearchParams({ page: String(page) })
+  if (search) params.set('search', search)
+  return apiFetch(`/public/directory?${params}`, { redirectOn401: false })
 }

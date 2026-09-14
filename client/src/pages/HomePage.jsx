@@ -15,11 +15,25 @@ export default function HomePage() {
   const [pageSize, setPageSize] = useState(50)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [search, setSearch] = useState('')
+  // Debounced separately from the raw input so every keystroke doesn't
+  // fire its own request — same pattern as every other search field in
+  // this app.
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search), 300)
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   useEffect(() => {
     setLoading(true)
     setError(null)
-    getPublicDirectory(page)
+    getPublicDirectory(page, debouncedSearch)
       .then((data) => {
         setEntries(data.items)
         setTotal(data.total)
@@ -27,7 +41,7 @@ export default function HomePage() {
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [page])
+  }, [page, debouncedSearch])
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -46,10 +60,20 @@ export default function HomePage() {
         <h2>מדריך משרדים</h2>
         <p className="home-directory-sub">מצאו משרד ועברו לעמוד הבית הציבורי שלו.</p>
 
+        <input
+          type="search"
+          className="home-directory-search"
+          placeholder="חיפוש משרד לפי שם…"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+
         {loading && <div className="home-state">טוען…</div>}
         {error && <div className="home-state home-state-error">{error}</div>}
         {!loading && !error && entries.length === 0 && (
-          <div className="home-state">אין עדיין משרדים רשומים.</div>
+          <div className="home-state">
+            {debouncedSearch ? 'לא נמצאו משרדים התואמים לחיפוש.' : 'אין עדיין משרדים רשומים.'}
+          </div>
         )}
 
         {!loading && !error && entries.length > 0 && (

@@ -1,30 +1,32 @@
-import { useState } from 'react'
-import Modal from './Modal'
+import { Link } from 'react-router-dom'
 import './Layout.css'
 
 // The brand is the first child so it lands on the right edge in RTL row
 // layout (the "start" side in RTL, under justify-content: space-between) —
 // nav sits after it, on the left. Matches AppShell's sidebar, where the
 // brand is likewise the first child and sits top-right.
+//
+// No "About" modal here anymore (it duplicated what HomePage's own hero
+// section already explains) — replaced with real Login/Signup links, since
+// a logged-out visitor landing on the general homepage had no obvious way
+// into the app at all from this corner.
 export default function Layout({ children }) {
-  const [aboutOpen, setAboutOpen] = useState(false)
-
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-brand">
+        <Link to="/" className="app-brand">
           <span className="wordmark">Caser</span> · פורטל לקוחות
-        </div>
+        </Link>
         <nav className="app-nav">
-          <button type="button" className="app-nav-link" onClick={() => setAboutOpen(true)}>
-            אודות
-          </button>
+          <Link to="/login" className="app-nav-link">
+            התחברות
+          </Link>
+          <Link to="/register" className="app-nav-link">
+            הרשמה
+          </Link>
         </nav>
       </header>
       <main className="app-main">{children}</main>
-      <Modal open={aboutOpen} title="אודות Caser" onClose={() => setAboutOpen(false)}>
-        <p>Caser היא פלטפורמה לניהול תיקים עבור משרדי עורכי דין.</p>
-      </Modal>
     </div>
   )
 }
