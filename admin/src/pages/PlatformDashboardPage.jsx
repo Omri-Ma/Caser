@@ -14,28 +14,19 @@ import {
   YAxis,
 } from 'recharts'
 import PlatformAppShell from '../components/PlatformAppShell'
-import DataTable from '../components/DataTable'
-import { FormError } from '../components/Form'
-import {
-  getPlatformEarnings,
-  getPlatformStats,
-  getStorageOverview,
-  getTenantGrowth,
-  listTenants,
-  reactivateTenant,
-  suspendTenant,
-} from '../api/platform'
+import { getPlatformEarnings, getPlatformStats, getStorageOverview, getTenantGrowth } from '../api/platform'
 import { formatFileSize, formatMonthLabel } from '../utils/format'
 import './PlatformDashboardPage.css'
 
 const PLAN_LABELS = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
 const PLAN_COLORS = { free: 'var(--color-gray)', pro: 'var(--color-info)', enterprise: 'var(--color-primary)' }
 
-// super_admin's dashboard (CLAUDE.md's Roles: firm-level/aggregate data
-// only) — platform-wide stats, plan distribution, tenant growth and
-// earnings trends, per-tenant storage overview, plus the cross-tenant firm
-// list with suspend/reactivate. Everything here comes from admin_api's
-// /platform/* routes, the one place a query legitimately spans every tenant.
+// super_admin's data/graphs overview (CLAUDE.md's Roles: firm-level/
+// aggregate data only) — platform-wide stats, plan distribution, tenant
+// growth and earnings trends, per-tenant storage overview. The cross-tenant
+// firm list itself (with suspend/reactivate) lives on its own page
+// (PlatformFirmsPage) — split out so this screen stays purely the data/
+// graphs view, kept separate from both the firm list and the users view.
 export default function PlatformDashboardPage() {
   const [stats, setStats] = useState(null)
   const [statsError, setStatsError] = useState(null)
@@ -45,13 +36,6 @@ export default function PlatformDashboardPage() {
   const [earnings, setEarnings] = useState(null)
   const [storage, setStorage] = useState(null)
   const [chartsError, setChartsError] = useState(null)
-
-  const [page, setPage] = useState(1)
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [actioningId, setActioningId] = useState(null)
-  const [actionError, setActionError] = useState(null)
 
   const loadStats = useCallback(() => {
     setStatsLoading(true)
@@ -73,101 +57,10 @@ export default function PlatformDashboardPage() {
       .catch((err) => setChartsError(err.message))
   }, [])
 
-  const loadTenants = useCallback(() => {
-    setLoading(true)
-    setError(null)
-    listTenants({ page })
-      .then(setResult)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [page])
-
   useEffect(() => {
     loadStats()
     loadCharts()
   }, [loadStats, loadCharts])
-
-  useEffect(() => {
-    loadTenants()
-  }, [loadTenants])
-
-  async function handleToggle(tenant) {
-    const suspending = tenant.active
-    const message = suspending
-      ? `להשעות את ${tenant.name}? כל אנשי הצוות והלקוחות במשרד ייחסמו מיידית מגישה למערכת.`
-      : `להפעיל מחדש את ${tenant.name}?`
-    if (!window.confirm(message)) return
-
-    setActioningId(tenant.id)
-    setActionError(null)
-    try {
-      if (suspending) {
-        await suspendTenant(tenant.id)
-      } else {
-        await reactivateTenant(tenant.id)
-      }
-      loadTenants()
-      loadStats()
-      loadCharts()
-    } catch (err) {
-      setActionError(err.message)
-    } finally {
-      setActioningId(null)
-    }
-  }
-
-  const totalPages = result ? Math.max(1, Math.ceil(result.total / result.page_size)) : 1
-
-  const columns = [
-    {
-      key: 'name',
-      label: 'משרד',
-      render: (row) => (
-        <div>
-          <div className="member-name">{row.name}</div>
-          <div className="member-email">{row.subdomain}.lvh.me</div>
-        </div>
-      ),
-    },
-    {
-      key: 'plan',
-      label: 'תוכנית',
-      render: (row) => <span className="chip member-role-chip">{PLAN_LABELS[row.plan] || row.plan}</span>,
-    },
-    {
-      key: 'lawyer_count',
-      label: 'עורכי דין',
-      render: (row) => <span dir="ltr">{row.lawyer_count}</span>,
-    },
-    {
-      key: 'case_count',
-      label: 'תיקים',
-      render: (row) => <span dir="ltr">{row.case_count}</span>,
-    },
-    {
-      key: 'active',
-      label: 'סטטוס',
-      render: (row) => (
-        <span className={`chip ${row.active ? 'member-status-active' : 'tenant-status-suspended'}`}>
-          {row.active ? 'פעיל' : 'מושעה'}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (row) => (
-        <button
-          type="button"
-          className={row.active ? 'member-action member-action-danger' : 'member-action'}
-          onClick={() => handleToggle(row)}
-          disabled={actioningId === row.id}
-        >
-          {row.active ? 'השעיה' : 'הפעלה מחדש'}
-        </button>
-      ),
-    },
-  ]
 
   const growthChartData = growth?.map((point) => ({ label: formatMonthLabel(point.month), new_tenants: point.new_tenants }))
   const earningsChartData = earnings?.trend.map((point) => ({ label: formatMonthLabel(point.month), earnings: point.earnings_ils }))
@@ -298,41 +191,6 @@ export default function PlatformDashboardPage() {
               </ul>
             )}
           </div>
-        </div>
-      )}
-
-      <h2 className="platform-tenants-title">משרדים</h2>
-
-      {error && <div className="cases-state cases-state-error">{error}</div>}
-
-      {!error && (
-        <div className="card cases-table-card">
-          <FormError message={actionError} />
-          <DataTable
-            columns={columns}
-            rows={result?.items}
-            loading={loading}
-            emptyMessage="אין משרדים רשומים במערכת עדיין."
-          />
-
-          {!loading && result && result.total > 0 && (
-            <div className="cases-pagination">
-              <button type="button" className="secondary-button" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-                הקודם
-              </button>
-              <span className="cases-pagination-info">
-                עמוד {result.page} מתוך {totalPages} · {result.total} משרדים
-              </span>
-              <button
-                type="button"
-                className="secondary-button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                הבא
-              </button>
-            </div>
-          )}
         </div>
       )}
     </PlatformAppShell>

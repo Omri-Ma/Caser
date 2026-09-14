@@ -19,6 +19,7 @@ export default function PlatformUsersPage() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -31,11 +32,16 @@ export default function PlatformUsersPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    listPlatformUsers({ page, search: search || undefined })
+    listPlatformUsers({ page, search: search || undefined, sort: sort.key, order: sort.dir })
       .then(setResult)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [page, search])
+  }, [page, search, sort])
+
+  function handleSortChange(key) {
+    setPage(1)
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
+  }
 
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.page_size)) : 1
 
@@ -70,6 +76,7 @@ export default function PlatformUsersPage() {
     {
       key: 'last_login_at',
       label: 'התחברות אחרונה',
+      sortable: true,
       render: (row) => (
         <span className="case-muted">{row.last_login_at ? formatDateTime(row.last_login_at) : 'מעולם לא התחבר/ה'}</span>
       ),
@@ -99,6 +106,8 @@ export default function PlatformUsersPage() {
             rows={result?.items}
             loading={loading}
             emptyMessage={search ? 'לא נמצאו משתמשים התואמים את החיפוש.' : 'אין עדיין משתמשים במערכת.'}
+            sort={sort}
+            onSortChange={handleSortChange}
           />
 
           {!loading && result && result.total > 0 && (

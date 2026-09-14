@@ -33,3 +33,21 @@
 .data-table-row-clickable:hover {
   background: var(--color-bg);
 }
+
+.data-table-sort-button {
+  all: unset;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.data-table-sort-button:hover {
+  color: var(--color-text);
+}
+
+.data-table-sort-arrow {
+  font-size: 0.75em;
+}

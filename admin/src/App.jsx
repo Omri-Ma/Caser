@@ -18,6 +18,7 @@ import ProfilePage from './pages/ProfilePage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
 import PlatformLoginPage from './pages/PlatformLoginPage'
 import PlatformDashboardPage from './pages/PlatformDashboardPage'
+import PlatformFirmsPage from './pages/PlatformFirmsPage'
 import PlatformProfilePage from './pages/PlatformProfilePage'
 import PlatformUsersPage from './pages/PlatformUsersPage'
 import PlatformAuditLogPage from './pages/PlatformAuditLogPage'
@@ -49,6 +50,7 @@ export default function App() {
               }
             />
             <Route path="/dashboard" element={<PlatformDashboardPage />} />
+            <Route path="/firms" element={<PlatformFirmsPage />} />
             <Route path="/users" element={<PlatformUsersPage />} />
             <Route path="/audit-log" element={<PlatformAuditLogPage />} />
             <Route path="/profile" element={<PlatformProfilePage />} />

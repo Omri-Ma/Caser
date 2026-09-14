@@ -94,6 +94,7 @@ def _month_bounds(year: int, month: int) -> tuple[date, date]:
 
 @router.get("/tenants", response_model=Page[TenantSummaryResponse])
 def list_tenants(
+    search: Optional[str] = Query(None, description="Partial, case-insensitive match on name or subdomain"),
     params: PageParams = Depends(),
     db: Session = Depends(get_db),
     _super_admin: Identity = Depends(require_super_admin),
@@ -103,7 +104,11 @@ def list_tenants(
     `active = True` filter get_current_tenant applies: a super_admin has to
     see suspended firms too, in order to reactivate them.
     """
-    query = db.query(Tenant).order_by(Tenant.name)
+    query = db.query(Tenant)
+    if search:
+        like = f"%{search}%"
+        query = query.filter((Tenant.name.ilike(like)) | (Tenant.subdomain.ilike(like)))
+    query = query.order_by(Tenant.name)
     total = query.count()
     rows = query.offset((params.page - 1) * params.page_size).limit(params.page_size).all()
     items = [_tenant_summary(tenant, db) for tenant in rows]
@@ -277,9 +282,17 @@ def storage_overview(
     return entries
 
 
+SORTABLE_USER_FIELDS = {
+    "name": Identity.name,
+    "last_login_at": Identity.last_login_at,
+}
+
+
 @router.get("/users", response_model=Page[PlatformUserResponse])
 def list_platform_users(
     search: Optional[str] = Query(None, description="Partial, case-insensitive match on name or email"),
+    sort: str = Query("name", description="Column to sort by: name or last_login_at"),
+    order: str = Query("asc", description="asc or desc"),
     params: PageParams = Depends(),
     db: Session = Depends(get_db),
     _super_admin: Identity = Depends(require_super_admin),
@@ -294,7 +307,25 @@ def list_platform_users(
     if search:
         like = f"%{search}%"
         query = query.filter((Identity.name.ilike(like)) | (Identity.email.ilike(like)))
-    query = query.order_by(Identity.name)
+
+    sort_column = SORTABLE_USER_FIELDS.get(sort, Identity.name)
+    # Ties broken by name so pagination stays stable across pages, and so
+    # a shared last_login_at value (most often many NULLs, never logged in)
+    # renders in a consistent, predictable order rather than DB-default.
+    # MySQL has no NULLS FIRST/LAST syntax (unlike Postgres) — SQLAlchemy's
+    # .nullslast()/.nullsfirst() compile to invalid SQL on this dialect, so
+    # nulls are pushed to the end explicitly via a boolean sort key instead,
+    # regardless of direction ("never logged in" trails real timestamps
+    # either way, rather than flipping to the front on ascending sort).
+    if sort_column is Identity.last_login_at:
+        ordering = [
+            sort_column.is_(None),
+            sort_column.desc() if order == "desc" else sort_column.asc(),
+            Identity.name,
+        ]
+    else:
+        ordering = [sort_column.desc() if order == "desc" else sort_column.asc()]
+    query = query.order_by(*ordering)
 
     total = query.count()
     identities = query.offset((params.page - 1) * params.page_size).limit(params.page_size).all()

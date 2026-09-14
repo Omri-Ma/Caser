@@ -2,8 +2,9 @@ import { apiFetch } from './client'
 
 const PAGE_SIZE = 50
 
-export function listTenants({ page = 1 } = {}) {
+export function listTenants({ page = 1, search } = {}) {
   const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
+  if (search) params.set('search', search)
   return apiFetch(`/platform/tenants?${params}`)
 }
 
@@ -31,9 +32,11 @@ export function getStorageOverview() {
   return apiFetch('/platform/storage-overview')
 }
 
-export function listPlatformUsers({ page = 1, search } = {}) {
+export function listPlatformUsers({ page = 1, search, sort, order } = {}) {
   const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
   if (search) params.set('search', search)
+  if (sort) params.set('sort', sort)
+  if (order) params.set('order', order)
   return apiFetch(`/platform/users?${params}`)
 }
 
