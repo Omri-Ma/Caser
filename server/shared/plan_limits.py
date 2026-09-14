@@ -20,7 +20,11 @@ PLAN_STORAGE_LIMIT_BYTES = {
 PLAN_LAWYER_LIMITS = {
     Plan.FREE: 3,
     Plan.PRO: 15,
-    Plan.ENTERPRISE: 50,
+    # Effectively unlimited (still a real, enforced number — check_plan_limit
+    # never special-cases Enterprise, per CLAUDE.md's "keep enforcement
+    # simple" rule) — the UI displays this plan's lawyer count as "unlimited"
+    # rather than "X / 10000", but the mechanism underneath is unchanged.
+    Plan.ENTERPRISE: 10_000,
 }
 
 # In server/shared on purpose, not duplicated per app (unlike pagination.py/

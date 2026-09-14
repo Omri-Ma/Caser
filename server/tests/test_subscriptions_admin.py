@@ -32,6 +32,23 @@ def test_get_subscription_returns_plan_and_usage(admin_client, db):
     assert body["storage_limit_bytes"] == 1024**3
 
 
+def test_enterprise_plan_reports_effectively_unlimited_lawyer_limit(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    subscription = Subscription(tenant_id=tenant.id, plan="ENTERPRISE", start_date=date.today(), active=True)
+    db.add(subscription)
+    db.commit()
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get("/subscription", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["plan"] == "enterprise"
+    assert body["lawyer_limit"] == 10_000  # still a real, enforced number — see check_plan_limit
+
+
 def test_subscription_defaults_to_free_with_no_active_row(admin_client, db):
     tenant = make_tenant(db, "acme")
     manager = make_identity(db, "manager@acme.com")

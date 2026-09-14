@@ -75,6 +75,7 @@ export default function SubscriptionPage() {
               used={usage.lawyer_count}
               limit={usage.lawyer_limit}
               formatValue={(v) => String(v)}
+              unlimited={usage.plan === 'enterprise'}
             />
             <UsageBar
               label="אחסון"
@@ -113,9 +114,9 @@ export default function SubscriptionPage() {
   )
 }
 
-function UsageBar({ label, used, limit, formatValue }) {
-  const percent = limit > 0 ? Math.min(100, (used / limit) * 100) : 0
-  const over = used > limit
+function UsageBar({ label, used, limit, formatValue, unlimited }) {
+  const percent = unlimited ? 0 : limit > 0 ? Math.min(100, (used / limit) * 100) : 0
+  const over = !unlimited && used > limit
   return (
     <div className="usage-bar">
       <div className="usage-bar-header">
@@ -123,13 +124,19 @@ function UsageBar({ label, used, limit, formatValue }) {
         {/* dir="ltr" forced explicitly — plain numbers/slash have no strong
             directional characters, so left to the surrounding RTL context
             they silently reorder ("1 / 3" renders as "3 / 1"). */}
-        <span dir="ltr" className={over ? 'usage-bar-over' : ''}>
-          {formatValue(used)} / {formatValue(limit)}
-        </span>
+        {unlimited ? (
+          <span>{formatValue(used)} · ללא הגבלה</span>
+        ) : (
+          <span dir="ltr" className={over ? 'usage-bar-over' : ''}>
+            {formatValue(used)} / {formatValue(limit)}
+          </span>
+        )}
       </div>
-      <div className="usage-bar-track">
-        <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${percent}%` }} />
-      </div>
+      {!unlimited && (
+        <div className="usage-bar-track">
+          <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${percent}%` }} />
+        </div>
+      )}
     </div>
   )
 }

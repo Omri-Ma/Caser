@@ -3460,3 +3460,18 @@ proper project run-skill later; didn't do that myself to stay focused on the
   the same code exercised end-to-end by the pytest suite above, including
   through the real multipart upload); the visual/DOM check covered what
   pytest can't — the page actually renders with no console errors.
+
+**Item 6 — Enterprise "unlimited" lawyer count**:
+- `PLAN_LAWYER_LIMITS[Plan.ENTERPRISE]` raised from 50 to 10,000 —
+  `check_plan_limit` is completely untouched, per the task's explicit ask;
+  Enterprise still goes through the exact same comparison as every other
+  plan, just against a number high enough that no real firm hits it.
+  10,000 rather than something like `math.inf`/`None` on purpose: keeping
+  it a real, ordinary integer means every existing code path (the usage-bar
+  percentage math, the JSON response shape) needs zero special-casing
+  anywhere except the one display decision below.
+- Frontend: `SubscriptionPage`'s lawyer `UsageBar` takes a new `unlimited`
+  flag (true only when `usage.plan === 'enterprise'`) and renders "37 ·
+  ללא הגבלה" with no progress track instead of "37 / 10000" — the storage
+  usage bar is untouched (Enterprise's storage cap is a real, still-visible
+  ceiling per CLAUDE.md, only the lawyer count is framed as unlimited).
