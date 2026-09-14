@@ -28,8 +28,8 @@ from sqlalchemy.orm import sessionmaker  # noqa: E402
 from admin_api.main import app as admin_app  # noqa: E402
 from client_api.main import app as client_app  # noqa: E402
 from shared.database import Base, get_db  # noqa: E402
-from shared.models import Case, CaseAssignment, Document, Identity, Membership, Tenant, WorkLog  # noqa: E402, F401
-from shared.models.enums import CaseStatus, DocumentFolderType, UserRole, WorkLogSource  # noqa: E402, F401
+from shared.models import Case, CaseAssignment, Document, Identity, Membership, MembershipInvite, Tenant, WorkLog  # noqa: E402, F401
+from shared.models.enums import CaseStatus, DocumentFolderType, InviteStatus, UserRole, WorkLogSource  # noqa: E402, F401
 from shared.security import ACCESS_COOKIE_NAME, create_access_token, hash_password  # noqa: E402
 from shared.tenant import BASE_DOMAIN  # noqa: E402
 import shared.storage as storage  # noqa: E402
@@ -117,6 +117,21 @@ def make_membership(db, identity_id: int, tenant_id: int, role: UserRole) -> Mem
     db.commit()
     db.refresh(membership)
     return membership
+
+
+def make_invite(
+    db,
+    tenant_id: int,
+    email: str,
+    role: UserRole,
+    invited_by: int,
+    invite_status: InviteStatus = InviteStatus.PENDING,
+) -> MembershipInvite:
+    invite = MembershipInvite(tenant_id=tenant_id, email=email, role=role, invited_by=invited_by, status=invite_status)
+    db.add(invite)
+    db.commit()
+    db.refresh(invite)
+    return invite
 
 
 def make_case(db, tenant_id: int, title: str = "Test Case", status: CaseStatus = CaseStatus.OPEN) -> Case:

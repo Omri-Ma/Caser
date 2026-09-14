@@ -29,3 +29,9 @@ class CaseStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"
     ON_HOLD = "on_hold"
     CLOSED = "closed"
+
+
+class InviteStatus(str, enum.Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"

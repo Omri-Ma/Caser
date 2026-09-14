@@ -8,7 +8,7 @@ import { loginRedirectUrl } from '../utils/host'
 const API_PROTOCOL = import.meta.env.VITE_API_PROTOCOL || 'http'
 const API_PORT = import.meta.env.VITE_API_PORT
 
-function apiBaseUrl() {
+export function apiBaseUrl() {
   return `${API_PROTOCOL}://${window.location.hostname}:${API_PORT}`
 }
 

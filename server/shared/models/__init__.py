@@ -4,6 +4,7 @@ from shared.models.case_assignment import CaseAssignment
 from shared.models.document import Document
 from shared.models.identity import Identity
 from shared.models.membership import Membership
+from shared.models.membership_invite import MembershipInvite
 from shared.models.narrative import Narrative
 from shared.models.password_reset_token import PasswordResetToken
 from shared.models.setting import Setting
@@ -18,6 +19,7 @@ __all__ = [
     "Document",
     "Identity",
     "Membership",
+    "MembershipInvite",
     "Narrative",
     "PasswordResetToken",
     "Setting",

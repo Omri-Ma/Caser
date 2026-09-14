@@ -10,11 +10,11 @@ from shared.models.enums import UserRole
 
 
 def test_platform_login_requires_platform_host(admin_client, db):
-    make_identity(db, "root@casehub.com", is_super_admin=True)
+    make_identity(db, "root@caser.com", is_super_admin=True)
 
     resp = admin_client.post(
         "/auth/platform-login",
-        json={"email": "root@casehub.com", "password": "password123"},
+        json={"email": "root@caser.com", "password": "password123"},
         headers={"Host": "acme.lvh.me"},
     )
 
@@ -45,7 +45,7 @@ def test_office_manager_cannot_reach_platform_routes(admin_client, db):
 
 
 def test_platform_tenant_list_reports_cross_tenant_stats(admin_client, db):
-    super_admin = make_identity(db, "root@casehub.com", is_super_admin=True)
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
     headers, cookies = auth_for(super_admin, "platform")
 
     tenant_a = make_tenant(db, "acme", name="Acme Law")
@@ -75,7 +75,7 @@ def test_platform_tenant_list_reports_cross_tenant_stats(admin_client, db):
 
 
 def test_suspend_and_reactivate_tenant(admin_client, db):
-    super_admin = make_identity(db, "root@casehub.com", is_super_admin=True)
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
     headers, cookies = auth_for(super_admin, "platform")
     tenant = make_tenant(db, "acme")
 
@@ -89,7 +89,7 @@ def test_suspend_and_reactivate_tenant(admin_client, db):
 
 
 def test_suspending_tenant_locks_out_its_office_manager(admin_client, db):
-    super_admin = make_identity(db, "root@casehub.com", is_super_admin=True)
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
     platform_headers, platform_cookies = auth_for(super_admin, "platform")
 
     tenant = make_tenant(db, "acme")
@@ -108,7 +108,7 @@ def test_suspending_tenant_locks_out_its_office_manager(admin_client, db):
 
 
 def test_platform_stats_are_aggregate_across_tenants(admin_client, db):
-    super_admin = make_identity(db, "root@casehub.com", is_super_admin=True)
+    super_admin = make_identity(db, "root@caser.com", is_super_admin=True)
     headers, cookies = auth_for(super_admin, "platform")
 
     tenant_a = make_tenant(db, "acme")

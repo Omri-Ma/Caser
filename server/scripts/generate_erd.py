@@ -38,12 +38,12 @@ def main() -> None:
     png_path = DOCS_DIR / "erd.png"
     mermaid_path = DOCS_DIR / "erd.mmd.md"
 
-    render_er(Base.metadata, str(png_path), title="CaseHub ERD")
+    render_er(Base.metadata, str(png_path), title="Caser ERD")
     print(f"Wrote {png_path.relative_to(REPO_ROOT)}")
 
     # Also emit a text-based Mermaid ER diagram alongside the PNG — easy to
     # diff in PRs and to view directly on GitHub, unlike a binary image.
-    render_er(Base.metadata, str(mermaid_path), mode="mermaid_er", title="CaseHub ERD")
+    render_er(Base.metadata, str(mermaid_path), mode="mermaid_er", title="Caser ERD")
     print(f"Wrote {mermaid_path.relative_to(REPO_ROOT)}")
 
 

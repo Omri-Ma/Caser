@@ -3019,3 +3019,285 @@ stack + Vite dev servers, using a one-off Playwright script (not committed;
   half, committing, then reapplying the other — `git add -p` couldn't
   cleanly split them since both edits landed in the same contiguous JSX
   hunk.
+
+## 2026-09-13
+
+**Asked**: Product rename CaseHub → Caser across the whole codebase (CLAUDE.md
+was already renamed in a prior session); plus four other items queued from the
+punch-list (password-change-logs-out bug, confirm-password fields, membership
+invite/accept flow, public-page team section) — worked on the branch
+`feature/identity-auth-rebrand`, one commit per numbered item.
+
+**Changed (item 1, rename)**:
+- `grep -ri casehub` across the repo to find every remaining instance, then
+  renamed: README title + demo email domains, both frontend `<title>` tags and
+  wordmarks (`admin/`+`client/` `AppShell.jsx`/`Layout.jsx`/`PlatformAppShell.jsx`/
+  `PlatformLoginPage.jsx`), `db/schema.sql`/`db/seed.sql` header comments and demo
+  email domains, both FastAPI app titles, the ERD title
+  (`server/scripts/generate_erd.py`), the session cookie names
+  (`casehub_access`/`casehub_refresh` → `caser_access`/`caser_refresh` in
+  `server/shared/security.py`), the structlog logger name, the `Identities`
+  model docstring, the frontend `localStorage` role key
+  (`client/src/api/session.js`), and the hardcoded test literals in
+  `test_platform_admin.py`/`test_auth_lobby.py` that depended on the old
+  cookie name/test emails.
+- Regenerated `docs/openapi_*.json`, `docs/postman_collection_*.json`, and
+  `docs/erd.{png,mmd.md}` via `server/scripts/export_docs.sh` rather than
+  hand-editing the generated JSON, so they pick up the renamed FastAPI titles
+  from source.
+
+**Learned / decided**:
+- Left the actual local MySQL database name (`casehub`, in `.env`/`.env.example`)
+  unchanged — renaming a live local database is an infra action (drop/recreate
+  or `RENAME DATABASE`), not a text substitution, and out of scope for a
+  cosmetic product rename. Flagged in README with a one-line note next to the
+  seed command so it doesn't read as an oversight.
+- Left historical entries in this file (`docs/ai_usage.md`) referencing
+  "CaseHub"/`casehub.example.com` untouched — they're an accurate record of
+  what happened in past sessions, not something to retroactively rewrite.
+- Ran the full backend suite after the rename (cookie-name change is the one
+  edit here with real behavioral surface, since it affects every authenticated
+  request) — all 171 existing tests passed unchanged.
+
+**Investigated and fixed (item 2, super_admin password-change bug)**:
+- Reproduced live with a Playwright-driven headless Chromium session against
+  the real running `docker-compose` stack (`platform.lvh.me:5174` /
+  `:8001`), capturing the full request/response/cookie trace — static code
+  reading alone hadn't found it in a prior session.
+- First reproduction attempt (correct current password, single click)
+  succeeded cleanly with no logout — ruled out a cookie-domain/scoping issue
+  on `platform.lvh.me` specifically, and ruled out the race hypothesis (no
+  other request fires around the change-password call on this page).
+- Root cause found by then deliberately submitting a *wrong* current
+  password and watching the trace: `POST /auth/change-password` correctly
+  rejects it, but with **HTTP 401** (`server/admin_api/routers/auth.py` and
+  `server/client_api/routers/auth.py`, both wrapping the shared
+  `WrongPasswordError`). Both frontends' `apiFetch` treats *any* 401 as
+  "session expired" — it calls `POST /auth/refresh` (which succeeds, since
+  the real session is still valid), retries the original request once, gets
+  401 again (still the wrong password), and — since it's already retried —
+  falls through to `window.location.assign(loginRedirectUrl())`. The user
+  is bounced straight to `/login` with no visible error message, which
+  looks exactly like being logged out. A correctly-typed current password
+  was never actually broken; the bug only shows up on a typo, which is
+  presumably what happened during the original walkthrough.
+- Fix: changed both routes' `WrongPasswordError` handler from
+  `HTTPException(401, ...)` to `HTTPException(400, ...)` — a wrong-password
+  value on an already-authenticated request is a form-validation error, not
+  an auth/session failure, so it shouldn't be able to trigger the generic
+  401-means-expired-session handling at all. Updated
+  `test_auth_self_service.py`'s assertion to match (400, not 401).
+  Re-verified live: the same wrong-password submission now shows "Current
+  password is incorrect" inline and stays on `/profile`.
+- Also reset the already-seeded `super_admin` row's password back to the
+  documented demo credential (`SuperAdmin123!`) and `token_version` to 0,
+  and its display name to "Caser Platform" — both were left in a
+  post-testing state by this same debugging session (password changed
+  mid-repro; name was seeded before the rename and the already-existing DB
+  row doesn't pick up a `seed.sql` text change retroactively).
+- Per the user's follow-up ask, audited every other route for the same
+  "401 used for something that isn't an expired session" mistake before
+  committing: login routes (`/auth/login`, `/auth/lobby-login`,
+  `/auth/platform-login`) also return 401 for wrong credentials, but are
+  safe because the frontend calls them with `redirectOn401: false` — the
+  generic refresh-and-redirect logic never applies. Confirmed live (a wrong
+  lobby-login password shows an inline error and stays on `/login`, no
+  redirect loop). The forgot/reset-password route already correctly used
+  400 for an invalid/expired/used token. Invite accept/decline routes don't
+  exist yet (item 4, not built this session) — noted to get this right
+  (400/404, not 401) when they're built.
+
+**Changed (item 3, confirm-password field everywhere a new password is
+typed)**:
+- New shared component per app — `admin/src/components/PasswordConfirmFields.jsx`
+  and `client/src/components/PasswordConfirmFields.jsx` (not shared across
+  apps, per CLAUDE.md's frontend-code-quality rule) — rendering the new-
+  password field plus a second "אימות סיסמה" (confirm password) field, an
+  inline mismatch message, and an exported `passwordsValid(password,
+  confirmPassword)` helper each page's submit button is gated on. Extracted
+  as a component rather than repeated inline, since it's used 4 times in
+  `admin/` and 3 times in `client/` (CLAUDE.md's "extract before a third
+  copy" rule).
+- Wired into every password-entry screen: `admin/`'s
+  `ProfilePage`/`PlatformProfilePage` (change-password, office_manager and
+  super_admin), `ResetPasswordPage` (forgot-password flow), `SignupPage`
+  (founding a firm); `client/`'s `ProfilePage` (change-password),
+  `ResetPasswordPage`, `RegisterPage` (accepting an invite/registering).
+- Verified live: submit button stays disabled while the two fields
+  mismatch (with the inline "הסיסמאות אינן תואמות" message showing), then
+  enables once they match; a real change-password submission with matching
+  fields still succeeds end-to-end. Screenshotted the signup and register
+  forms directly to confirm the confirm-password field renders correctly
+  with the right label in both.
+- `npx oxlint` on every touched file: clean except one expected
+  fast-refresh warning on each `PasswordConfirmFields.jsx` (exporting a
+  helper function alongside the component) — not an error, and the
+  standard tradeoff for the "extract before a third copy" call above.
+
+**Built (item 4, membership invite/accept flow)**:
+- New `MembershipInvites` table (`shared/models/membership_invite.py` +
+  Alembic migration `c3d4e5f6a7b8`, applied) and `InviteStatus` enum
+  (pending/accepted/declined); `db/schema.sql` snapshot updated too.
+- New `shared/invites.py` (fifth narrow `/server/shared` extension,
+  alongside storage/plan_limits/worklog_import/password_reset):
+  `create_invite` (rejects a duplicate pending invite or an already-active
+  membership at the tenant), `accept_invite`/`decline_invite`,
+  `resolve_invites_on_register` (a successful registration for an email
+  with pending invites *is* the acceptance — resolves every matching
+  pending invite, not just one, since the same unregistered person could
+  be invited by more than one firm), and `list_pending_invites_for_email`.
+- `admin_api`: new `POST /invites` (office_manager, LAWYER/CLIENT only —
+  rejects OFFICE_MANAGER with a clear error) replacing the old instant
+  `POST /members`; `GET /invites?status=` for the Members screen's
+  "pending" tab. An email with no Identity yet gets a dev-outbox link to
+  `http://<tenant-subdomain>.<BASE_DOMAIN>:<CLIENT_APP_PORT>/register` —
+  new `CLIENT_APP_PORT` env var (admin_api can't build a link into
+  client/'s own origin from its own request's Origin header, unlike
+  forgot-password's link). `GET /members` changed from an
+  `include_inactive` toggle to an exclusive `active` filter, matching the
+  new active/removed tabs (a pending invite isn't a Membership row at all,
+  so it was never part of this endpoint to begin with).
+- `client_api`: new `GET /invites` (the logged-in identity's own pending
+  invites, across tenants), `POST /invites/{id}/accept`,
+  `POST /invites/{id}/decline` — ownership checked by email match, not
+  tenant-scoped (an identity can hold a membership at one firm and a
+  pending invite at another). `POST /auth/register` now calls
+  `resolve_invites_on_register` after creating the identity.
+  `POST /auth/lobby-login`'s response gained `pending_invites` (same
+  lookup lobby-login already does for active memberships, per CLAUDE.md:
+  "the invite shows up as a pending action for them the next time they
+  log in").
+- `shared/plan_limits.py`: `check_plan_limit`'s `lawyer_count` branch now
+  counts pending LAWYER invites alongside active memberships (new
+  `count_pending_lawyer_invites`) — otherwise a firm at its limit could
+  invite far past it and have every invite land at once on acceptance.
+  Confirmed live: inviting into a tenant already over-limit (found by
+  accident — the seeded `demo` tenant already has 5 lawyers against
+  Free's limit of 3 from earlier test data) correctly shows "Lawyer limit
+  reached for your plan (3)" instead of silently succeeding.
+- `admin/`: `AddMemberModal` replaced by `InviteMemberModal` (role fixed
+  by which of two new header buttons opened it — "הזמנת עורך/ת דין" /
+  "הזמנת לקוח/ה" — not a picker inside one generic modal).
+  `MembersPage` reworked with exclusive status tabs (פעילים/ממתינים/הוסרו)
+  instead of the old "status column + show-removed toggle" (the status
+  column was flagged as redundant on the punch-list once tabs existed);
+  the pending tab hides the office_manager role tab (invites are never
+  that role) and renders a different column set (email/role/invited-
+  by/date, since a pending invite has no Identity to join against yet).
+- `client/`: new `api/invites.js`; `LobbyLoginPage` now shows a pending-
+  invites section (accept/decline buttons) above the tenant picker,
+  never auto-skipped past even when exactly one tenant already exists —
+  a pending invite must get a chance to be seen, not silently bypassed by
+  the existing "one tenant = auto-redirect" shortcut. `RegisterPage`
+  prefills (not locks) `email` from the invite link's `?email=` query
+  param — resolution is still purely by email match server-side, so
+  editing it before submitting doesn't break anything, it just means
+  that particular invite won't auto-resolve.
+- Added `server/tests/test_invites_admin.py` (9 tests) and
+  `test_invites_client.py` (7 tests): duplicate rejection (both kinds),
+  role restriction, plan-limit counting of pending invites, declined
+  invites not permanently consuming a seat, RBAC (lawyer can't invite),
+  tenant isolation on the list, accept/decline (including rejecting
+  someone else's invite or re-acting on an already-resolved one),
+  register-time auto-accept across multiple tenants, and lobby-login
+  surfacing pending invites. Updated `test_members_admin.py` for the
+  `active` filter (removed the two tests that exercised the now-deleted
+  instant-add endpoint). Full suite: 185 passed.
+- **Bug found and fixed via live testing, not just reasoning about the
+  code**: switching the Members page's status tab crashed the whole page
+  white (`DataTable`'s `formatDate(row.created_at)` throwing "Invalid time
+  value") — a real race between clicking a tab (which changes `statusTab`,
+  and therefore which column set renders, in the very next paint) and the
+  new tab's fetch actually resolving; for one frame, the new tab's columns
+  rendered against the *previous* tab's still-in-state rows (e.g. invite
+  columns reading a member row's nonexistent `created_at`). Fixed by
+  tracking which tab a given `result` actually belongs to (`resultTab`,
+  set atomically with the data itself in the fetch's `.then()`) instead of
+  deriving columns from `statusTab` directly, which changes a render
+  ahead of the data. Caught by scripting the actual click sequence in a
+  live browser (Playwright against the running dev stack) and reading the
+  page's own console/pageerror output — reasoning about the code alone had
+  missed it.
+- Regenerated `docs/openapi_*.json`/Postman/ERD via `export_docs.sh`
+  (client_api 25→28 paths, admin_api 38→39).
+- Left a few throwaway test identities from live verification in the dev
+  `casehub` database (e.g. `brandnewclient@example.com`,
+  `existinginvitee@example.com`) — consistent with how this database has
+  already accumulated plenty of prior sessions' test data
+  (`corstest1@example.com`, `planlaw1@example.com`, etc.); not worth a
+  special-case cleanup.
+
+**Before item 5, re-checked the 401-vs-form-error bug class on this
+session's item 4 code** (per the user's explicit ask): login routes still
+safe (`redirectOn401: false`), forgot/reset-password still 400, and the new
+invite accept/decline routes (`client_api/routers/invites.py`) already used
+404 for an invalid/already-answered/not-owned invite — nothing to fix.
+
+**Built (item 5, public firm homepage team section + real logo upload)**:
+- New `Identities.years_of_experience` column (migration `d4e5f6a7b8c9`,
+  applied) — self-reported, same as `bio`.
+- New self-service `PATCH /auth/profile` (both apps) — bio/photo_url/
+  years_of_experience, identity-level, never a lever another party (an
+  office_manager) can pull. Extended `IdentityResponse`/`GET /auth/me` to
+  return them. Wired into a new "פרופיל ציבורי" card on both apps'
+  `ProfilePage.jsx` (photo URL, years-of-experience number input, bio
+  textarea).
+- New `PATCH /members/{id}/public-visibility` (admin_api, office_manager
+  only) toggling `Membership.show_on_public_page` — rejects a CLIENT
+  membership or an inactive one with 400. Decided the "gated on an accepted
+  membership" requirement means gated on the Membership row itself being
+  active, not a separate cross-check against `MembershipInvites.status`:
+  there's no FK link from Membership back to the invite that created it,
+  and every Membership row (new ones via `accept_invite`, or pre-existing
+  ones seeded before invites existed) already represents a real agreed
+  relationship by virtue of existing and being active — a second check
+  would be redundant, not more correct. Wired into `MembersPage.jsx`'s
+  active tab as a checkbox column, shown only for office_manager/lawyer
+  rows.
+- `client_api`'s `GET /public/profile` now also returns `team`
+  (office_manager/lawyer memberships that are active + show_on_public_page,
+  sorted office_managers-first then lawyers, each group by
+  years_of_experience descending — nulls sort last via a Python-side sort
+  key rather than a fragile cross-DB "nulls last" SQL clause) and
+  `has_logo` (a presence flag, replacing the raw `logo_url` in the public
+  response — never leak an internal storage key).
+- Real file upload for the tenant logo, replacing the URL-only text field:
+  `shared/storage.py`'s new `save_tenant_logo`; `admin_api/core/
+  file_validation.py`'s new `detect_image_type` (png/jpeg magic bytes, same
+  approach as Documents' own check, admin_api's own copy per CLAUDE.md's
+  per-app upload-handling rule); `POST /tenant/logo` (office_manager,
+  validates content) and `GET /tenant/logo` (authenticated, admin/'s own
+  BrandingPage preview) in admin_api; `GET /public/logo` (unauthenticated)
+  in client_api for the actual public homepage. `Tenant.logo_url` now
+  holds an internal storage key, not a raw URL — `TenantResponse`/
+  `PublicTenantProfile` expose only `has_logo`; the frontend builds the
+  actual image URL itself via a newly-exported `apiBaseUrl()` (both apps'
+  `api/client.js`) pointing at `/tenant/logo` or `/public/logo`.
+  `UpdateTenantRequest` dropped `logo_url` entirely (a separate multipart
+  request now, not part of the branding PATCH body).
+- **Found via live testing, not just reasoning about the code**: the demo
+  tenant's `logo_url` already held a raw external URL from before this
+  redesign (someone had pasted one through the old text field in an
+  earlier session) — under the new "logo_url is an internal storage key"
+  meaning, `GET /public/logo` would try to resolve that URL as a local
+  disk path and fail. Not a code bug (a fresh upload or a fresh tenant
+  works correctly, verified below) — cleared that one stale dev-DB value
+  by hand, same as the CaseHub→Caser rename's stale-seed-row cleanup
+  earlier in this session, and confirmed a real upload → both the
+  BrandingPage preview and the actual public homepage's `<img>` — renders
+  correctly end-to-end afterward.
+- `PublicHomePage.jsx`: team section below the firm card — a photo-card
+  grid for members with `photo_url`, a separate plain name+role list
+  underneath for members without one (never a placeholder image in the
+  grid, per CLAUDE.md's public homepage note).
+- Added `server/tests/test_public_team.py` (role/visibility/active
+  filtering, sort order), `test_members_public_visibility.py` (role/active
+  gating, RBAC), extended `test_auth_self_service.py` (profile update, both
+  apps) and `test_tenant_admin.py` (logo upload/fetch/reject/404, updated
+  the branding test for the new `has_logo` shape). Full suite: 197 passed.
+- `npx oxlint` on every touched frontend file: clean except two more
+  instances of the same pre-existing "setState in effect" warning already
+  seen elsewhere in this codebase (data-fetch-on-mount pattern) — not new,
+  not an error.
+- Regenerated `docs/openapi_*.json`/Postman/ERD (client_api 28→30 paths,
+  admin_api 39→42).

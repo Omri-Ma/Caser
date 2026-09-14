@@ -1,4 +1,4 @@
--- CaseHub schema snapshot.
+-- Caser schema snapshot.
 -- Source of truth is the Alembic migrations in db/migrations/versions/ —
 -- this file is a readable reference of the current schema, regenerated
 -- from the live database as tables stabilize (not hand-edited).
@@ -28,6 +28,7 @@ CREATE TABLE `identities` (
   `password_hash` varchar(255) NOT NULL,
   `bio` text,
   `photo_url` varchar(500) DEFAULT NULL,
+  `years_of_experience` int DEFAULT NULL,
   `is_super_admin` tinyint(1) NOT NULL,
   `token_version` int NOT NULL,
   PRIMARY KEY (`id`),
@@ -47,6 +48,23 @@ CREATE TABLE `memberships` (
   KEY `ix_memberships_tenant_id` (`tenant_id`),
   CONSTRAINT `memberships_ibfk_1` FOREIGN KEY (`identity_id`) REFERENCES `identities` (`id`),
   CONSTRAINT `memberships_ibfk_2` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `membership_invites` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `role` enum('SUPER_ADMIN','OFFICE_MANAGER','LAWYER','CLIENT') NOT NULL,
+  `invited_by` int NOT NULL,
+  `status` enum('PENDING','ACCEPTED','DECLINED') NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `responded_at` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_membership_invites_tenant_id` (`tenant_id`),
+  KEY `ix_membership_invites_email` (`email`),
+  KEY `invited_by` (`invited_by`),
+  CONSTRAINT `membership_invites_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
+  CONSTRAINT `membership_invites_ibfk_2` FOREIGN KEY (`invited_by`) REFERENCES `memberships` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `cases` (

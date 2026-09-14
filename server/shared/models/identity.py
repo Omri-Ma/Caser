@@ -5,7 +5,7 @@ from shared.database import Base
 
 
 class Identity(Base):
-    """A person's global CaseHub login (email + password) — not tied to any
+    """A person's global Caser login (email + password) — not tied to any
     one firm. Which firm(s) they can access, and their role in each, lives on
     Membership instead. One person, one Identity, many possible Memberships.
 
@@ -23,6 +23,10 @@ class Identity(Base):
     password_hash = Column(String(255), nullable=False)
     bio = Column(Text, nullable=True)
     photo_url = Column(String(500), nullable=True)
+    # Self-reported, same as bio — sort key for the public homepage's team
+    # section (most experienced first within office_manager/lawyer groups),
+    # nothing more (see CLAUDE.md's Identities note).
+    years_of_experience = Column(Integer, nullable=True)
     # Platform-staff flag, unrelated to Memberships — super_admin can never
     # be a Memberships.role value (a Memberships row means "belongs to this
     # tenant", and super_admin doesn't belong to any tenant). Checked

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { signup } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
+import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 import { redirectToTenant } from '../utils/host'
 
 export default function SignupPage() {
@@ -12,6 +13,7 @@ export default function SignupPage() {
     adminEmail: '',
     adminPassword: '',
   })
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -50,16 +52,14 @@ export default function SignupPage() {
         <FormField label="אימייל">
           <input type="email" value={form.adminEmail} onChange={updateField('adminEmail')} required />
         </FormField>
-        <FormField label="סיסמה (8 תווים לפחות)">
-          <input
-            type="password"
-            value={form.adminPassword}
-            onChange={updateField('adminPassword')}
-            required
-            minLength={8}
-          />
-        </FormField>
-        <button type="submit" className="primary-button" disabled={submitting}>
+        <PasswordConfirmFields
+          password={form.adminPassword}
+          onPasswordChange={updateField('adminPassword')}
+          confirmPassword={confirmPassword}
+          onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
+          passwordLabel="סיסמה (8 תווים לפחות)"
+        />
+        <button type="submit" className="primary-button" disabled={submitting || !passwordsValid(form.adminPassword, confirmPassword)}>
           {submitting ? 'מקים משרד…' : 'הקמת משרד'}
         </button>
       </form>

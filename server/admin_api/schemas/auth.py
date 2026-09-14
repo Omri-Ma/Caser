@@ -1,6 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
-from shared.models.enums import UserRole
+from shared.models.enums import InviteStatus, UserRole
 
 
 class SignupRequest(BaseModel):
@@ -51,17 +53,26 @@ class PlatformLoginRequest(BaseModel):
     password: str
 
 
-class AddMemberRequest(BaseModel):
-    """Office manager attaches an existing global account to their firm.
-
-    If this email already has a (now-inactive) Membership at this tenant —
-    i.e. someone previously removed — that row is reactivated instead of a
-    new one being inserted (the identity_id+tenant_id unique constraint
-    would reject a fresh insert while the old row still exists).
+class InviteMemberRequest(BaseModel):
+    """Office manager invites a lawyer or client to their firm — this is a
+    request, not an instant Membership (CLAUDE.md's MembershipInvites note):
+    nobody should find themselves listed as a firm's lawyer/client without
+    ever agreeing to it. Never office_manager — founding a firm's first
+    office_manager is signup, adding another isn't part of this flow.
     """
 
     email: EmailStr
     role: UserRole
+
+
+class InviteResponse(BaseModel):
+    id: int
+    tenant_id: int
+    email: EmailStr
+    role: UserRole
+    status: InviteStatus
+    created_at: datetime
+    invited_by_name: str
 
 
 class ChangePasswordRequest(BaseModel):
@@ -90,6 +101,20 @@ class IdentityResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    bio: str | None = None
+    photo_url: str | None = None
+    years_of_experience: int | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    """Self-service profile edit — see client_api's identical schema for the
+    full reasoning (bio/photo_url/years_of_experience are global to the
+    person, never an office_manager lever over someone else's account).
+    """
+
+    bio: str | None = Field(None, max_length=2000)
+    photo_url: str | None = Field(None, max_length=500)
+    years_of_experience: int | None = Field(None, ge=0, le=80)
 
 
 class SessionResponse(BaseModel):
@@ -105,13 +130,6 @@ class PlatformSessionResponse(BaseModel):
     email: EmailStr
 
 
-class MembershipResponse(BaseModel):
-    id: int
-    identity_id: int
-    tenant_id: int
-    role: UserRole
-
-
 class MemberResponse(BaseModel):
     """A membership joined with its identity's name/email — what the case
     assignment picker (and any future members list screen) actually needs to
@@ -125,3 +143,11 @@ class MemberResponse(BaseModel):
     identity_name: str
     identity_email: EmailStr
     active: bool
+    # Only meaningful for office_manager/lawyer rows — a client is never
+    # eligible for the public team section (CLAUDE.md's public homepage
+    # note), so the frontend simply never renders the toggle for one.
+    show_on_public_page: bool
+
+
+class UpdatePublicVisibilityRequest(BaseModel):
+    show_on_public_page: bool

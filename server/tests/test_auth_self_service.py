@@ -22,7 +22,11 @@ def test_change_password_requires_correct_current_password(admin_client, db):
         headers=headers,
         cookies=cookies,
     )
-    assert resp.status_code == 401
+    # 400, not 401 — a wrong current-password value is a form error on an
+    # already-authenticated request, not a session/auth failure. A 401 here
+    # collides with the frontend's generic 401-means-"session expired"
+    # handling and silently redirects to login instead of showing an error.
+    assert resp.status_code == 400
 
 
 def test_change_password_succeeds_and_invalidates_other_sessions(client_client, db):
@@ -59,6 +63,43 @@ def test_change_password_succeeds_and_invalidates_other_sessions(client_client, 
     # token_version was bumped, so it fails the identity resolution check.
     me_resp = client_client.get("/auth/me", headers=old_headers, cookies=old_cookies)
     assert me_resp.status_code == 401
+
+
+def test_update_my_profile(client_client, db):
+    identity = make_identity(db, "lawyer@acme.com")
+    tenant = make_tenant(db, "acme")
+    make_membership(db, identity.id, tenant.id, UserRole.LAWYER)
+    headers, cookies = auth_for(identity, "acme")
+
+    resp = client_client.patch(
+        "/auth/profile",
+        json={"bio": "Ten years of litigation experience.", "photo_url": "https://example.com/me.jpg", "years_of_experience": 10},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["bio"] == "Ten years of litigation experience."
+    assert body["photo_url"] == "https://example.com/me.jpg"
+    assert body["years_of_experience"] == 10
+
+
+def test_admin_api_exposes_the_same_profile_route(admin_client, db):
+    identity = make_identity(db, "manager@acme.com")
+    tenant = make_tenant(db, "acme")
+    make_membership(db, identity.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(identity, "acme")
+
+    resp = admin_client.patch(
+        "/auth/profile",
+        json={"bio": "Managing partner.", "photo_url": None, "years_of_experience": 15},
+        headers=headers,
+        cookies=cookies,
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["years_of_experience"] == 15
 
 
 def test_forgot_password_always_returns_generic_response(client_client, db):

@@ -25,6 +25,17 @@ export function me() {
   return apiFetch('/auth/me')
 }
 
+// Self-service profile edit (bio/photo_url/years_of_experience) — global to
+// the person, feeds the public homepage's team section (CLAUDE.md). Lawyer
+// only in practice (a client is never shown there), but not role-gated
+// here — harmless either way, same as the underlying Identities columns.
+export function updateProfile({ bio, photoUrl, yearsOfExperience }) {
+  return apiFetch('/auth/profile', {
+    method: 'PATCH',
+    body: { bio: bio || null, photo_url: photoUrl || null, years_of_experience: yearsOfExperience },
+  })
+}
+
 export async function logout() {
   await apiFetch('/auth/logout', { method: 'POST' })
   clearStoredRole()

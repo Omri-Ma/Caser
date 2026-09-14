@@ -1,4 +1,4 @@
-# CaseHub — Law Firm Multi-Tenant SaaS
+# Caser — Law Firm Multi-Tenant SaaS
 
 ## Project
 A multi-tenant SaaS platform for law firms. Each law firm is a tenant with its own
@@ -105,10 +105,10 @@ cross-logs into the other app (see Multi-tenancy architecture for how
     appending `/admin` to any known URL (a near-universal habit), and blurs
     "two independent apps" into "one app with a section." In a real
     deployment, this becomes a subdomain **suffix**, not a nested
-    sub-subdomain: `acme.casehub.com` (portal) / `acme-admin.casehub.com`
-    (CMS) — a nested form (`admin.acme.casehub.com`) would need a separate
+    sub-subdomain: `acme.caser.com` (portal) / `acme-admin.caser.com`
+    (CMS) — a nested form (`admin.acme.caser.com`) would need a separate
     DNS wildcard per tenant, since a wildcard only covers one subdomain level;
-    a suffix needs only one wildcard (`*.casehub.com`) to cover every current
+    a suffix needs only one wildcard (`*.caser.com`) to cover every current
     and future tenant, admin included.
   - `super_admin`'s platform-only address (see below) is unaffected by any of
     this — it only ever involves `admin/` + `admin_api`, never `client/` or
@@ -162,8 +162,8 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   which one to type. Solved with a reserved, non-tenant **lobby** address —
   `www` (already on the reserved blocklist above) — served locally as
   `www.lvh.me` on each app's own port (`www.lvh.me:5173` = `client/`'s
-  lobby, `www.lvh.me:5174` = `admin/`'s lobby), and as `www.casehub.com` /
-  `www-admin.casehub.com` in production, matching the existing per-app
+  lobby, `www.lvh.me:5174` = `admin/`'s lobby), and as `www.caser.com` /
+  `www-admin.caser.com` in production, matching the existing per-app
   suffix convention exactly (`admin/` already never uses `client/`'s
   addressing, lobby included). `/login` and `/signup` are ordinary paths
   *within* the lobby, not separate subdomains — this doesn't reintroduce
@@ -172,7 +172,7 @@ cross-logs into the other app (see Multi-tenancy architecture for how
     `office_manager` action): works exactly as `POST /auth/signup` already
     does today, since that route never required an existing tenant. On
     success, redirect the browser to the new tenant's real subdomain
-    (`levi.casehub.com/cases`) — the session cookie already works there
+    (`levi.caser.com/cases`) — the session cookie already works there
     without a second login, since it's scoped to the base domain, not to
     `www` specifically.
   - **Login** (both lobbies): a login route on the lobby takes email +
@@ -234,12 +234,19 @@ are built — avoids painful migrations later.
   including its own `office_manager` — no self-service path back in, only
   `super_admin` reactivating it. Deliberate, not an oversight: matches how a
   suspended account behaves on most real platforms.
-- `Identities` (id, name, email, password_hash, bio, photo_url, is_super_admin,
-  token_version) — a person's global login, not tied to any one firm.
-  `bio`/`photo_url` are self-reported profile info (mainly for lawyers),
-  global to the person since it's "their own page" — whether it's actually
-  shown at a given firm is the per-membership `show_on_public_page` toggle
-  instead. `is_super_admin`: platform-staff flag, unrelated to `Memberships`
+- `Identities` (id, name, email, password_hash, bio, photo_url,
+  years_of_experience, last_login_at, is_super_admin, token_version) — a
+  person's global login, not tied to any one firm. `last_login_at` is
+  updated on every successful login, anywhere (the lobby, `platform.lvh.me`
+  for `super_admin` — one column regardless of which app/entry point was
+  used, since it's the same global account either way); powers
+  `super_admin`'s cross-tenant users view (see Build order / Super admin). `bio`/`photo_url`/`years_of_experience`
+  are self-reported profile info (mainly for lawyers), global to the person
+  since it's "their own page" — whether it's actually shown at a given firm
+  is the per-membership `show_on_public_page` toggle instead.
+  `years_of_experience` is a plain integer, self-reported same as `bio` —
+  it's the sort key for the public homepage's team section (see Public firm
+  homepage, above), nothing more. `is_super_admin`: platform-staff flag, unrelated to `Memberships`
   — see Multi-tenancy architecture for why `super_admin` can't be a
   `Memberships.role` value. `token_version`: bumped on logout/password
   change to actually invalidate outstanding JWTs (see Multi-tenancy
@@ -247,22 +254,63 @@ are built — avoids painful migrations later.
   revoke one early).
 - `Memberships` (id, identity_id, tenant_id, role, show_on_public_page, active) —
   one person's role (`office_manager` / `lawyer` / `client` only — never
-  `super_admin`) at one firm; `identity_id` + `tenant_id` unique together.
-  An office manager adds an existing identity to their firm by email
-  (`POST /members`) — no new password is created, the person logs in with
-  their existing account. `show_on_public_page`: per-firm toggle for whether
-  this person's profile (see `Identities.bio`/`photo_url`) appears on this
-  firm's public page — mainly meaningful for lawyer memberships. `active`:
-  removing someone from a firm is a soft delete (flip `active` to false), not
-  a real delete — `Documents`, `WorkLogs`, `AuditLogs`, and `CaseAssignments`
-  all reference `memberships.id` with no cascade rule, so a real delete would
-  simply fail once that person has any history. Queries for "who currently
-  works here" (lawyer/client pickers, plan-limit counts) filter to
-  `active = true`; historical records keep resolving correctly regardless.
-  Re-adding a previously removed person to the *same* firm reactivates their
-  existing (inactive) row instead of inserting a new one — the
-  `identity_id`+`tenant_id` unique constraint means a fresh insert would
-  fail while the old row still exists, active or not.
+  `super_admin`) at one firm; `identity_id` + `tenant_id` unique together. A
+  `Memberships` row only ever represents a real, accepted membership — a
+  firm putting someone on its roster is never instant or unilateral, see
+  `MembershipInvites` below for how a row here actually gets created.
+  `show_on_public_page`: per-firm toggle for whether this person's profile
+  (see `Identities.bio`/`photo_url`) appears on this firm's public page —
+  `office_manager`-only to set (it's the firm's public page, not the
+  individual's), and only meaningful once that membership is genuinely
+  accepted (see `MembershipInvites`) — there's nothing to show publicly for
+  someone who hasn't actually agreed to join. `active`: removing someone from
+  a firm is a soft delete (flip `active` to false), not a real delete —
+  `Documents`, `WorkLogs`, `AuditLogs`, and `CaseAssignments` all reference
+  `memberships.id` with no cascade rule, so a real delete would simply fail
+  once that person has any history. Queries for "who currently works here"
+  (lawyer/client pickers, plan-limit counts) filter to `active = true`;
+  historical records keep resolving correctly regardless. Re-adding a
+  previously removed person to the *same* firm goes through the same
+  `MembershipInvites` flow again, reactivating their existing (inactive) row
+  on acceptance instead of inserting a new one — the `identity_id`+
+  `tenant_id` unique constraint means a fresh insert would fail while the
+  old row still exists, active or not.
+- `MembershipInvites` (id, tenant_id, email, role, invited_by, status,
+  created_at, responded_at) — an office manager inviting someone is a
+  request, not an instant action: nobody should find themselves listed as a
+  firm's lawyer or client without ever agreeing to it, even if their email
+  already has an `Identity` somewhere else in the system. `invited_by`
+  references `memberships.id` (the office manager who sent it); `status` is
+  `pending` / `accepted` / `declined`. Deliberately keyed by `email`, not
+  `identity_id` — the invited person may not have an `Identity` yet at all,
+  and this table has to work either way:
+  - **Email already has an `Identity`**: the invite shows up as a pending
+    action for them the next time they log in (`client/`'s lobby resolves
+    active Memberships the same way it already does for login — a pending
+    invite is the same kind of lookup). They explicitly accept or decline.
+    Accepting creates (or reactivates) the real `Memberships` row; declining
+    leaves no membership at all. No email/outbox step needed here — they
+    can already log in and see it directly.
+  - **Email has no `Identity` yet**: there's nothing to log into yet, so the
+    invite link goes out through the same dev-outbox stand-in the
+    forgot-password flow already uses (see Future additions — same "real
+    email delivery" gap applies here too, not a separate problem to solve).
+    Following that link takes them to registration (`POST /auth/register`)
+    for that exact email; a *successful* registration is itself the
+    acceptance — no separate confirmation step after that, since actively
+    registering from an invite link already is the person agreeing. On
+    success, any matching `pending` `MembershipInvites` row for that email
+    resolves to `accepted` and its `Memberships` row is created immediately.
+  - Inviting an email that already has a `pending` invite at the same
+    tenant, or an already-active `Memberships` row there, is rejected with a
+    clear message rather than creating a duplicate.
+  - `check_plan_limit`'s lawyer-count check runs at *invite* time and counts
+    `pending` invites alongside active Memberships, not just active ones —
+    otherwise a firm at its limit could still invite far past it, and have
+    every invite land at once the moment people accept. A declined invite
+    (or one left pending indefinitely) doesn't permanently consume a seat,
+    so this only ever blocks *creating new* invites/lawyers while over
+    capacity — it never revokes an invite already sent.
 - `Cases` (id, tenant_id, title, status, created_at) — `status` is an enum
   (`open` / `in_progress` / `on_hold` / `closed`), not a free string. Who has
   access is NOT a column here — see `CaseAssignments`. Editing case metadata
@@ -291,6 +339,17 @@ are built — avoids painful migrations later.
   created by mistake that nothing has happened on yet (e.g. a test/duplicate
   case) — not as a general-purpose way to remove a case's history. Real
   billable hours or documents are never destroyable this way, at any stage.
+- `CaseTags` (id, tenant_id, case_id, practice_area) — many-to-many: a case
+  can carry more than one practice-area tag (e.g. a case that's genuinely
+  both family-law and a related traffic matter), so this is a real join
+  table, not a single column on `Cases`. `practice_area` is a fixed enum
+  (e.g. `traffic` / `criminal` / `family` / ... — a curated list, matching
+  how every other categorical field in this app is a fixed enum, not free
+  text: `Cases.status`, `WorkLogs.source`, `Subscriptions.plan`). Setting
+  tags on a case is `office_manager`-only, same reasoning as editing a
+  case's title — administrative facts about a case are the office manager's
+  authority, lawyers work within them (see `Cases`, above). Tags are
+  searchable/filterable alongside the existing case search/filter feature.
 - `CaseAssignments` (id, tenant_id, case_id, membership_id) — many-to-many:
   which memberships (lawyers *and* clients alike — a case can have more than
   one of each) can access a case. Whether an assigned membership is a lawyer
@@ -361,7 +420,11 @@ are built — avoids painful migrations later.
   working normally — `check_plan_limit` only blocks *new* additions while
   the firm is over its new limit, it never deactivates anyone. Matches how
   real SaaS plans behave (GitHub/Slack don't forcibly remove seats on
-  downgrade) and avoids needing a rule for which lawyers get cut.
+  downgrade) and avoids needing a rule for which lawyers get cut. Each
+  `plan` value has a hardcoded price (same pattern as its hardcoded
+  resource limits, not a new mechanism) — used only for `super_admin`'s
+  platform earnings figure (see Build order / Super admin); still no real
+  billing/payment integration anywhere, this is just a number to multiply.
 - `Settings` (id, tenant_id, key, value)
 - `WorkLogs` (id, tenant_id, lawyer_id, case_id, date, hours, description, source)
   — `source`: `manual` or `excel_import`. `lawyer_id` references `memberships.id`
@@ -377,19 +440,43 @@ are built — avoids painful migrations later.
   billing. Locked entirely once the case is `closed` — same cutoff as new
   entries, one consistent "closed means frozen" rule rather than two
   separate timing rules to explain.
-- `Narratives` (id, tenant_id, case_id, generated_text, total_hours, total_fee, created_at)
-  — immutable once generated, never edited in place: correcting a mistake or
-  reflecting new work means generating a new `Narrative` row for the same
-  case, not editing the old one. The most recently created row for a case is
-  the current/authoritative one; older ones stay in history (useful if you
-  ever need to show what was originally sent before a correction). Same
-  "rows accumulate over time, newest wins" pattern already used for
-  `Subscriptions` — not a new mechanism, reused on purpose. This is also why
-  `total_hours`/`total_fee` are stored as columns at all rather than computed
-  live from `WorkLogs` on every read: they're a fixed snapshot of what a
-  specific narrative said, by design. Generating one is any-lawyer-assigned
-  authority, same as everything else on a case — not office_manager-gated,
-  even though it produces a fee figure.
+- `Narratives` (id, tenant_id, case_id, generated_text, total_hours, total_fee,
+  language, period_start, period_end, created_at) — immutable once generated, never edited in place:
+  correcting a mistake or reflecting new work means generating a new
+  `Narrative` row for the same case, not editing the old one. The most
+  recently created row for a case is the current/authoritative one; older
+  ones stay in history (useful if you ever need to show what was originally
+  sent before a correction). Same "rows accumulate over time, newest wins"
+  pattern already used for `Subscriptions` — not a new mechanism, reused on
+  purpose. This is also why `total_hours`/`total_fee` are stored as columns
+  at all rather than computed live from `WorkLogs` on every read: they're a
+  fixed snapshot of what a specific narrative said, by design. Generating one
+  is any-lawyer-assigned authority, same as everything else on a case — not
+  office_manager-gated, even though it produces a fee figure.
+
+  `period_start`/`period_end` are chosen by the lawyer at generation time —
+  real legal billing is period-by-period (typically monthly), not "every
+  hour ever logged on this case in one lump," so generation must sum only
+  the `WorkLogs` falling inside the chosen range, not the whole case's
+  history. Stored per row for the same fixed-snapshot reason as
+  `total_hours`/`total_fee`/`language`: which period a narrative actually
+  covered shouldn't be reconstructable-only-by-guessing later. No
+  overlap-prevention needed across a case's narratives — a lawyer
+  re-covering a period they already billed (correcting a mistake, e.g.) is
+  a legitimate use of "generate a new row for the same case," not an error
+  to block.
+
+  `language` (`he` / `en`) is chosen at generation time, not a global
+  setting — stored per row for the same "fixed snapshot" reason as
+  `total_hours`/`total_fee`: which language a given narrative was actually
+  sent in shouldn't silently change later. The fee amount is always rendered
+  as plain text (`ש"ח` for `he`, `ILS` for `en`), never the `₪` glyph — a
+  currency symbol is a font-rendering problem for no real benefit here, an
+  abbreviation reads identically either way. `en` is the easy case (any
+  default font renders it correctly); `he` is real work, not just template
+  text swapped in — it needs a font that actually contains Hebrew glyphs
+  embedded in the PDF, and correct right-to-left layout, since PDF libraries
+  don't do RTL shaping automatically the way a browser does.
 
   Narratives themselves are always firm-internal (never directly client-
   visible) — the `Narrative` row is raw material for the PDF export (Phase 3
@@ -411,6 +498,16 @@ are built — avoids painful migrations later.
   the only step in the Documents trash lifecycle that's actually
   irreversible, so it's the one place a durable "who did this and when"
   record is non-negotiable, not just nice to have.
+- `PlatformAuditLogs` (id, identity_id, action, target_tenant_id,
+  timestamp) — a separate, parallel log for `super_admin`'s own actions
+  (suspending/reactivating a tenant), not a reuse of the tenant-scoped
+  `AuditLogs` above. Can't reuse it: `AuditLogs.user_id` references
+  `memberships.id`, and `super_admin` is deliberately never a `Memberships`
+  row (see Multi-tenancy architecture) — so this logs `identity_id`
+  directly instead. Exists for the same reason the tenant-level log exists:
+  `super_admin` is the one role powerful enough to lock an entire firm out
+  unilaterally, so that action needs a durable "who did this and when"
+  record too, not just the tenant-level trail everyone else gets.
 - `PasswordResetTokens` (id, identity_id, token_hash, expires_at, used_at) —
   backs the self-service forgot-password flow (see Roles / office manager,
   above, for why this exists instead of an admin-driven reset). `token_hash`
@@ -636,9 +733,57 @@ frontend form → verified working, before starting the next)
   storefront vs. gated purchase/admin actions split. Reuses the existing subdomain
   tenant-resolution dependency, just without the auth requirement other routes have.
   Never exposes actual tenant data (cases/documents/users) — only firm profile info.
+
+  Also renders a team section, built from `Memberships.show_on_public_page`
+  (see Memberships/Identities, below) — this was originally schema-only with
+  no actual display or admin-editing surface, closed as its own decided
+  feature:
+  - Only **lawyer or office_manager** memberships can appear — never
+    clients, they aren't "the firm" the way staff are.
+  - Toggling a specific person's visibility is `office_manager`-only, and
+    only reachable once that person's own `MembershipInvites` row is
+    `accepted` (a still-`pending` invitee has nothing to toggle yet — they
+    aren't really "in" the firm until they've agreed to be).
+  - Office managers are listed first, then lawyers, each group ordered by
+    `Identities.years_of_experience` (see Identities, below) — most
+    experienced first.
+  - A person with a `photo_url` gets a full card (photo + name + bio); a
+    person without one is listed by name only, in a separate plain list
+    underneath the photo cards — not slotted into the card grid with a
+    missing/placeholder image.
 - Lawyer: case list, document upload/download (client + internal folders), manual work log entry
 - Client: view/upload/download own documents only
-- Super admin: cross-tenant firm list and stats
+- Super admin: cross-tenant firm list and stats, plus:
+  - A cross-tenant **users** view — every `Identity` platform-wide, their
+    `last_login_at`, and which firms/roles they hold (a cross-tenant join
+    through `Memberships`). Still firm-level/account-level data, not
+    case/document content, so it stays within `super_admin`'s existing
+    boundary (see Roles) — knowing *that* someone is a lawyer at two firms
+    is not the same as seeing anything about their casework.
+    Paginated/searchable like every other list.
+  - A **platform earnings** figure and trend chart — needs a hardcoded
+    price per plan (`Subscriptions.plan`: `free`/`pro`/`enterprise`), same
+    lightweight pattern already used for per-plan resource limits, since
+    there's still no real billing/payment integration (see Architecture
+    rules — this doesn't change that). "Earnings" = sum of the price of
+    every `Subscription` active at any point in a given month, across all
+    tenants; trailing-months trend, same bucketing pattern the admin
+    dashboard's existing charts already use.
+  - **Platform-wide aggregate stats and plan distribution**: total tenants,
+    total active lawyers/clients across every firm, total storage used
+    platform-wide, total cases platform-wide (counts only, never content),
+    plus a Free/Pro/Enterprise breakdown chart.
+  - **Tenant growth chart** (new firms per month, trailing months, same
+    charting pattern) and a **per-tenant storage overview** (which firms
+    are nearing their plan's GB quota).
+  - A **platform-level audit trail** for `super_admin`'s own actions
+    (suspending/reactivating a tenant, the one action powerful enough to
+    lock an entire firm out) — needs its own `PlatformAuditLogs` table
+    (id, identity_id, action, target_tenant_id, timestamp), not the
+    existing tenant-scoped `AuditLogs` table: that table's `user_id`
+    references `memberships.id`, and `super_admin` is deliberately never a
+    `Memberships` row (see Multi-tenancy architecture), so it needs its own
+    parallel log keyed directly by `Identities.id` instead.
 - Admin CMS: full CRUD per entity, stats dashboard (recharts), data export.
   Export queries are exactly the kind of bulk, hand-written query most likely
   to accidentally skip `tenant_id` filtering — route them through the same

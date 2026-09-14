@@ -24,7 +24,7 @@ def test_update_tenant_branding(admin_client, db):
 
     resp = admin_client.patch(
         "/tenant",
-        json={"name": "Acme & Partners", "logo_url": "https://example.com/logo.png", "primary_color": "#112233"},
+        json={"name": "Acme & Partners", "primary_color": "#112233"},
         headers=headers,
         cookies=cookies,
     )
@@ -32,8 +32,54 @@ def test_update_tenant_branding(admin_client, db):
     assert resp.status_code == 200
     body = resp.json()
     assert body["name"] == "Acme & Partners"
-    assert body["logo_url"] == "https://example.com/logo.png"
+    assert body["has_logo"] is False
     assert body["primary_color"] == "#112233"
+
+
+def test_upload_and_fetch_logo(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(manager, "acme")
+
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"0" * 20
+    resp = admin_client.post(
+        "/tenant/logo",
+        files={"file": ("logo.png", png_bytes, "image/png")},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["has_logo"] is True
+
+    get_resp = admin_client.get("/tenant/logo", headers=headers, cookies=cookies)
+    assert get_resp.status_code == 200
+    assert get_resp.content == png_bytes
+
+
+def test_upload_logo_rejects_non_image_content(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.post(
+        "/tenant/logo",
+        files={"file": ("not-an-image.txt", b"just some text", "text/plain")},
+        headers=headers,
+        cookies=cookies,
+    )
+    assert resp.status_code == 400
+
+
+def test_get_logo_404s_when_none_uploaded(admin_client, db):
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+    headers, cookies = auth_for(manager, "acme")
+
+    resp = admin_client.get("/tenant/logo", headers=headers, cookies=cookies)
+    assert resp.status_code == 404
 
 
 def test_update_tenant_rejects_invalid_color(admin_client, db):

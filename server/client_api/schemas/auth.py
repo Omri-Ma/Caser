@@ -39,10 +39,32 @@ class LobbyTenantOption(BaseModel):
     role: UserRole
 
 
+class PendingInviteOption(BaseModel):
+    """A lawyer/client invite still awaiting this identity's response —
+    surfaced at lobby-login the same way active memberships are (CLAUDE.md's
+    MembershipInvites note: "the invite shows up as a pending action for
+    them the next time they log in").
+    """
+
+    invite_id: int
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+    role: UserRole
+
+
 class LobbyLoginResponse(BaseModel):
     name: str
     email: EmailStr
     tenants: list[LobbyTenantOption]
+    pending_invites: list[PendingInviteOption] = []
+
+
+class AcceptInviteResponse(BaseModel):
+    tenant_id: int
+    subdomain: str
+    firm_name: str
+    role: UserRole
 
 
 class ChangePasswordRequest(BaseModel):
@@ -71,6 +93,20 @@ class IdentityResponse(BaseModel):
     id: int
     name: str
     email: EmailStr
+    bio: str | None = None
+    photo_url: str | None = None
+    years_of_experience: int | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    """Self-service profile edit — bio/photo_url/years_of_experience are all
+    self-reported and global to the person (CLAUDE.md's Identities note),
+    never a lever another party (e.g. an office_manager) gets to pull.
+    """
+
+    bio: str | None = Field(None, max_length=2000)
+    photo_url: str | None = Field(None, max_length=500)
+    years_of_experience: int | None = Field(None, ge=0, le=80)
 
 
 class SessionResponse(BaseModel):

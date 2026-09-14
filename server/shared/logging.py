@@ -23,7 +23,7 @@ def configure_logging() -> None:
     )
 
 
-logger = structlog.get_logger("casehub.request")
+logger = structlog.get_logger("caser.request")
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

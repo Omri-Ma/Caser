@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CaseHub Admin API",
+    "title": "Caser Admin API",
     "version": "0.1.0"
   },
   "paths": {
@@ -222,6 +222,48 @@
         }
       }
     },
+    "/auth/profile": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update My Profile",
+        "description": "Self-service only — see client_api's identical route for the full\nreasoning.",
+        "operationId": "update_my_profile_auth_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/change-password": {
       "post": {
         "tags": [
@@ -394,7 +436,7 @@
           "members"
         ],
         "summary": "List Members",
-        "description": "Currently-active members at this firm, optionally filtered by role —\npowers pickers like the case-assignment modal (lawyers/clients only,\nnever office managers/super_admin) as well as the members screen. Same\n\"active = true\" convention as every other \"who currently works here\"\nquery (see CLAUDE.md's Memberships.active note). `include_inactive` is\nthe one exception — the members screen itself needs to also show\ndeactivated people (to re-add them), pickers never pass it.",
+        "description": "Real (accepted) memberships at this firm, optionally filtered by\nrole — powers pickers like the case-assignment modal (lawyers/clients\nonly, never office managers/super_admin) as well as the members\nscreen's \"active\"/\"removed\" tabs. `active` is an exclusive filter (not\nan \"also include\" toggle) so it maps directly onto those two tabs —\nthe third tab, pending invites, comes from GET /invites instead, since\na pending invite isn't a Membership row at all yet.",
         "operationId": "list_members_members_get",
         "parameters": [
           {
@@ -414,13 +456,13 @@
             }
           },
           {
-            "name": "include_inactive",
+            "name": "active",
             "in": "query",
             "required": false,
             "schema": {
               "type": "boolean",
-              "default": false,
-              "title": "Include Inactive"
+              "default": true,
+              "title": "Active"
             }
           },
           {
@@ -469,46 +511,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "members"
-        ],
-        "summary": "Add Member",
-        "description": "Attach an existing global account to this firm, by email — no new\npassword is created, the person logs in with their existing account.\n\nIf this identity already has an *inactive* Membership at this tenant\n(someone previously removed), that row is reactivated in place instead\nof inserting a new one — a fresh insert would fail the identity_id+\ntenant_id unique constraint while the old row still exists, active or\nnot (CLAUDE.md's Memberships.active note).",
-        "operationId": "add_member_members_post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AddMemberRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MembershipResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/members/{membership_id}/deactivate": {
@@ -537,6 +539,181 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/members/{membership_id}/public-visibility": {
+      "patch": {
+        "tags": [
+          "members"
+        ],
+        "summary": "Update Public Visibility",
+        "description": "Whether this person's profile (Identity.bio/photo_url) appears on\nthis firm's public team section (CLAUDE.md's Memberships note) —\noffice_manager-only to set, since it's the firm's public page, not the\nindividual's. Only office_manager/lawyer memberships are eligible: a\nclient is never \"the firm\" the way staff are, and an inactive\nmembership has nothing to show publicly in the first place (an active\nrow is itself the \"genuinely accepted\" signal — every Membership row\nnow only ever comes to exist via an accepted invite, or a pre-existing\none predating that flow, either way a real agreed membership).",
+        "operationId": "update_public_visibility_members__membership_id__public_visibility_patch",
+        "parameters": [
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Membership Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePublicVisibilityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "List Invites",
+        "description": "Powers the Members screen's \"pending\" tab (and, with status=declined,\na history view if ever needed) — a separate list from GET /members\nsince a pending invite isn't a Membership row at all yet.",
+        "operationId": "list_invites_invites_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/InviteStatus",
+              "default": "pending"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/UserRole"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Page Size"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_InviteResponse_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Invite Member",
+        "description": "Invite a lawyer or client to this firm — replaces the old instant\nPOST /members (CLAUDE.md's MembershipInvites note): adding someone to a\nfirm is a request now, not an instant action, whether or not they\nalready have an Identity elsewhere in the system.",
+        "operationId": "invite_member_invites_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteMemberRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteResponse"
                 }
               }
             }
@@ -1648,13 +1825,73 @@
           "tenant"
         ],
         "summary": "Update Tenant",
-        "description": "name/logo_url/primary_color are direct Tenants columns; about goes\nthrough the generic Settings table instead (CLAUDE.md's Branding\nrequirement).",
+        "description": "name/primary_color are direct Tenants columns; about goes through the\ngeneric Settings table instead (CLAUDE.md's Branding requirement). The\nlogo is a separate upload — see POST /tenant/logo below.",
         "operationId": "update_tenant_tenant_patch",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tenant/logo": {
+      "get": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Get Logo",
+        "description": "Authenticated read for admin/'s own BrandingPage preview — the public\nhomepage's copy is client_api's GET /public/logo instead, unauthenticated\n(a public visitor never has an admin_api session).",
+        "operationId": "get_logo_tenant_logo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Upload Logo",
+        "description": "Real file upload replacing the old URL-only text field — validated\nagainst actual content/magic bytes, same as every other upload in this\napp, never trusting the filename extension.",
+        "operationId": "upload_logo_tenant_logo_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_logo_tenant_logo_post"
               }
             }
           },
@@ -2067,25 +2304,6 @@
   },
   "components": {
     "schemas": {
-      "AddMemberRequest": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "format": "email",
-            "title": "Email"
-          },
-          "role": {
-            "$ref": "#/components/schemas/UserRole"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email",
-          "role"
-        ],
-        "title": "AddMemberRequest",
-        "description": "Office manager attaches an existing global account to their firm.\n\nIf this email already has a (now-inactive) Membership at this tenant —\ni.e. someone previously removed — that row is reactivated instead of a\nnew one being inserted (the identity_id+tenant_id unique constraint\nwould reject a fresh insert while the old row still exists)."
-      },
       "AssignCaseRequest": {
         "properties": {
           "membership_id": {
@@ -2153,6 +2371,20 @@
           "file"
         ],
         "title": "Body_import_work_logs_work_logs_import_post"
+      },
+      "Body_upload_logo_tenant_logo_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_logo_tenant_logo_post"
       },
       "CaseAssignmentResponse": {
         "properties": {
@@ -2462,6 +2694,39 @@
             "type": "string",
             "format": "email",
             "title": "Email"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
           }
         },
         "type": "object",
@@ -2471,6 +2736,77 @@
           "email"
         ],
         "title": "IdentityResponse"
+      },
+      "InviteMemberRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "role"
+        ],
+        "title": "InviteMemberRequest",
+        "description": "Office manager invites a lawyer or client to their firm — this is a\nrequest, not an instant Membership (CLAUDE.md's MembershipInvites note):\nnobody should find themselves listed as a firm's lawyer/client without\never agreeing to it. Never office_manager — founding a firm's first\noffice_manager is signup, adding another isn't part of this flow."
+      },
+      "InviteResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "title": "Email"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InviteStatus"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "invited_by_name": {
+            "type": "string",
+            "title": "Invited By Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "email",
+          "role",
+          "status",
+          "created_at",
+          "invited_by_name"
+        ],
+        "title": "InviteResponse"
+      },
+      "InviteStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "declined"
+        ],
+        "title": "InviteStatus"
       },
       "LobbyLoginRequest": {
         "properties": {
@@ -2590,6 +2926,10 @@
           "active": {
             "type": "boolean",
             "title": "Active"
+          },
+          "show_on_public_page": {
+            "type": "boolean",
+            "title": "Show On Public Page"
           }
         },
         "type": "object",
@@ -2600,37 +2940,11 @@
           "role",
           "identity_name",
           "identity_email",
-          "active"
+          "active",
+          "show_on_public_page"
         ],
         "title": "MemberResponse",
         "description": "A membership joined with its identity's name/email — what the case\nassignment picker (and any future members list screen) actually needs to\ndisplay, not just the bare ids MembershipResponse carries."
-      },
-      "MembershipResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "identity_id": {
-            "type": "integer",
-            "title": "Identity Id"
-          },
-          "tenant_id": {
-            "type": "integer",
-            "title": "Tenant Id"
-          },
-          "role": {
-            "$ref": "#/components/schemas/UserRole"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "identity_id",
-          "tenant_id",
-          "role"
-        ],
-        "title": "MembershipResponse"
       },
       "MonthlyBillableHoursPoint": {
         "properties": {
@@ -2793,6 +3107,37 @@
           "page_size"
         ],
         "title": "Page[DocumentResponse]"
+      },
+      "Page_InviteResponse_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InviteResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "Page[InviteResponse]"
       },
       "Page_MemberResponse_": {
         "properties": {
@@ -3120,16 +3465,9 @@
             "type": "string",
             "title": "Subdomain"
           },
-          "logo_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Logo Url"
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo"
           },
           "primary_color": {
             "anyOf": [
@@ -3163,6 +3501,7 @@
           "id",
           "name",
           "subdomain",
+          "has_logo",
           "active"
         ],
         "title": "TenantResponse"
@@ -3237,15 +3576,21 @@
         ],
         "title": "UpdateCaseTitleRequest"
       },
-      "UpdateTenantRequest": {
+      "UpdateProfileRequest": {
         "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name"
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
           },
-          "logo_url": {
+          "photo_url": {
             "anyOf": [
               {
                 "type": "string",
@@ -3255,7 +3600,46 @@
                 "type": "null"
               }
             ],
-            "title": "Logo Url"
+            "title": "Photo Url"
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 80.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
+          }
+        },
+        "type": "object",
+        "title": "UpdateProfileRequest",
+        "description": "Self-service profile edit — see client_api's identical schema for the\nfull reasoning (bio/photo_url/years_of_experience are global to the\nperson, never an office_manager lever over someone else's account)."
+      },
+      "UpdatePublicVisibilityRequest": {
+        "properties": {
+          "show_on_public_page": {
+            "type": "boolean",
+            "title": "Show On Public Page"
+          }
+        },
+        "type": "object",
+        "required": [
+          "show_on_public_page"
+        ],
+        "title": "UpdatePublicVisibilityRequest"
+      },
+      "UpdateTenantRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
           },
           "primary_color": {
             "anyOf": [
@@ -3287,7 +3671,7 @@
           "name"
         ],
         "title": "UpdateTenantRequest",
-        "description": "name/logo_url/primary_color are direct Tenants columns; about is\nstored via the generic Settings table instead (CLAUDE.md's Branding\nrequirement — branding proper lives on Tenants, but the free-text public\n\"about\" blurb is a good fit for Settings's purpose). subdomain and active\nare deliberately not editable here: subdomain is fixed at signup\n(changing it would break every existing bookmark/link), and active is a\nsuper_admin-only lockout switch, not a self-service one."
+        "description": "name/primary_color are direct Tenants columns; about is stored via\nthe generic Settings table instead (CLAUDE.md's Branding requirement —\nbranding proper lives on Tenants, but the free-text public \"about\"\nblurb is a good fit for Settings's purpose). subdomain and active are\ndeliberately not editable here: subdomain is fixed at signup (changing\nit would break every existing bookmark/link), and active is a\nsuper_admin-only lockout switch, not a self-service one. The logo is a\nseparate multipart upload (POST /tenant/logo), not part of this\nJSON-body request."
       },
       "UpdateWorkLogRequest": {
         "properties": {

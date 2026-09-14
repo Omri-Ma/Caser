@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CaseHub Client API",
+    "title": "Caser Client API",
     "version": "0.1.0"
   },
   "paths": {
@@ -11,7 +11,7 @@
           "auth"
         ],
         "summary": "Register",
-        "description": "Create a bare global account (no firm yet). Used by lawyers/clients\nbefore an office manager attaches them to a firm via admin_api.",
+        "description": "Create a bare global account. Used two ways: a lawyer/client\nregistering with no invite yet (an office manager attaches them to a\nfirm afterward), or — more commonly now — someone following an invite\nlink for an email with no Identity yet. In the second case, a\n*successful* registration for that exact email is itself the\nacceptance (CLAUDE.md's MembershipInvites note) — no separate\nconfirmation step, so every matching pending invite resolves to\naccepted immediately below.",
         "operationId": "register_auth_register_post",
         "requestBody": {
           "content": {
@@ -173,6 +173,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IdentityResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/profile": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update My Profile",
+        "description": "Self-service only — bio/photo_url/years_of_experience are global to\nthe person, never a lever another party (an office_manager, CLAUDE.md's\nauthority boundary) gets to pull. Whether any of it is actually shown\npublicly is the separate per-membership show_on_public_page toggle.",
+        "operationId": "update_my_profile_auth_profile_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -352,7 +394,7 @@
           "public"
         ],
         "summary": "Get Public Profile",
-        "description": "Public, unauthenticated firm profile for the tenant subdomain's\nlanding page — reuses get_current_tenant with no auth dependency on top\nof it. Response is whitelisted to name/logo_url/primary_color/about\nonly; never returns cases, documents, members, or any other tenant data.",
+        "description": "Public, unauthenticated firm profile for the tenant subdomain's\nlanding page — reuses get_current_tenant with no auth dependency on top\nof it. Response is whitelisted to firm profile info plus the public\nteam section; never returns cases, documents, or any other tenant data.",
         "operationId": "get_public_profile_public_profile_get",
         "responses": {
           "200": {
@@ -362,6 +404,26 @@
                 "schema": {
                   "$ref": "#/components/schemas/PublicTenantProfile"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/logo": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Get Public Logo",
+        "description": "Unauthenticated — this is what the public homepage's <img> actually\nfetches. admin_api's GET /tenant/logo is the authenticated equivalent,\nused for the BrandingPage's own preview.",
+        "operationId": "get_public_logo_public_logo_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           }
@@ -878,6 +940,108 @@
         }
       }
     },
+    "/invites": {
+      "get": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "List My Invites",
+        "operationId": "list_my_invites_invites_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PendingInviteOption"
+                  },
+                  "type": "array",
+                  "title": "Response List My Invites Invites Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites/{invite_id}/accept": {
+      "post": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Accept My Invite",
+        "operationId": "accept_my_invite_invites__invite_id__accept_post",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invite Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptInviteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites/{invite_id}/decline": {
+      "post": {
+        "tags": [
+          "invites"
+        ],
+        "summary": "Decline My Invite",
+        "operationId": "decline_my_invite_invites__invite_id__decline_post",
+        "parameters": [
+          {
+            "name": "invite_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Invite Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/cases/{case_id}/narratives": {
       "post": {
         "tags": [
@@ -1338,6 +1502,33 @@
   },
   "components": {
     "schemas": {
+      "AcceptInviteResponse": {
+        "properties": {
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "firm_name": {
+            "type": "string",
+            "title": "Firm Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tenant_id",
+          "subdomain",
+          "firm_name",
+          "role"
+        ],
+        "title": "AcceptInviteResponse"
+      },
       "Body_import_work_logs_work_logs_import_post": {
         "properties": {
           "file": {
@@ -1606,6 +1797,39 @@
             "type": "string",
             "format": "email",
             "title": "Email"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
           }
         },
         "type": "object",
@@ -1653,6 +1877,14 @@
             },
             "type": "array",
             "title": "Tenants"
+          },
+          "pending_invites": {
+            "items": {
+              "$ref": "#/components/schemas/PendingInviteOption"
+            },
+            "type": "array",
+            "title": "Pending Invites",
+            "default": []
           }
         },
         "type": "object",
@@ -1874,13 +2106,49 @@
         ],
         "title": "Page[WorkLogResponse]"
       },
-      "PublicTenantProfile": {
+      "PendingInviteOption": {
+        "properties": {
+          "invite_id": {
+            "type": "integer",
+            "title": "Invite Id"
+          },
+          "tenant_id": {
+            "type": "integer",
+            "title": "Tenant Id"
+          },
+          "subdomain": {
+            "type": "string",
+            "title": "Subdomain"
+          },
+          "firm_name": {
+            "type": "string",
+            "title": "Firm Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invite_id",
+          "tenant_id",
+          "subdomain",
+          "firm_name",
+          "role"
+        ],
+        "title": "PendingInviteOption",
+        "description": "A lawyer/client invite still awaiting this identity's response —\nsurfaced at lobby-login the same way active memberships are (CLAUDE.md's\nMembershipInvites note: \"the invite shows up as a pending action for\nthem the next time they log in\")."
+      },
+      "PublicTeamMember": {
         "properties": {
           "name": {
             "type": "string",
             "title": "Name"
           },
-          "logo_url": {
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "bio": {
             "anyOf": [
               {
                 "type": "string"
@@ -1889,7 +2157,49 @@
                 "type": "null"
               }
             ],
-            "title": "Logo Url"
+            "title": "Bio"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "role"
+        ],
+        "title": "PublicTeamMember",
+        "description": "Only office_manager/lawyer profiles can appear here (CLAUDE.md's\npublic homepage note) — never a client, they aren't \"the firm\" the way\nstaff are."
+      },
+      "PublicTenantProfile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "has_logo": {
+            "type": "boolean",
+            "title": "Has Logo",
+            "default": false
           },
           "primary_color": {
             "anyOf": [
@@ -1912,6 +2222,14 @@
               }
             ],
             "title": "About"
+          },
+          "team": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTeamMember"
+            },
+            "type": "array",
+            "title": "Team",
+            "default": []
           }
         },
         "type": "object",
@@ -1919,7 +2237,7 @@
           "name"
         ],
         "title": "PublicTenantProfile",
-        "description": "Deliberately whitelisted to only the four fields a public,\nunauthenticated visitor may see — never case/document/user data, even\nindirectly (CLAUDE.md's public homepage requirement)."
+        "description": "Deliberately whitelisted to only non-sensitive firm profile info a\npublic, unauthenticated visitor may see — never case/document/user data,\neven indirectly (CLAUDE.md's public homepage requirement). has_logo is a\npresence flag, not the internal storage key — the actual image is\nfetched separately from GET /public/logo."
       },
       "ReclassifyDocumentRequest": {
         "properties": {
@@ -2002,6 +2320,50 @@
           "role"
         ],
         "title": "SessionResponse"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "photo_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Photo Url"
+          },
+          "years_of_experience": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 80.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Years Of Experience"
+          }
+        },
+        "type": "object",
+        "title": "UpdateProfileRequest",
+        "description": "Self-service profile edit — bio/photo_url/years_of_experience are all\nself-reported and global to the person (CLAUDE.md's Identities note),\nnever a lever another party (e.g. an office_manager) gets to pull."
       },
       "UpdateWorkLogRequest": {
         "properties": {

@@ -2,8 +2,8 @@ from fastapi import HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from shared.models import Document, Membership, Subscription
-from shared.models.enums import Plan, UserRole
+from shared.models import Document, Membership, MembershipInvite, Subscription
+from shared.models.enums import InviteStatus, Plan, UserRole
 
 GB = 1024**3
 
@@ -72,7 +72,13 @@ def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional
             )
     elif resource_type == "lawyer_count":
         limit = PLAN_LAWYER_LIMITS[plan]
-        used = count_active_lawyers(tenant_id, db)
+        # Pending invites count toward the limit here too (CLAUDE.md's
+        # MembershipInvites note) — otherwise a firm at its limit could
+        # invite far past it and have every invite land at once the moment
+        # people accept. A declined (or never-answered) invite doesn't
+        # permanently consume a seat: this only blocks *creating new*
+        # invites/lawyers while over capacity, never revokes one already sent.
+        used = count_active_lawyers(tenant_id, db) + count_pending_lawyer_invites(tenant_id, db)
         if used + additional > limit:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -86,6 +92,18 @@ def count_active_lawyers(tenant_id: int, db: Session) -> int:
     return (
         db.query(Membership)
         .filter(Membership.tenant_id == tenant_id, Membership.role == UserRole.LAWYER, Membership.active.is_(True))
+        .count()
+    )
+
+
+def count_pending_lawyer_invites(tenant_id: int, db: Session) -> int:
+    return (
+        db.query(MembershipInvite)
+        .filter(
+            MembershipInvite.tenant_id == tenant_id,
+            MembershipInvite.role == UserRole.LAWYER,
+            MembershipInvite.status == InviteStatus.PENDING,
+        )
         .count()
     )
 

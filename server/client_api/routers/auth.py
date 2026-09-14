@@ -12,15 +12,18 @@ from client_api.schemas.auth import (
     LobbyLoginResponse,
     LobbyTenantOption,
     LoginRequest,
+    PendingInviteOption,
     RegisterRequest,
     ResetPasswordRequest,
     SessionResponse,
+    UpdateProfileRequest,
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity
-from shared.models import Identity, Membership, Tenant
-from shared.models.enums import UserRole
+from shared.invites import resolve_invites_on_register
+from shared.models import Identity, Membership, MembershipInvite, Tenant
+from shared.models.enums import InviteStatus, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
 from shared.security import (
     REFRESH_COOKIE_NAME,
@@ -35,10 +38,27 @@ from shared.tenant import BASE_DOMAIN, get_current_tenant
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
+def _to_identity_response(identity: Identity) -> IdentityResponse:
+    return IdentityResponse(
+        id=identity.id,
+        name=identity.name,
+        email=identity.email,
+        bio=identity.bio,
+        photo_url=identity.photo_url,
+        years_of_experience=identity.years_of_experience,
+    )
+
+
 @router.post("/register", response_model=IdentityResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)):
-    """Create a bare global account (no firm yet). Used by lawyers/clients
-    before an office manager attaches them to a firm via admin_api.
+    """Create a bare global account. Used two ways: a lawyer/client
+    registering with no invite yet (an office manager attaches them to a
+    firm afterward), or — more commonly now — someone following an invite
+    link for an email with no Identity yet. In the second case, a
+    *successful* registration for that exact email is itself the
+    acceptance (CLAUDE.md's MembershipInvites note) — no separate
+    confirmation step, so every matching pending invite resolves to
+    accepted immediately below.
     """
     if db.query(Identity).filter(Identity.email == payload.email).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
@@ -52,8 +72,10 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
     db.refresh(identity)
 
+    resolve_invites_on_register(identity, db)
+
     set_session_cookies(response, identity.id, identity.token_version)
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+    return _to_identity_response(identity)
 
 
 @router.post("/login", response_model=SessionResponse)
@@ -118,7 +140,14 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
         )
         .all()
     )
-    if not memberships:
+    pending_invites = (
+        db.query(MembershipInvite, Tenant)
+        .join(Tenant, MembershipInvite.tenant_id == Tenant.id)
+        .filter(MembershipInvite.email == identity.email, MembershipInvite.status == InviteStatus.PENDING)
+        .all()
+    )
+
+    if not memberships and not pending_invites:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No lawyer or client account found for this email at any firm",
@@ -133,6 +162,12 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
                 tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role
             )
             for membership, tenant in memberships
+        ],
+        pending_invites=[
+            PendingInviteOption(
+                invite_id=invite.id, tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=invite.role
+            )
+            for invite, tenant in pending_invites
         ],
     )
 
@@ -178,7 +213,26 @@ def logout(
 
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+    return _to_identity_response(identity)
+
+
+@router.patch("/profile", response_model=IdentityResponse)
+def update_my_profile(
+    payload: UpdateProfileRequest,
+    identity: Identity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
+    """Self-service only — bio/photo_url/years_of_experience are global to
+    the person, never a lever another party (an office_manager, CLAUDE.md's
+    authority boundary) gets to pull. Whether any of it is actually shown
+    publicly is the separate per-membership show_on_public_page toggle.
+    """
+    identity.bio = payload.bio
+    identity.photo_url = payload.photo_url
+    identity.years_of_experience = payload.years_of_experience
+    db.commit()
+    db.refresh(identity)
+    return _to_identity_response(identity)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -195,7 +249,10 @@ def change_my_password(
     try:
         change_password(identity, payload.current_password, payload.new_password, db)
     except WrongPasswordError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+        # 400, not 401 — see admin_api's identical route for the full
+        # reasoning (a 401 here collided with apiFetch's generic
+        # "401 == expired session" handling and bounced the user to /login).
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     set_session_cookies(response, identity.id, identity.token_version)
 

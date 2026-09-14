@@ -19,6 +19,7 @@ from admin_api.schemas.auth import (
     ResetPasswordRequest,
     SessionResponse,
     SignupRequest,
+    UpdateProfileRequest,
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
@@ -37,6 +38,17 @@ from shared.security import (
 from shared.tenant import BASE_DOMAIN, get_current_tenant, is_reserved_subdomain
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _to_identity_response(identity: Identity) -> IdentityResponse:
+    return IdentityResponse(
+        id=identity.id,
+        name=identity.name,
+        email=identity.email,
+        bio=identity.bio,
+        photo_url=identity.photo_url,
+        years_of_experience=identity.years_of_experience,
+    )
 
 PLATFORM_HOST = f"platform.{BASE_DOMAIN}"
 
@@ -250,7 +262,24 @@ def logout(
 
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
-    return IdentityResponse(id=identity.id, name=identity.name, email=identity.email)
+    return _to_identity_response(identity)
+
+
+@router.patch("/profile", response_model=IdentityResponse)
+def update_my_profile(
+    payload: UpdateProfileRequest,
+    identity: Identity = Depends(get_current_identity),
+    db: Session = Depends(get_db),
+):
+    """Self-service only — see client_api's identical route for the full
+    reasoning.
+    """
+    identity.bio = payload.bio
+    identity.photo_url = payload.photo_url
+    identity.years_of_experience = payload.years_of_experience
+    db.commit()
+    db.refresh(identity)
+    return _to_identity_response(identity)
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -270,7 +299,14 @@ def change_my_password(
     try:
         change_password(identity, payload.current_password, payload.new_password, db)
     except WrongPasswordError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
+        # 400, not 401: this is a form-validation error (wrong value typed in
+        # a field on an already-authenticated request), not an auth/session
+        # failure. Returning 401 here made the frontend's generic apiFetch
+        # 401-handler (which assumes 401 == expired session) silently retry
+        # via /auth/refresh and then redirect to /login on the second
+        # failure — so mistyping the current password looked exactly like
+        # being logged out, with no visible error message.
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     set_session_cookies(response, identity.id, identity.token_version)
 

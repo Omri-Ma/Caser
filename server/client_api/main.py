@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from client_api.routers.auth import router as auth_router
 from client_api.routers.cases import router as cases_router
 from client_api.routers.documents import router as documents_router
+from client_api.routers.invites import router as invites_router
 from client_api.routers.narratives import router as narratives_router
 from client_api.routers.public import router as public_router
 from client_api.routers.work_log_import import router as work_log_import_router
@@ -18,12 +19,13 @@ from shared.tenant import BASE_DOMAIN
 load_dotenv()
 configure_logging()
 
-app = FastAPI(title="CaseHub Client API")
+app = FastAPI(title="Caser Client API")
 register_error_handlers(app)
 app.include_router(auth_router)
 app.include_router(public_router)
 app.include_router(cases_router)
 app.include_router(documents_router)
+app.include_router(invites_router)
 app.include_router(narratives_router)
 app.include_router(work_logs_router)
 app.include_router(work_log_import_router)

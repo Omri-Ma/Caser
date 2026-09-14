@@ -96,7 +96,7 @@ export default function AppShell({ activeKey, children }) {
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          <span className="wordmark">CaseHub</span>
+          <span className="wordmark">Caser</span>
         </div>
         <nav className="sidebar-nav">
           {items.map((item) =>

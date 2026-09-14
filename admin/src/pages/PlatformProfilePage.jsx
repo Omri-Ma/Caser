@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import PlatformAppShell from '../components/PlatformAppShell'
 import { FormField, FormError } from '../components/Form'
+import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 import { changePassword } from '../api/auth'
 import './SettingsPage.css'
 
@@ -10,6 +11,7 @@ import './SettingsPage.css'
 export default function PlatformProfilePage() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -23,6 +25,7 @@ export default function PlatformProfilePage() {
       await changePassword({ currentPassword, newPassword })
       setCurrentPassword('')
       setNewPassword('')
+      setConfirmPassword('')
       setSaved(true)
     } catch (err) {
       setError(err.message)
@@ -49,16 +52,17 @@ export default function PlatformProfilePage() {
               autoFocus
             />
           </FormField>
-          <FormField label="סיסמה חדשה">
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              minLength={8}
-              required
-            />
-          </FormField>
-          <button type="submit" className="primary-button" disabled={saving || !currentPassword || newPassword.length < 8}>
+          <PasswordConfirmFields
+            password={newPassword}
+            onPasswordChange={(event) => setNewPassword(event.target.value)}
+            confirmPassword={confirmPassword}
+            onConfirmPasswordChange={(event) => setConfirmPassword(event.target.value)}
+          />
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={saving || !currentPassword || !passwordsValid(newPassword, confirmPassword)}
+          >
             {saving ? 'מעדכן…' : 'עדכון סיסמה'}
           </button>
         </form>
