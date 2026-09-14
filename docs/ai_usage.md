@@ -4110,3 +4110,52 @@ now includes `REVOKED`. This is an additive, backward-compatible `ALTER
 TABLE` (existing rows/values untouched, old code simply never writes the
 new value), so it's safe for the other worktree's running containers even
 though they're on older code.
+
+## 2026-09-14 (branch `feature/superadmin-narrative-polish`) — 9-item punch list: super_admin page split + firm/user search+sort, storage-by-firm limit display, Enterprise unlimited fix, narrative bugfixes + office_manager-only + hourly_rate, lobby wordmark, avatar refresh, client sidebar cleanup, client visual spacing
+
+Pulled master first (session 1's homepage/directory/membership-nav branch
+had been merged, PR #23). Also picked up a local, uncommitted CLAUDE.md
+edit from a prior session (documenting the reversed narrative authority,
+per-lawyer `hourly_rate`, and the both-language Hebrew-glyph PDF
+correction) that had never been committed — stashed it, fast-forwarded
+onto `origin/master`, popped it back cleanly (no conflicts), and committed
+it straight to `master` before branching, since it's a spec/decision
+record rather than a feature-branch work product.
+
+Environment was already warm from a prior session: Docker containers
+(`client_api`/`admin_api`/db/redis) running, the dev database already
+migrated to the latest head, both Vite dev servers up. Playwright
+(1.63.0) plus a Chromium binary were also already cached on this machine
+from a prior session's install; reused via a scratch npm project in the
+temp scratchpad rather than reinstalling into the repo.
+
+**Item 1 — super_admin page split + search/sort** (commit `6e27e54`):
+`PlatformDashboardPage` (the combined stats+charts+firm-table screen)
+split into two: the dashboard now holds only the data/graphs (stat cards,
+plan-distribution pie, tenant-growth bar, earnings line, storage-by-firm
+list), and the cross-tenant firm list (with suspend/reactivate) moved to
+a new `PlatformFirmsPage` at `/firms`, with its own name/subdomain search
+bar — kept separate from the existing `/users` view per the instruction.
+`PlatformUsersPage`'s table gained a sortable `last_login_at` column;
+`DataTable` itself gained generic sortable-column support (`column.sortable`
++ `sort`/`onSortChange` props) so future list screens can reuse it rather
+than each hand-rolling its own header click handling.
+
+Backend: `/platform/tenants` gained a `search` param (name or subdomain,
+case-insensitive); `/platform/users` gained `sort`/`order` params. Hit a
+real bug while wiring the last_login_at sort: SQLAlchemy's
+`.nullsfirst()`/`.nullslast()` compile to literal `NULLS FIRST`/`NULLS
+LAST` SQL, which MySQL's grammar doesn't accept at all (confirmed via the
+container logs — `ProgrammingError: ... syntax ... near 'NULLS FIRST'`) —
+this only surfaced live in the browser (a Playwright click on the sort
+header), not from a code read, since the query builds fine in Python and
+only fails once MySQL actually parses it. Fixed with an explicit boolean
+sort key (`sort_column.is_(None)` ordered first) instead, pushing
+never-logged-in identities to the end regardless of sort direction rather
+than crashing or flipping to the front on ascending sort. Added two
+backend tests (tenant search-by-subdomain, and last_login_at sort in both
+directions including the NULL-handling case) — 18/18 `test_platform_admin.py`
+pass. Verified live end-to-end via Playwright as `super_admin`: page
+split, firm search filtering to one match, and last_login_at sort
+re-ordering rows with nulls trailing — all confirmed with screenshots.
+though they're on older code.
