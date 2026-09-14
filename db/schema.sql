@@ -58,6 +58,7 @@ CREATE TABLE `memberships` (
   `show_on_public_page` tinyint(1) NOT NULL,
   `active` tinyint(1) NOT NULL,
   `hourly_rate` decimal(8,2) DEFAULT NULL,
+  `is_manager` tinyint(1) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_memberships_identity_tenant` (`identity_id`,`tenant_id`),
   KEY `ix_memberships_identity_id` (`identity_id`),

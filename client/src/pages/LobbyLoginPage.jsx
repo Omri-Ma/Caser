@@ -39,10 +39,10 @@ export default function LobbyLoginPage() {
   }
 
   function goToTenant(tenant) {
-    // role travels as a query param — the tenant subdomain is a different
-    // origin and can't read anything stored here (see api/auth.js's
-    // lobbyLogin and App.jsx's role-param bootstrap).
-    redirectToTenant(tenant.subdomain, `/cases?role=${tenant.role}`)
+    // role/is_manager travel as query params — the tenant subdomain is a
+    // different origin and can't read anything stored here (see
+    // api/auth.js's lobbyLogin and App.jsx's role-param bootstrap).
+    redirectToTenant(tenant.subdomain, `/cases?role=${tenant.role}&is_manager=${tenant.is_manager ? '1' : '0'}`)
   }
 
   async function handleSubmit(event) {

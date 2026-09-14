@@ -73,10 +73,12 @@ def test_client_cannot_list_narratives(client_client, db):
     assert resp.status_code == 403
 
 
-def test_lawyer_can_no_longer_generate_narrative(client_client, db):
-    """Generation moved to admin_api entirely — client_api's narratives
-    router only registers GET on this path now, so a POST 405s (the path
-    itself still exists for GET, just not this method).
+def test_plain_lawyer_cannot_generate_narrative(client_client, db):
+    """Generation/export in client_api require Memberships.is_manager now
+    (CLAUDE.md's Narratives note) — the routes exist (unlike the previous,
+    briefly office_manager-only design where they were removed from
+    client_api entirely), but a plain assigned lawyer without the flag is
+    rejected with 403, same as any other role-gated route.
     """
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
@@ -90,15 +92,17 @@ def test_lawyer_can_no_longer_generate_narrative(client_client, db):
         cookies=cookies,
     )
 
-    assert resp.status_code == 405
+    assert resp.status_code == 403
 
 
-def test_lawyer_can_no_longer_export_narrative_pdf(client_client, db):
+def test_plain_lawyer_cannot_export_narrative_pdf(client_client, db):
     tenant = make_tenant(db, "acme")
     case = make_case(db, tenant.id)
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    resp = client_client.post(f"/cases/{case.id}/narratives/1/export-pdf", headers=headers, cookies=cookies)
+    resp = client_client.post(
+        f"/cases/{case.id}/narratives/1/export-pdf", json={"filename": "x"}, headers=headers, cookies=cookies
+    )
 
-    assert resp.status_code == 404
+    assert resp.status_code == 403

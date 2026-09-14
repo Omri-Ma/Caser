@@ -2,7 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import DataTable from './DataTable'
 import InviteMemberModal from './InviteMemberModal'
 import { FormError } from './Form'
-import { deactivateMember, listMembers, updateHourlyRate, updateMemberRole, updatePublicVisibility } from '../api/members'
+import {
+  deactivateMember,
+  listMembers,
+  updateHourlyRate,
+  updateManagerStatus,
+  updateMemberRole,
+  updatePublicVisibility,
+} from '../api/members'
 import { listInvites, revokeInvite } from '../api/invites'
 import { me } from '../api/auth'
 import { formatDate } from '../utils/format'
@@ -173,6 +180,27 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
     }
   }
 
+  // Separate from handleToggleRole (promote/demote to office_manager) —
+  // this only grants/revokes case-oversight authority (full case
+  // visibility + narrative generation in client_api), never firm
+  // administration (CLAUDE.md's Memberships note).
+  async function handleToggleManagerStatus(member) {
+    const verb = member.is_manager ? 'לבטל את סטטוס המנהל/ת של' : 'להעניק סטטוס מנהל/ת ל'
+    if (!window.confirm(`${verb} ${member.identity_name}? סטטוס מנהל/ת מעניק ראייה מלאה על כל התיקים במשרד ויכולת ליצור נרטיבים, ללא סמכויות ניהול משרד.`)) {
+      return
+    }
+    setActioningId(member.id)
+    setRowError(null)
+    try {
+      await updateManagerStatus(member.id, !member.is_manager)
+      load()
+    } catch (err) {
+      setRowError(err.message)
+    } finally {
+      setActioningId(null)
+    }
+  }
+
   const showPublicToggle = role === 'office_manager' || role === 'lawyer'
 
   const memberColumns = [
@@ -218,6 +246,28 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
                 <button type="button" className="member-rate-display" onClick={() => startRateEdit(row)}>
                   {row.hourly_rate != null ? <span dir="ltr">{`${Number(row.hourly_rate).toFixed(2)} ש"ח`}</span> : 'הגדרת תעריף'}
                 </button>
+              )
+            },
+          },
+        ]
+      : []),
+    ...(role === 'lawyer'
+      ? [
+          {
+            key: 'is_manager',
+            label: 'מנהל/ת תיקים',
+            render: (row) => {
+              if (statusTab !== 'active') return null
+              return (
+                <label className="member-public-toggle">
+                  <input
+                    type="checkbox"
+                    checked={row.is_manager}
+                    disabled={actioningId === row.id}
+                    onChange={() => handleToggleManagerStatus(row)}
+                  />
+                  מנהל/ת
+                </label>
               )
             },
           },

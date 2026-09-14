@@ -5,7 +5,7 @@ import DocumentsPanel from '../components/DocumentsPanel'
 import NarrativesPanel from '../components/NarrativesPanel'
 import WorkHoursPanel from '../components/WorkHoursPanel'
 import { getMyCase } from '../api/cases'
-import { getStoredRole } from '../api/session'
+import { getStoredIsManager, getStoredRole } from '../api/session'
 import { caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
 import { formatDate } from '../utils/format'
 import './CaseDetailPage.css'
@@ -38,6 +38,7 @@ export default function CaseDetailPage() {
   const [caseData, setCaseData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [documentsRefreshSignal, setDocumentsRefreshSignal] = useState(0)
 
   useEffect(() => {
     setLoading(true)
@@ -80,13 +81,19 @@ export default function CaseDetailPage() {
               role={getStoredRole()}
               showInternalTab={canSeeInternalFolder()}
               caseClosed={caseData.status === 'closed'}
+              refreshSignal={documentsRefreshSignal}
             />
             {canSeeWorkHours() && <WorkHoursPanel caseId={caseId} caseClosed={caseData.status === 'closed'} />}
           </div>
 
           {canSeeNarratives() && (
             <div className="detail-columns">
-              <NarrativesPanel caseId={caseId} />
+              <NarrativesPanel
+                caseId={caseId}
+                caseTitle={caseData.title}
+                isManager={getStoredIsManager()}
+                onDocumentAdded={() => setDocumentsRefreshSignal((n) => n + 1)}
+              />
             </div>
           )}
         </>

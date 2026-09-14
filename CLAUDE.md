@@ -17,17 +17,30 @@ cross-logs into the other app (see Multi-tenancy architecture for how
   content within a tenant, even though the role is cross-tenant. Goes through
   its own explicitly separate code path (see Multi-tenancy architecture),
   including at login — it is not a `Memberships` row at all (see below).
-- `office_manager` (tenant admin) — manages lawyers/clients, branding, subscription,
-  scoped to their own tenant only. Automatically has access to every case at
-  their own tenant — no explicit per-case assignment needed, unlike lawyers.
-  This case oversight is a Cases section built into the `admin/` CMS itself;
-  office managers don't additionally log into `client/` to work cases the way
-  a lawyer would.
-- `lawyer` — manages assigned cases only (explicitly assigned per case by the
-  office manager, not automatic just from having a membership at the firm),
-  uploads/downloads documents (including internal-only folders clients cannot
-  see), logs work hours. Can be assigned to more than one case, and can hold
-  a separate membership (and role) at more than one firm.
+- `office_manager` (tenant admin) — manages lawyers/clients, branding,
+  subscription, scoped to their own tenant only. This is firm
+  *administration* — people, billing, branding — not automatically the same
+  thing as full case oversight (see `Memberships.is_manager`, below, for
+  that). `office_manager` still automatically gets full case visibility too
+  (unchanged from before), but that's now because being `office_manager`
+  always implies manager-level case oversight, not because administration
+  and case oversight are the same privilege — a lawyer can hold the
+  narrower `is_manager` flag and get the case-oversight half without any of
+  the firm-administration half. Office managers don't additionally log into
+  `client/` to work cases the way a lawyer would — their case oversight is
+  a Cases section built into the `admin/` CMS itself.
+- `lawyer` — manages assigned cases only by default (explicitly assigned
+  per case by the office manager, not automatic just from having a
+  membership at the firm), uploads/downloads documents (including
+  internal-only folders clients cannot see), logs work hours. Can be
+  assigned to more than one case, and can hold a separate membership (and
+  role) at more than one firm. A lawyer additionally holding the
+  `is_manager` flag (see `Memberships`, below) gets full case visibility at
+  that firm — every case, not just ones they're explicitly assigned to —
+  and narrative-generation authority, the same case-oversight privileges
+  `office_manager` has, without becoming a firm administrator. Still logs
+  into `client/`, never `admin/` — `is_manager` doesn't change which app a
+  lawyer uses, only what they can see and do within it.
 - `client` — views/uploads/downloads only documents on cases they're assigned
   to (client-visible folders only). A case can have more than one client. A
   client can likewise hold memberships at more than one firm.
@@ -284,15 +297,27 @@ are built — avoids painful migrations later.
   architecture — JWTs aren't stored server-side, so this is the only way to
   revoke one early).
 - `Memberships` (id, identity_id, tenant_id, role, show_on_public_page,
-  hourly_rate, active) — `hourly_rate`: `office_manager`-set, per-membership
-  (not on `Identities`) — a lawyer's billing rate is a fact about their
-  employment at *this* firm, not a global attribute of the person, same
-  reasoning as `show_on_public_page`. Only meaningful for `lawyer`
-  memberships; replaces the old flat, platform-wide placeholder rate
-  narrative generation used to use (see `Narratives`, below) — a real
+  hourly_rate, is_manager, active) — one person's role (`office_manager` /
+  `lawyer` / `client` only — never `super_admin`) at one firm; `identity_id`
+  + `tenant_id` unique together. `hourly_rate`: `office_manager`-set,
+  per-membership (not on `Identities`) — a lawyer's billing rate is a fact
+  about their employment at *this* firm, not a global attribute of the
+  person, same reasoning as `show_on_public_page`. Only meaningful for
+  `lawyer` memberships; replaces the old flat, platform-wide placeholder
+  rate narrative generation used to use (see `Narratives`, below) — a real
   per-lawyer number now feeds `total_fee` instead of one hardcoded constant.
-  one person's role (`office_manager` / `lawyer` / `client` only — never
-  `super_admin`) at one firm; `identity_id` + `tenant_id` unique together. A
+
+  `is_manager`: `office_manager`-set, `lawyer`-only flag (meaningless on
+  `office_manager`/`client` rows) granting that lawyer full case visibility
+  at this firm plus narrative-generation authority — the same
+  case-oversight privileges `office_manager` has, deliberately *without*
+  granting any firm-administration power (adding/removing people, billing,
+  branding stay `office_manager`-only). Orthogonal to `role`: a firm
+  administrator's case oversight and a firm's business operations used to
+  be the same bundled privilege (being `office_manager`); this splits them
+  so a senior lawyer can get real case-oversight authority without also
+  becoming the firm's actual administrator, matching how larger firms
+  actually separate "manages the business" from "oversees the casework." A
   `Memberships` row only ever represents a real, accepted membership — a
   firm putting someone on its roster is never instant or unilateral, see
   `MembershipInvites` below for how a row here actually gets created.
@@ -405,8 +430,9 @@ are built — avoids painful migrations later.
   which memberships (lawyers *and* clients alike — a case can have more than
   one of each) can access a case. Whether an assigned membership is a lawyer
   or client comes from `Memberships.role`, not a field on this table. The
-  office manager sees every case at their own tenant automatically without
-  needing a row here; `super_admin` never gets case-level access at all, only
+  office manager (and any lawyer with `Memberships.is_manager` set, see
+  above) sees every case at their own tenant automatically without needing
+  a row here; `super_admin` never gets case-level access at all, only
   firm-level/aggregate data (see Roles). This table is a real (hard) delete
   when someone is unassigned — nothing else references `case_assignments.id`
   as a foreign key, unlike `Memberships`, so there's no history-preservation
@@ -503,14 +529,26 @@ are built — avoids painful migrations later.
   at all rather than computed live from `WorkLogs` on every read: they're a
   fixed snapshot of what a specific narrative said, by design.
 
-  Generating one is `office_manager`-only (reversed from an earlier draft
-  of this decision, which treated it as any-lawyer-assigned authority like
-  everything else on a case). Reversed once `total_fee` stopped being a
-  flat platform-wide placeholder rate and started depending on each
-  lawyer's real, office_manager-set `hourly_rate` (see `Memberships`,
-  below) — generating a narrative is now closer to a billing/administrative
-  action than day-to-day casework, the same reasoning that already makes
-  Case status changes `office_manager`-only.
+  Generating one is manager-level authority — `office_manager`, or any
+  `lawyer` with `Memberships.is_manager` set (see `Memberships`, above) —
+  reversed from an earlier draft of this decision, which treated it as
+  any-lawyer-assigned authority like everything else on a case, then
+  briefly as `office_manager`-only. Settled here because the real
+  requirement is case oversight, not firm administration: a pure
+  `office_manager` with no case context wouldn't actually have grounds to
+  write a case's narrative, and a `lawyer` with full case visibility
+  (`is_manager`) does. `total_fee` depending on each lawyer's real,
+  office_manager-set `hourly_rate` (see `Memberships`) is what made this a
+  real billing action worth restricting away from *every* assigned lawyer
+  in the first place — it just doesn't specifically require being the
+  firm's administrator, only its case overseer.
+
+  Because a manager-authority `lawyer` still only ever uses `client/`, not
+  `admin/`, the generation/export logic itself lives in `/server/shared`
+  (a new narrow extension, same pattern as `storage.py`/`plan_limits.py`/
+  `password_reset.py`) — both `admin_api` and `client_api` expose their own
+  thin route to it, each enforcing its own side's authorization check
+  (`office_manager` in `admin_api`, `is_manager` lawyer in `client_api`).
 
   `period_start`/`period_end` are chosen by the lawyer at generation time —
   real legal billing is period-by-period (typically monthly), not "every

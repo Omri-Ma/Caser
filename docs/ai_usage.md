@@ -4353,3 +4353,161 @@ whatever it reports lands in its own follow-up commit if anything
 needed fixing, or is simply confirmed clean if not. Per the session's
 own instructions: branch not pushed, no PR opened — stopping here for
 review.
+
+## 2026-09-14 (branch `feature/manager-flag`) — Memberships.is_manager: orthogonal case-oversight authority, split out of office_manager
+
+New session, real conceptual correction to CLAUDE.md's Roles/Memberships
+model: `office_manager` used to bundle two different things — firm
+*administration* (people, billing, branding) and case *oversight* (full
+case visibility, narrative authority). This session splits them.
+`office_manager` keeps both (unchanged), but a `lawyer` can now hold a
+narrower `Memberships.is_manager` flag granting the oversight half only,
+without becoming a firm administrator — matching how larger real firms
+separate "runs the business" from "oversees the casework."
+
+Read the corrected CLAUDE.md in full before starting (as instructed) —
+the diff already existed as an uncommitted edit on disk when the session
+started, same pattern as last session's CLAUDE.md handoff. Since the spec
+explicitly builds on "the narrative generation/export code you just
+built" (last session's admin_api-only implementation, never actually
+merged — the prior session stopped before pushing/opening a PR per its
+own instructions), and the task said to branch off "current master": did
+a local-only fast-forward merge of `feature/superadmin-narrative-polish`
+into `master` first (no push), so master genuinely contains what the
+spec assumes, then popped the CLAUDE.md stash on top and committed it to
+master before branching — same reasoning as last session's CLAUDE.md
+handling. Flagging this judgment call explicitly rather than silently
+picking a base branch that wouldn't have had the code the task
+references. Per this session's explicit instruction, commits from here
+on are one per numbered item (four), asked for and confirmed before any
+of them — this log is written incrementally alongside them, not in one
+retroactive block.
+
+**Item 1 — `Memberships.is_manager`** (migration `b3c4d5e6f7a8`): added
+NOT NULL with a server default of `false` directly, unlike `hourly_rate`
+(meaningfully nullable — "no rate set yet" is real). There's no
+meaningful "unset" third state for is_manager, so no backfill pass
+needed. Applied to the real dev DB; `db/schema.sql` updated by hand
+(same as last session, since that file has no dedicated regen script —
+it's a manual mirror of the live schema per its own header comment).
+
+**Item 2 — full case visibility extended to `is_manager` lawyers**
+(client_api): added `has_full_case_visibility(membership)` to
+`client_api/core/case_access.py` (`role == LAWYER and is_manager` —
+always False for a client, whose `is_manager` is never set). Threaded
+through three places: `get_assigned_case` (skips the CaseAssignment
+check entirely when true — shared by documents.py/work_logs.py/
+narratives.py, so all three pick this up automatically once narratives.py
+is wired to use it too, not just the cases router), `list_my_cases`
+(no-join full-tenant query instead of the assignment-joined one), and
+`get_my_case` (now just delegates to `get_assigned_case` instead of
+duplicating the assignment-check logic inline — a small cleanup that
+fell out of doing this properly rather than copy-pasting the new branch
+a third time). New `server/tests/test_manager_flag.py` (6 tests so far,
+grows with the next two items): manager-lawyer sees every case in the
+list and can fetch an unassigned one directly, a plain lawyer still
+can't, the same visibility flows through documents/work-logs already
+(confirming the shared get_assigned_case change, not a per-router
+re-implementation), and a client's is_manager is never honored even if
+set directly on the row (not just that the admin endpoint refuses to set
+it).
+
+**Item 3 — narrative logic moved to `/server/shared`**: `git mv
+admin_api/core/narratives.py shared/narratives.py`, fixed the now-one-
+level-shallower fonts path, added a header comment matching the
+storage.py/plan_limits.py/password_reset.py convention. `admin_api`'s
+narratives router now imports from `shared.narratives` — otherwise
+completely unchanged (additive per the spec: office_manager keeps every
+existing capability, no CaseAssignment check, same route shapes).
+`client_api` gained real `POST` (generate) and `POST .../export-pdf`
+routes on top of the existing read-only `GET` — gated by a new
+`require_manager_lawyer` dependency (`case_access.py`, added last item)
+that 403s anyone without `has_full_case_visibility`. Both sides call the
+exact same `compute_case_totals`/`generate_narrative_text`/
+`build_narrative_pdf` functions now, verified not just by code review but
+by a dedicated test
+(`test_manager_lawyer_narrative_matches_admin_api_narrative_generation`)
+that generates the same inputs through both routes and asserts identical
+totals — the actual property the "single shared implementation" claim
+depends on, not just "both files import from the same place."
+
+Fixed two casualties of the module move while here: a stale
+`admin_api.core.narratives` import in `test_narrative_period_and_
+language.py`'s two direct unit tests, and two `test_narratives_client.py`
+tests whose asserted status code (`404`/`405`, from when the client_api
+routes didn't exist at all — last session's design) needed to become
+`403` now that the routes exist but are role-gated by
+`require_manager_lawyer`. Grew `test_manager_flag.py` by 4 tests
+(narrative generation/export: manager-lawyer succeeds including a custom
+export filename, a plain assigned lawyer and a client are both rejected,
+and the cross-app consistency check described above) — 34/34 pass
+across `test_manager_flag.py` + the two narrative test files it touched
++ `test_narratives_admin.py` (confirming admin_api's side is untouched).
+
+**Item 4 — admin UI + full loop**: new `PATCH /members/{id}/manager-
+status` (office_manager-only, lawyer-only target, separate endpoint and
+separate audit-log action from the existing role-promotion route — never
+touches `role`). Admin's `RoleMembersPanel` (shared by all three per-role
+member pages) gained a "מנהל/ת תיקים" checkbox column, lawyer-page only,
+next to but independent of the existing "קידום למנהל/ת" (promote-to-
+office_manager) action.
+
+Wiring the client/ UI up properly turned out to be the bulk of this
+item's real work, beyond what the spec's four bullets state outright:
+client/'s `NarrativesPanel` needed to know *this browser's own*
+`is_manager` status to decide whether to render the generate/export
+controls at all, and nothing already handed that to the frontend — role
+travels from login to the frontend via a `?role=` query param across the
+lobby→tenant-subdomain redirect (different origins, `sessionStorage`
+doesn't carry over) specifically because CLAUDE.md's own architecture
+puts the lobby on a different origin from every tenant subdomain. Traced
+that mechanism through `SessionResponse`/`LobbyTenantOption`/
+`AcceptInviteResponse` (three separate places `role` already flows
+through) and added `is_manager` alongside it in all three, then mirrored
+the same `sessionStorage` stash/read pattern client/ already uses for
+role (`api/session.js`: `setStoredIsManager`/`getStoredIsManager`).
+Also had to restore the `documentsRefreshSignal` plumbing (client/'s
+`DocumentsPanel` + `CaseDetailPage`) that the *previous* session removed
+as dead code when narrative export left client_api entirely — it's real
+again now that export can happen from client/ once more, for a manager-
+authority lawyer specifically.
+
+**Live verification, three roles, real browser (Playwright), real dev
+DB** — not just the automated tests:
+- **Manager-flagged lawyer** (granted via the new admin UI toggle,
+  confirmed via a fresh screenshot the checkbox actually reflects true):
+  case list went from the account's real assignment count to all 9 cases
+  at the tenant; opened a case with zero assignment for this lawyer,
+  confirmed the "+ יצירת נרטיב חדש" button now renders (it didn't before
+  this session, by design — client/'s narrative UI was read-only-only
+  after last session's office_manager-only draft); generated and
+  exported a narrative through it (both requests hit port 8000 —
+  client_api, not admin_api), confirmed the resulting PDF shows up under
+  the exact typed filename in the case's internal-documents tab.
+- **office_manager**: confirmed the full 9-case oversight list is
+  unaffected, and generated a narrative through admin_api's existing
+  route on the same case the plain lawyer (below) is assigned to,
+  confirming nothing regressed.
+- **Plain lawyer, no flag** (`narrtest.lawyer@example.com`, password
+  reset through the real self-service forgot-password + dev-outbox flow
+  since the original wasn't known): case list showed exactly their 1
+  real assignment, not 9; opened that case and confirmed zero "+ יצירת
+  נרטיב חדש" buttons — the read-only narrative view (existing history,
+  no generate/export controls) rendered correctly instead.
+
+All throwaway narratives/documents created for this verification pass
+were deleted from the dev DB afterward (including the on-disk files, via
+`shared.storage.delete_file`) — the granted `is_manager` flag on
+`lior.lawyer@example.com` was left in place, since it's a legitimate
+config state rather than test debris (same call as last session leaving
+that account's `hourly_rate` set).
+
+Added the remaining 6 `test_manager_flag.py` tests for this item
+(grant/revoke, lawyer-only-target rejection, self-grant rejection,
+confirming the toggle never touches `role`, and office_manager's own
+capabilities unaffected) — 37/37 pass across `test_manager_flag.py` +
+`test_members_admin.py` + `test_member_role_and_leave.py`. Full
+`server/tests/` suite: **290/290 pass** (run once, after every item was
+code-complete but before any of the four commits, so a fresh full-suite
+number wasn't needed per commit — each item's own commit message states
+the narrower slice actually re-run for that change).

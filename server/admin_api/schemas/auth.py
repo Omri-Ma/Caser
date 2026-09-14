@@ -153,10 +153,25 @@ class MemberResponse(BaseModel):
     # Narratives.total_fee. Nullable: a brand-new lawyer membership has no
     # rate set yet.
     hourly_rate: Optional[Decimal] = None
+    # Only meaningful for lawyer rows (CLAUDE.md's Memberships note) —
+    # office_manager-set case-oversight flag, orthogonal to role/promotion:
+    # grants full case visibility + narrative authority in client_api
+    # without making this lawyer a firm administrator.
+    is_manager: bool = False
 
 
 class UpdatePublicVisibilityRequest(BaseModel):
     show_on_public_page: bool
+
+
+class UpdateManagerStatusRequest(BaseModel):
+    """Grant or revoke Memberships.is_manager (CLAUDE.md's Memberships
+    note) — deliberately separate from UpdateMemberRoleRequest's
+    promote/demote-to-office_manager action: this is case-oversight
+    authority only, never firm administration.
+    """
+
+    is_manager: bool
 
 
 class UpdateHourlyRateRequest(BaseModel):

@@ -148,7 +148,7 @@ def test_hebrew_pdf_embeds_real_hebrew_font(db):
     `he` narrative rather than silently falling back to Helvetica (which has
     no Hebrew glyphs at all).
     """
-    from admin_api.core.narratives import build_narrative_pdf
+    from shared.narratives import build_narrative_pdf
     from shared.models import Case, Narrative
     from shared.models.enums import CaseStatus, NarrativeLanguage
     from datetime import date, datetime
@@ -184,7 +184,7 @@ def test_english_pdf_also_embeds_hebrew_font(db):
     boxes). Regression test for the earlier version of this that only
     registered/used the Hebrew font for `he`.
     """
-    from admin_api.core.narratives import build_narrative_pdf
+    from shared.narratives import build_narrative_pdf
     from shared.models import Case, Narrative
     from shared.models.enums import CaseStatus, NarrativeLanguage
     from datetime import date, datetime

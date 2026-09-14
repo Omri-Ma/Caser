@@ -1,17 +1,16 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from client_api.core.case_access import get_assigned_case, has_full_case_visibility
 from client_api.core.pagination import Page, PageParams, paginate
 from client_api.schemas.cases import CaseResponse
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import Case, CaseAssignment, CaseTag, Membership, Tenant
 from shared.models.enums import CaseStatus, PracticeArea, UserRole
-from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
-from shared import error_messages as E
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -27,19 +26,25 @@ def list_my_cases(
     membership: Membership = Depends(require_role(UserRole.LAWYER, UserRole.CLIENT)),
 ):
     """Only cases this membership is explicitly assigned to via
-    CaseAssignment — unlike office_manager, a lawyer/client has no automatic
-    tenant-wide visibility. Optional server-side title search + status +
-    practice-area tag filter, same as the admin case list.
+    CaseAssignment — unless it has full tenant-wide visibility, either as
+    office_manager (never reaches this router) or a lawyer with
+    Memberships.is_manager set (CLAUDE.md's CaseAssignments note), the same
+    automatic oversight office_manager already has in admin_api. Optional
+    server-side title search + status + practice-area tag filter, same as
+    the admin case list.
     """
-    query = (
-        db.query(Case)
-        .join(CaseAssignment, CaseAssignment.case_id == Case.id)
-        .filter(
-            Case.tenant_id == tenant.id,
-            CaseAssignment.tenant_id == tenant.id,
-            CaseAssignment.membership_id == membership.id,
+    if has_full_case_visibility(membership):
+        query = db.query(Case).filter(Case.tenant_id == tenant.id)
+    else:
+        query = (
+            db.query(Case)
+            .join(CaseAssignment, CaseAssignment.case_id == Case.id)
+            .filter(
+                Case.tenant_id == tenant.id,
+                CaseAssignment.tenant_id == tenant.id,
+                CaseAssignment.membership_id == membership.id,
+            )
         )
-    )
     if search:
         query = query.filter(Case.title.ilike(f"%{search}%"))
     if status_filter is not None:
@@ -58,22 +63,10 @@ def get_my_case(
     db: Session = Depends(get_db),
     membership: Membership = Depends(require_role(UserRole.LAWYER, UserRole.CLIENT)),
 ):
-    """view only if assigned — the case is resolved tenant-scoped first
-    (404 if it doesn't even belong to this tenant), then checked for an
-    assignment (403 if it exists here but this membership can't see it).
+    """View only if assigned — or, as of Memberships.is_manager, if this
+    membership has full tenant-wide case visibility instead. Delegates to
+    the same get_assigned_case helper documents.py/work_logs.py/
+    narratives.py already use, rather than duplicating the assignment
+    check inline.
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
-
-    assigned = (
-        db.query(CaseAssignment)
-        .filter(
-            CaseAssignment.tenant_id == tenant.id,
-            CaseAssignment.case_id == case.id,
-            CaseAssignment.membership_id == membership.id,
-        )
-        .first()
-    )
-    if assigned is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NOT_ASSIGNED_TO_CASE)
-
-    return case
+    return get_assigned_case(case_id, tenant, membership, db)

@@ -135,7 +135,7 @@ def login(
 
     record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
-    return SessionResponse(name=identity.name, email=identity.email, role=membership.role)
+    return SessionResponse(name=identity.name, email=identity.email, role=membership.role, is_manager=membership.is_manager)
 
 
 @router.post("/lobby-login", response_model=LobbyLoginResponse)
@@ -173,7 +173,11 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
         email=identity.email,
         tenants=[
             LobbyTenantOption(
-                tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role
+                tenant_id=tenant.id,
+                subdomain=tenant.subdomain,
+                firm_name=tenant.name,
+                role=membership.role,
+                is_manager=membership.is_manager,
             )
             for membership, tenant in memberships
         ],
@@ -240,7 +244,13 @@ def my_tenants(identity: Identity = Depends(get_current_identity), db: Session =
     """
     memberships = _lawyer_client_tenants(identity, db)
     return [
-        LobbyTenantOption(tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name, role=membership.role)
+        LobbyTenantOption(
+            tenant_id=tenant.id,
+            subdomain=tenant.subdomain,
+            firm_name=tenant.name,
+            role=membership.role,
+            is_manager=membership.is_manager,
+        )
         for membership, tenant in memberships
     ]
 

@@ -37,6 +37,11 @@ class LobbyTenantOption(BaseModel):
     # it across, since the tenant subdomain it lands on is a different origin
     # and can't read anything the lobby page stored client-side.
     role: UserRole
+    # Same reasoning as role — a manager-authority lawyer (CLAUDE.md's
+    # Memberships.is_manager note) needs the client/ UI on the landing
+    # subdomain to know it can offer narrative generation, and that
+    # subdomain can't read anything stored on the lobby's own origin.
+    is_manager: bool = False
 
 
 class PendingInviteOption(BaseModel):
@@ -65,6 +70,7 @@ class AcceptInviteResponse(BaseModel):
     subdomain: str
     firm_name: str
     role: UserRole
+    is_manager: bool = False
 
 
 class ChangePasswordRequest(BaseModel):
@@ -113,3 +119,4 @@ class SessionResponse(BaseModel):
     name: str
     email: EmailStr
     role: UserRole
+    is_manager: bool = False
