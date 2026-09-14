@@ -1,12 +1,15 @@
-import { apiFetch } from './client'
+import { apiBaseUrlForSubdomain, apiFetch, ApiError } from './client'
 import { clearStoredIsManager, clearStoredRole, setStoredIsManager, setStoredRole } from './session'
 
 // A cheap "do I actually have access at this subdomain" check — 204 if so,
-// 403 (E.NO_ACCESS_TO_FIRM) otherwise. Used by AppShell to send a
-// lawyer/client with no access here to the general homepage instead of
-// rendering a shell whose every real data call would 403 individually.
-export function checkMyMembership() {
-  return apiFetch('/auth/my-membership')
+// 401/403 otherwise. Used by AppShell to send a lawyer/client with no
+// access here to the general homepage instead of rendering a shell whose
+// every real data call would 403 individually. redirectOn401 defaults true
+// for that case; PublicHomePage passes false — an anonymous visitor there
+// gets a plain 401 (no session cookie at all), which must never bounce
+// them to /login just for viewing a public page.
+export function checkMyMembership({ redirectOn401 = true } = {}) {
+  return apiFetch('/auth/my-membership', { redirectOn401 })
 }
 
 // Every other active firm this identity works with, as a lawyer or client —
@@ -19,6 +22,29 @@ export function myTenants() {
 // at the current tenant subdomain (CLAUDE.md's Memberships note).
 export function leaveFirm() {
   return apiFetch('/auth/leave-firm', { method: 'POST' })
+}
+
+// Same action, but for a firm other than the one the browser is currently
+// on (ProfilePage's "Firms I belong to" section lists every firm, not just
+// this one) — a real cross-origin request, since each firm is a different
+// subdomain/origin. Works because the session cookie is scoped to the base
+// domain (shared across every tenant subdomain) and client_api's CORS
+// config already trusts every tenant subdomain with credentials, same as
+// the lobby directory's existing cross-tenant logo fetches.
+export async function leaveOtherFirm(subdomain) {
+  const response = await fetch(`${apiBaseUrlForSubdomain(subdomain)}/auth/leave-firm`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    let data = null
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+    throw new ApiError(data?.error || 'משהו השתבש, נסו שוב', { status: response.status })
+  }
 }
 
 export function register({ name, email, password }) {

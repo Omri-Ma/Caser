@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -16,7 +18,11 @@ router = APIRouter(prefix="/public", tags=["public"])
 
 
 @router.get("/directory", response_model=Page[PublicDirectoryEntry])
-def get_public_directory(params: PageParams = Depends(), db: Session = Depends(get_db)):
+def get_public_directory(
+    search: Optional[str] = Query(None, max_length=255),
+    params: PageParams = Depends(),
+    db: Session = Depends(get_db),
+):
     """Unauthenticated, non-tenant list of every active firm's public
     profile info (name/logo/subdomain only) — backs the lobby's general
     homepage firm directory (CLAUDE.md: "a public firm directory ...
@@ -25,8 +31,15 @@ def get_public_directory(params: PageParams = Depends(), db: Session = Depends(g
     from the lobby host (www.<BASE_DOMAIN>), which has no tenant of its own
     to resolve. A suspended tenant (active=False) never appears here, same
     lockout semantics as everywhere else.
+
+    `search` is an optional case-insensitive substring match on the firm
+    name — same non-sensitive-firm-profile boundary as everything else this
+    route returns, just filtered.
     """
-    query = db.query(Tenant).filter(Tenant.active.is_(True)).order_by(Tenant.name.asc())
+    query = db.query(Tenant).filter(Tenant.active.is_(True))
+    if search:
+        query = query.filter(Tenant.name.ilike(f"%{search}%"))
+    query = query.order_by(Tenant.name.asc())
     tenants, total = paginate(query, params)
     items = [
         PublicDirectoryEntry(name=tenant.name, subdomain=tenant.subdomain, has_logo=bool(tenant.logo_url))

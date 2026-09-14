@@ -171,6 +171,9 @@ export default function LobbyLoginPage() {
       <p className="auth-switch">
         <Link to="/forgot-password">שכחת סיסמה?</Link>
       </p>
+      <p className="auth-switch">
+        עדיין אין לך חשבון? <Link to="/register">הרשמה</Link>
+      </p>
     </div>
   )
 }

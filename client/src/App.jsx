@@ -12,7 +12,6 @@ import WorkLogImportPage from './pages/WorkLogImportPage'
 import ProfilePage from './pages/ProfilePage'
 import PublicHomePage from './pages/PublicHomePage'
 import HomePage from './pages/HomePage'
-import { apiFetch } from './api/client'
 import { isLobbyHost } from './utils/host'
 import { setStoredIsManager, setStoredRole } from './api/session'
 
@@ -37,35 +36,6 @@ function useLobbyRoleParam() {
   }, [])
 }
 
-// "/" branches on session state: a logged-in visitor goes straight to their
-// cases (unchanged behavior), a logged-out one sees the public firm landing
-// page (CLAUDE.md's public homepage requirement) instead of being bounced
-// straight to /login. Calling apiFetch directly (redirectOn401: false)
-// rather than api/auth's me() — me() redirects to /login on a 401 itself
-// (AppShell's normal behavior), which is wrong here: a 401 is exactly the
-// "show the public page" case, not an error to bounce away from.
-function RootRoute() {
-  const [checking, setChecking] = useState(true)
-  const [authenticated, setAuthenticated] = useState(false)
-
-  useEffect(() => {
-    apiFetch('/auth/me', { redirectOn401: false })
-      .then(() => setAuthenticated(true))
-      .catch(() => setAuthenticated(false))
-      .finally(() => setChecking(false))
-  }, [])
-
-  if (checking) {
-    return <div className="shell-loading">טוען…</div>
-  }
-
-  if (authenticated) {
-    return <Navigate to="/cases" replace />
-  }
-
-  return <PublicHomePage />
-}
-
 export default function App() {
   useLobbyRoleParam()
   const lobby = isLobbyHost()
@@ -80,6 +50,18 @@ export default function App() {
               element={
                 <Layout>
                   <LobbyLoginPage />
+                </Layout>
+              }
+            />
+            {/* /auth/register has no tenant dependency at all (a bare
+                global Identity) — routed here too so it's actually
+                reachable from the lobby, not just via an invite link on a
+                tenant subdomain (see the other /register route below). */}
+            <Route
+              path="/register"
+              element={
+                <Layout>
+                  <RegisterPage />
                 </Layout>
               }
             />
@@ -137,7 +119,12 @@ export default function App() {
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/" element={<RootRoute />} />
+            {/* Always the firm's public page — even for an already-
+                connected visitor clicking through from the directory
+                (CLAUDE.md's directory click-through fix: never skip
+                straight to /cases). PublicHomePage itself resolves auth
+                state and offers the right call-to-action either way. */}
+            <Route path="/" element={<PublicHomePage />} />
             <Route path="*" element={<Navigate to="/cases" replace />} />
           </>
         )}

@@ -85,3 +85,20 @@ def test_my_membership_403_when_membership_deactivated(client_client, db):
     resp = client_client.get("/auth/my-membership", headers=headers, cookies=cookies)
 
     assert resp.status_code == 403
+
+
+def test_my_membership_403_for_office_manager_at_own_firm(client_client, db):
+    """A real bug this route used to have: an office_manager visiting their
+    OWN firm's client/ subdomain has a genuine active Membership row there
+    (just the wrong role for this app) — used to pass this check, landing
+    them on a blank/no-data client/ shell instead of being redirected as a
+    real no-access case (CLAUDE.md: office_manager never uses client/).
+    """
+    tenant = make_tenant(db, "acme")
+    manager = make_identity(db, "manager@acme.com")
+    make_membership(db, manager.id, tenant.id, UserRole.OFFICE_MANAGER)
+
+    headers, cookies = auth_for(manager, "acme")
+    resp = client_client.get("/auth/my-membership", headers=headers, cookies=cookies)
+
+    assert resp.status_code == 403

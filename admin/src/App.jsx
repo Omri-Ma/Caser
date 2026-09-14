@@ -10,7 +10,6 @@ import CaseDetailPage from './pages/CaseDetailPage'
 import DashboardPage from './pages/DashboardPage'
 import LawyersPage from './pages/LawyersPage'
 import ClientsPage from './pages/ClientsPage'
-import AdminsPage from './pages/AdminsPage'
 import AuditLogPage from './pages/AuditLogPage'
 import BrandingPage from './pages/BrandingPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -114,9 +113,8 @@ export default function App() {
             <Route path="/cases/:caseId" element={<CaseDetailPage />} />
             <Route path="/members/lawyers" element={<LawyersPage />} />
             <Route path="/members/clients" element={<ClientsPage />} />
-            <Route path="/members/admins" element={<AdminsPage />} />
             {/* Old combined /members link (bookmarks, external references) -
-                lands on Lawyers, the first of the three split pages. */}
+                lands on Lawyers, the first of the two split pages. */}
             <Route path="/members" element={<Navigate to="/members/lawyers" replace />} />
             <Route path="/audit-log" element={<AuditLogPage />} />
             <Route path="/work-logs/import" element={<WorkLogImportPage />} />

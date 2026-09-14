@@ -254,11 +254,73 @@
           "auth"
         ],
         "summary": "Leave Firm",
-        "description": "Self-service \"leave this firm\" for the office_manager whose session\nthis is — deactivates their own membership at the current tenant subdomain\n(same soft-delete semantics as an office_manager deactivating someone\nelse via POST /members/{id}/deactivate, just self-initiated and with no\n\"not your own membership\" block, since that block existed specifically\nto stop *that* route from being used this way).\n\nNo \"last office_manager standing\" guard, on purpose — CLAUDE.md's\nMemberships note is explicit that this isn't a dangerous edge case worth\nblocking: any office_manager (including this one, a moment earlier) can\npromote a colleague first, so a firm is never actually strandable;\nsuper_admin remains the last-resort fallback regardless.",
+        "description": "A firm has exactly one office_manager, fixed at founding, with no\npromote/demote path to replace them (CLAUDE.md's Memberships note) — so\nunlike the lawyer/client version of this route in client_api, this is a\nhard, unconditional block, not a self-service action. There is no\n\"leave, someone else will still be there\" case here at all: leaving\nwould always strand the firm without an administrator. A genuine need\nto change a firm's administrator is a manual/super_admin-assisted case,\noutside self-service scope.\n\nKept as a route (rather than removed outright) so an office_manager\nhitting this from stale/cached frontend code gets a clear, explained\nrejection instead of a 404 that looks like a bug.",
         "operationId": "leave_firm_auth_leave_firm_post",
         "responses": {
           "204": {
             "description": "Successful Response"
+          }
+        }
+      }
+    },
+    "/auth/my-public-visibility": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get My Public Visibility",
+        "description": "Self-service read of the office_manager's own\nMemberships.show_on_public_page (CLAUDE.md's public homepage team\nsection note). This lever used to only be reachable through the\nnow-removed Admins page (POST /members/{id}/public-visibility,\nself-targeting was never actually possible since there was no page\nlisting office_manager rows at all after that removal) — a real\nregression from removing that page, not a pre-existing gap: without\nthis, an office_manager's own visibility toggle became permanently\nstuck wherever it happened to be, with no way to ever change it again.",
+        "operationId": "get_my_public_visibility_auth_my_public_visibility_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePublicVisibilityRequest"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Update My Public Visibility",
+        "description": "Write side of the above — same field, same semantics as\nPOST /members/{id}/public-visibility, just self-targeting (no\nmembership_id needed: require_role already resolves the caller's own\nmembership at this tenant) so an office_manager can reach it from\ntheir own profile/settings page instead of a members list they're not\nlisted on.",
+        "operationId": "update_my_public_visibility_auth_my_public_visibility_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePublicVisibilityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdatePublicVisibilityRequest"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
@@ -573,59 +635,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MemberResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/members/{membership_id}/role": {
-      "patch": {
-        "tags": [
-          "members"
-        ],
-        "summary": "Update Member Role",
-        "description": "Promote a lawyer to office_manager, or demote an office_manager back\nto lawyer, at this office_manager's own firm (CLAUDE.md's Memberships\nnote). Never touches a client membership — UpdateMemberRoleRequest's\nschema already restricts the *target* role to office_manager/lawyer,\nand this additionally rejects a *source* membership that's a client, so\na client can never be promoted this way either.\n\nDeliberately allows changing your own role (including an office_manager\ndemoting themselves) with no \"last office_manager standing\" guard: this\nis the exact mechanism CLAUDE.md's Memberships note relies on to make\nself-service firm-leaving safe to allow at all (\"any office_manager can\npromote someone else before or after the fact, so a firm is never\nactually strandable\") — adding a block here would be inconsistent with\nthat reasoning, and super_admin remains the last-resort fallback either\nway.",
-        "operationId": "update_member_role_members__membership_id__role_patch",
-        "parameters": [
-          {
-            "name": "membership_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Membership Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateMemberRoleRequest"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4850,25 +4859,7 @@
           "is_manager"
         ],
         "title": "UpdateManagerStatusRequest",
-        "description": "Grant or revoke Memberships.is_manager (CLAUDE.md's Memberships\nnote) — deliberately separate from UpdateMemberRoleRequest's\npromote/demote-to-office_manager action: this is case-oversight\nauthority only, never firm administration."
-      },
-      "UpdateMemberRoleRequest": {
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": [
-              "office_manager",
-              "lawyer"
-            ],
-            "title": "Role"
-          }
-        },
-        "type": "object",
-        "required": [
-          "role"
-        ],
-        "title": "UpdateMemberRoleRequest",
-        "description": "Promote a lawyer to office_manager, or demote an office_manager back\nto lawyer — CLAUDE.md's Memberships note: \"office_manager can promote a\nlawyer to office_manager or demote an office_manager back to lawyer ...\nnever client in or out of this\". Restricted to exactly those two values\nat the schema level (not the full UserRole enum) so a client can never\neven be submitted here in the first place."
+        "description": "Grant or revoke Memberships.is_manager (CLAUDE.md's Memberships\nnote) — case-oversight authority only, never firm administration. There\nis no promote/demote-to-office_manager action to be separate from: a\nfirm's role is fixed at founding and never changes (see Memberships)."
       },
       "UpdateProfileRequest": {
         "properties": {

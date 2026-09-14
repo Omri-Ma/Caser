@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { me, logout, checkMyMembership, myTenants } from '../api/auth'
+import { getPublicProfile } from '../api/public'
+import { apiBaseUrl } from '../api/client'
 import { getStoredRole } from '../api/session'
 import { lobbyHomeUrl, lobbyLoginUrl, redirectToTenant } from '../utils/host'
 import InvitesInbox from './InvitesInbox'
@@ -59,6 +61,12 @@ export default function AppShell({ activeKey, children }) {
   // switcher. Loaded best-effort, after the shell already renders.
   const [switcherTenants, setSwitcherTenants] = useState([])
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  // Which firm this actually is — same gap admin/'s header already closed
+  // (GET /tenant + initials fallback); client/ never had its own tenant
+  // lookup, so it reuses the existing public/unauthenticated profile route
+  // (name + has_logo) instead of adding a new authenticated one.
+  const [tenant, setTenant] = useState(null)
+  const [logoFailed, setLogoFailed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -89,6 +97,11 @@ export default function AppShell({ activeKey, children }) {
           myTenants()
             .then((tenants) => {
               if (!cancelled) setSwitcherTenants(tenants.filter((t) => t.subdomain !== currentSubdomain))
+            })
+            .catch(() => {})
+          getPublicProfile()
+            .then((profile) => {
+              if (!cancelled) setTenant(profile)
             })
             .catch(() => {})
         }
@@ -137,13 +150,13 @@ export default function AppShell({ activeKey, children }) {
   return (
     <div className="app-shell-layout">
       <aside className="app-sidebar">
-        <div className="sidebar-brand">
+        <button type="button" className="sidebar-brand sidebar-brand-link" onClick={() => navigate('/cases')}>
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
           <span className="wordmark">Caser</span>
-        </div>
+        </button>
         <nav className="sidebar-nav">
           {items.map((item) =>
             item.path ? (
@@ -171,40 +184,59 @@ export default function AppShell({ activeKey, children }) {
       </aside>
       <div className="app-content">
         <header className="content-topbar">
-          <div className="topbar-user">
-            <div className="user-avatar">
-              {identity.photo_url ? (
-                <img src={identity.photo_url} alt="" className="user-avatar-img" />
-              ) : (
-                identity.name.trim().slice(0, 2)
-              )}
-            </div>
-            <div className="user-name">{identity.name}</div>
-            {switcherTenants.length > 0 && (
-              <div className="tenant-switcher">
-                <button
-                  type="button"
-                  className="tenant-switcher-toggle"
-                  onClick={() => setSwitcherOpen((open) => !open)}
-                  title="מעבר בין משרדים"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                {switcherOpen && (
-                  <ul className="tenant-switcher-menu">
-                    {switcherTenants.map((t) => (
-                      <li key={t.tenant_id}>
-                        <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
-                          {t.firm_name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+          <div className="topbar-start">
+            {tenant && (
+              <div className="topbar-firm">
+                <div className="topbar-firm-identity">
+                  {tenant.has_logo && !logoFailed ? (
+                    <img
+                      src={`${apiBaseUrl()}/public/logo`}
+                      alt=""
+                      className="topbar-tenant-logo"
+                      onError={() => setLogoFailed(true)}
+                    />
+                  ) : (
+                    <div className="topbar-tenant-logo-placeholder">{tenant.name.trim().slice(0, 2)}</div>
+                  )}
+                  <span className="topbar-tenant-name">{tenant.name}</span>
+                </div>
+                {switcherTenants.length > 0 && (
+                  <div className="tenant-switcher tenant-switcher-under">
+                    <button
+                      type="button"
+                      className="tenant-switcher-toggle-labeled"
+                      onClick={() => setSwitcherOpen((open) => !open)}
+                    >
+                      מעבר בין משרדים
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                        <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </button>
+                    {switcherOpen && (
+                      <ul className="tenant-switcher-menu">
+                        {switcherTenants.map((t) => (
+                          <li key={t.tenant_id}>
+                            <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
+                              {t.firm_name}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </div>
             )}
+            <div className="topbar-user">
+              <div className="user-avatar">
+                {identity.photo_url ? (
+                  <img src={identity.photo_url} alt="" className="user-avatar-img" />
+                ) : (
+                  identity.name.trim().slice(0, 2)
+                )}
+              </div>
+              <div className="user-name">{identity.name}</div>
+            </div>
           </div>
           <div className="topbar-actions">
             <InvitesInbox />

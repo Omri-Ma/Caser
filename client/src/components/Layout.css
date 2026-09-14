@@ -11,6 +11,7 @@
   font-weight: 700;
   font-size: var(--font-size-lg);
   color: var(--color-primary-hover);
+  text-decoration: none;
 }
 
 /* Only "Caser" gets the serif brand font (.wordmark, index.css) — the
@@ -41,6 +42,8 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-base);
   padding: 0;
+  text-decoration: none;
+  font-weight: 600;
 }
 
 .app-nav-link:hover {

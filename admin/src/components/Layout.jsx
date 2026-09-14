@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import Modal from './Modal'
 import './Layout.css'
 
@@ -12,9 +13,9 @@ export default function Layout({ children }) {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <div className="app-brand">
+        <Link to="/login" className="app-brand">
           <span className="wordmark">Caser</span> · ניהול
-        </div>
+        </Link>
         <nav className="app-nav">
           <button type="button" className="app-nav-link" onClick={() => setAboutOpen(true)}>
             אודות

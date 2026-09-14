@@ -7,7 +7,6 @@ import {
   listMembers,
   updateHourlyRate,
   updateManagerStatus,
-  updateMemberRole,
   updatePublicVisibility,
 } from '../api/members'
 import { listInvites, revokeInvite } from '../api/invites'
@@ -24,29 +23,27 @@ const STATUS_TABS = [
 const ROLE_LABELS = {
   lawyer: 'עורך/ת דין',
   client: 'לקוח/ה',
-  office_manager: 'מנהל/ת משרד',
 }
 
-// Shared table + tab logic behind all three per-role member pages
-// (LawyersPage / ClientsPage / AdminsPage) — CLAUDE.md's reusable
-// -component rule: the active/pending/removed table itself only differs
-// per page in which role it's scoped to and which actions apply, so that's
-// the one thing parameterized here rather than duplicating the whole
-// fetch/tabs/table logic three times.
+// Plural page titles — a firm's roster is split into exactly two pages
+// (Lawyers/Clients — CLAUDE.md's Memberships note: there is no third
+// Admins page, since a firm has exactly one office_manager, fixed at
+// founding, never more and never promoted/demoted into or out of).
+const PAGE_TITLES = {
+  lawyer: 'עורכי דין',
+  client: 'לקוחות',
+}
+
+// Shared table + tab logic behind both per-role member pages (LawyersPage /
+// ClientsPage) — CLAUDE.md's reusable-component rule: the active/pending/
+// removed table itself only differs per page in which role it's scoped to
+// and which actions apply, so that's the one thing parameterized here
+// rather than duplicating the whole fetch/tabs/table logic twice.
 //
-// role: 'lawyer' | 'client' | 'office_manager' — which membership role this
-//   page manages (also the role a new invite gets created as, when
-//   inviteRole is set).
-// inviteRole: pass the role to invite as (only lawyer/client can be
-//   invited directly — CLAUDE.md: an office_manager only ever comes from
-//   promoting an existing lawyer, never a direct invite) to show the
-//   "+ invite" button; omit for the Admins page.
-// toggleToRole + toggleLabel: pass the *other* role this page's members can
-//   be switched to, and the button label, to show a promote/demote action
-//   per row (lawyer page -> promote to office_manager; admins page ->
-//   demote to lawyer). Omit for the Clients page — CLAUDE.md is explicit
-//   this toggle never involves client in or out of it.
-export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggleLabel, noInviteHint }) {
+// role: 'lawyer' | 'client' — which membership role this page manages
+//   (also the role a new invite gets created as).
+// inviteRole: pass the role to invite as, to show the "+ invite" button.
+export default function RoleMembersPanel({ role, inviteRole }) {
   const [statusTab, setStatusTab] = useState('active')
   const [result, setResult] = useState(null)
   // Which tab `result` actually belongs to — set together with the data
@@ -125,23 +122,6 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
     }
   }
 
-  async function handleToggleRole(member) {
-    const verb = toggleToRole === 'office_manager' ? 'לקדם' : 'להוריד'
-    if (!window.confirm(`${verb} את ${member.identity_name} ל${ROLE_LABELS[toggleToRole]}?`)) {
-      return
-    }
-    setActioningId(member.id)
-    setRowError(null)
-    try {
-      await updateMemberRole(member.id, toggleToRole)
-      load()
-    } catch (err) {
-      setRowError(err.message)
-    } finally {
-      setActioningId(null)
-    }
-  }
-
   function startRateEdit(member) {
     setRateEditingId(member.id)
     setRateDraft(member.hourly_rate != null ? String(member.hourly_rate) : '')
@@ -180,10 +160,10 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
     }
   }
 
-  // Separate from handleToggleRole (promote/demote to office_manager) —
-  // this only grants/revokes case-oversight authority (full case
-  // visibility + narrative generation in client_api), never firm
-  // administration (CLAUDE.md's Memberships note).
+  // Grants/revokes case-oversight authority only (full case visibility +
+  // narrative generation in client_api) — never firm administration or a
+  // role change; there is no such thing as a role change (CLAUDE.md's
+  // Memberships note: a firm's office_manager is fixed at founding).
   async function handleToggleManagerStatus(member) {
     const verb = member.is_manager ? 'לבטל את סטטוס המנהל/ת של' : 'להעניק סטטוס מנהל/ת ל'
     if (!window.confirm(`${verb} ${member.identity_name}? סטטוס מנהל/ת מעניק ראייה מלאה על כל התיקים במשרד ויכולת ליצור נרטיבים, ללא סמכויות ניהול משרד.`)) {
@@ -201,7 +181,7 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
     }
   }
 
-  const showPublicToggle = role === 'office_manager' || role === 'lawyer'
+  const showPublicToggle = role === 'lawyer'
 
   const memberColumns = [
     {
@@ -302,16 +282,6 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
         const isSelf = row.identity_email === myEmail
         return statusTab === 'active' ? (
           <div className="member-actions">
-            {toggleToRole && (
-              <button
-                type="button"
-                className="member-action"
-                onClick={() => handleToggleRole(row)}
-                disabled={actioningId === row.id}
-              >
-                {toggleLabel}
-              </button>
-            )}
             <button
               type="button"
               className="member-action member-action-danger"
@@ -352,15 +322,13 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
   return (
     <>
       <div className="cases-header">
-        <h1 className="page-title">{ROLE_LABELS[role]} · אנשי צוות</h1>
+        <h1 className="page-title">{PAGE_TITLES[role]}</h1>
         {inviteRole && (
           <button type="button" className="primary-button cases-new-button" onClick={() => setInviting(true)}>
             + הזמנת {ROLE_LABELS[inviteRole]}
           </button>
         )}
       </div>
-
-      {noInviteHint && <p className="role-panel-hint">{noInviteHint}</p>}
 
       {error && <div className="cases-state cases-state-error">{error}</div>}
 
@@ -385,7 +353,7 @@ export default function RoleMembersPanel({ role, inviteRole, toggleToRole, toggl
             columns={resultTab === 'pending' ? inviteColumns : memberColumns}
             rows={loading ? undefined : result?.items}
             loading={loading}
-            emptyMessage={resultTab === 'pending' ? 'אין הזמנות ממתינות.' : 'אין אנשי צוות להצגה.'}
+            emptyMessage={resultTab === 'pending' ? 'אין הזמנות ממתינות.' : `אין ${PAGE_TITLES[role]} להצגה.`}
           />
         </div>
       )}

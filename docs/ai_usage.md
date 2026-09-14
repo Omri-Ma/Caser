@@ -4511,3 +4511,144 @@ capabilities unaffected) — 37/37 pass across `test_manager_flag.py` +
 code-complete but before any of the four commits, so a fresh full-suite
 number wasn't needed per commit — each item's own commit message states
 the narrower slice actually re-run for that change).
+
+## 2026-09-14 — Reversal: exactly ONE office_manager per firm, plus nav/UX batch
+
+**Asked**: CLAUDE.md was updated with a major reversal — a firm has exactly
+one office_manager ("Admin"), fixed at founding, never more, no
+promote/demote path between office_manager and lawyer at all. This
+reverses parts of two already-merged PRs (#23's Admins page +
+promote/demote toggle, and `feature/manager-flag`'s "promotion makes a
+firm unstrandable" reasoning for allowing self-service leave). Bundled
+with 9 more nav/UX items: remove leftover "אנשי צוות" wording, client/
+header firm name/logo + multi-firm switcher, persistent pending-invites
+inbox, self-service "leave a firm" for lawyer/client, general homepage
+firm-search bar + About-modal replacement + logo-links-home site-wide, a
+discoverable sign-up link on the lobby, and two live bugs (directory
+click-through skipping the public page; office_manager hitting their own
+firm's client/ subdomain showing a blank dashboard instead of
+redirecting). Branch: `feature/single-admin-and-nav`.
+
+**Changed**:
+- **Removed** (not just added around): `PATCH /members/{id}/role` route,
+  `UpdateMemberRoleRequest` schema, `ROLE_CHANGE_ONLY_FOR_LAWYER_OR_MANAGER`
+  error message, the admin `AdminsPage.jsx` + its `/members/admins` route
+  + sidebar nav item, the promote/demote toggle machinery in
+  `RoleMembersPanel.jsx` (`toggleToRole`/`toggleLabel`/`handleToggleRole`),
+  and the entire "leave firm" UI block from admin's `ProfilePage.jsx` (the
+  sole office_manager can never leave, so there's nothing to offer).
+- `admin_api`'s `POST /auth/leave-firm` now unconditionally 400s with a
+  new `OFFICE_MANAGER_CANNOT_LEAVE_FIRM` message instead of the old
+  no-guard self-service deactivation — kept as a route (not deleted) so
+  stale frontend code gets an explained rejection, not a 404.
+  `test_member_role_and_leave.py` rewritten to match (dropped the
+  promote/demote tests entirely, added a route-is-gone 404 check).
+- `RoleMembersPanel.jsx`'s title/empty-state text switched from
+  `{ROLE_LABELS[role]} · אנשי צוות` to a plain `PAGE_TITLES` map
+  ("עורכי דין"/"לקוחות") — the 3-way split's "team members" framing no
+  longer fits a clean 2-way Lawyers/Clients split.
+- `client/`'s `AppShell.jsx` gained a tenant name/logo block (reusing the
+  existing unauthenticated `GET /public/profile` + `/public/logo` routes
+  rather than adding a new authenticated one, since client/ has no
+  office_manager-only `GET /tenant` equivalent) with the multi-firm
+  switcher moved to sit directly underneath it as one coherent element —
+  previously the switcher existed but was attached to the user-avatar
+  area with no firm identity shown at all. The persistent invites inbox
+  and the switcher's backend (`GET /auth/my-tenants`) already existed from
+  earlier sessions and needed no new work, just the header layout fix.
+- New "Firms I belong to" section on client/'s `ProfilePage.jsx` — every
+  active lawyer/client membership, each individually leavable. Leaving the
+  *current* firm reuses the existing same-origin `leaveFirm()`; leaving
+  any *other* firm needed a genuine cross-origin credentialed POST to that
+  firm's own subdomain (`leaveOtherFirm()`, new), which works because
+  `client_api`'s CORS config already trusts every tenant subdomain with
+  credentials (same mechanism the lobby directory's cross-tenant logo
+  fetches already relied on) — no new backend route needed, `leave-firm`
+  already existed per-tenant.
+- `GET /public/directory` gained an optional `search` query param
+  (case-insensitive substring match on firm name) — the homepage's
+  directory list had no search input at all despite CLAUDE.md explicitly
+  requiring one; a real, previously-missed requirement, not new scope.
+- `client/`'s `Layout.jsx` (the lobby header) dropped the redundant
+  "אודות" modal (its content just duplicated HomePage's own hero text) in
+  favor of real "התחברות"/"הרשמה" links — a logged-out visitor had no
+  obvious way into the app from that corner before.
+- `/register` (a tenant-agnostic route with no `get_current_tenant`
+  dependency at all — confirmed via `client_api/routers/auth.py`) is now
+  also routed on the lobby host, not just on tenant subdomains, and
+  `LobbyLoginPage.jsx` links to it — previously reachable only via an
+  invite link's `?email=` param, with no discoverable entry point.
+- Every sidebar/lobby "Caser" wordmark in both apps (admin's CMS sidebar,
+  admin's platform sidebar, admin's lobby header, client's app sidebar,
+  client's lobby header) now navigates home on click — none of them did
+  before.
+- **Bug fix**: `client/`'s root route (`App.jsx`'s old `RootRoute`) used
+  to redirect an authenticated visitor straight to `/cases`, skipping the
+  firm's public homepage even when arriving via the directory's
+  click-through. Removed `RootRoute` entirely; `/` now always renders
+  `PublicHomePage`, which resolves its own connected/not-connected state
+  (via the existing `checkMyMembership()`, called with `redirectOn401:
+  false` so an anonymous visitor never gets bounced to `/login` just for
+  viewing a public page) and swaps its call-to-action between "כניסה
+  לתיקים שלי" (connected) and "כניסה לפורטל" (not connected) accordingly.
+- **Bug fix**: `client_api`'s `GET /auth/my-membership` used to accept
+  *any* active Membership row at the tenant, regardless of role — an
+  office_manager visiting their own firm's client/ subdomain has exactly
+  such a row (just the wrong role for this app), so it fell through to a
+  blank, no-data shell instead of the "no access, redirect to the general
+  homepage" path every other no-access case already got. Now
+  role-restricted to lawyer/client via `require_role`, with a new
+  regression test (`test_my_membership_403_for_office_manager_at_own_firm`).
+- Regenerated `docs/openapi_client.json`, `docs/openapi_admin.json`,
+  `docs/postman_collection_client.json`, `docs/postman_collection_admin.json`.
+
+**Learned / decided**:
+- A client-side mistake caught during review before it shipped: the new
+  "Firms I belong to" leave buttons were first written with
+  `member-action`/`member-action-danger` classes copy-pasted from admin/'s
+  `RoleMembersPanel.css` — client/ has no such classes defined anywhere
+  (confirmed via grep), so they'd have rendered as unstyled default
+  buttons. Fixed to use client/'s own `secondary-button` base class plus a
+  small new `profile-firms-leave` override, matching the existing
+  `documents-action-danger` color-only-override pattern already used
+  elsewhere in that app. Worth remembering: admin/ and client/ share zero
+  CSS by design (CLAUDE.md's Code quality note), so a class name that
+  "sounds generic" is never safe to assume exists in the other app.
+- Removing the office_manager-role-change route left a real UI gap,
+  caught during review and fixed the same session rather than deferred:
+  an office_manager's own `show_on_public_page` toggle was only ever
+  reachable through the now-deleted Admins page (`RoleMembersPanel`
+  rendered with `role="office_manager"`) — with that page gone there was
+  no UI left to toggle it at all. Fixed with new self-service
+  `GET`/`PATCH /auth/my-public-visibility` routes in `admin_api` (no
+  `membership_id` needed — `require_role(OFFICE_MANAGER)` already resolves
+  the caller's own membership at this tenant, unlike the generic
+  `PATCH /members/{id}/public-visibility` route which still exists
+  unchanged for office_manager toggling a *lawyer's* visibility) and a new
+  checkbox on admin/'s own `ProfilePage.jsx`, in the existing "פרופיל
+  ציבורי" card. 3 new backend tests
+  (`test_office_manager_can_read_own_visibility`,
+  `test_office_manager_can_toggle_own_visibility`,
+  `test_lawyer_cannot_use_own_public_visibility_route`); live-verified
+  both directions (toggle on → name appears on the firm's public homepage
+  team section; toggle off → disappears) plus confirmed a lawyer still
+  has no such control for their own account (unchanged — still
+  office_manager-set only, via the Lawyers page).
+- Running more than one `pytest` invocation against the same MySQL test
+  database concurrently causes real, misleading failures — each test's
+  `db` fixture does a full `Base.metadata.drop_all`/`create_all` schema
+  rebuild per test, and two runs racing that against each other throws
+  `OperationalError: Table 'X' was skipped since its definition is being
+  modified by concurrent DDL statement`. Hit this firsthand: an early
+  targeted test-file run overlapped with a full-suite background run and
+  produced 19 spurious errors clustered in whichever test files happened
+  to be mid-schema-rebuild at the same moment. Confirmed harmless by
+  re-running the full suite alone afterward. Lesson: never run a second
+  `pytest` process while a background one is still in flight in this repo.
+- Full `server/tests/` suite (re-run alone, no concurrent pytest
+  process, after the self-service visibility fix and its 3 new tests were
+  added): **287 passed, 0 failed**. Live-verified all 10 original items
+  plus the visibility-toggle fix in a real browser via Playwright (both
+  apps, multiple real accounts including a freshly-registered throwaway
+  second firm for the multi-firm switcher/leave-a-firm checks) — full
+  pass, no unexpected console errors.

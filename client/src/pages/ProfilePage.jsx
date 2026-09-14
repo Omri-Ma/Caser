@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
-import { changePassword, leaveFirm, me, updateProfile } from '../api/auth'
+import { changePassword, leaveFirm, leaveOtherFirm, me, myTenants, updateProfile } from '../api/auth'
 import { lobbyLoginUrl } from '../utils/host'
 import './ProfilePage.css'
 
@@ -31,8 +31,21 @@ export default function ProfilePage() {
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
 
-  const [leaving, setLeaving] = useState(false)
+  // "Firms I belong to" — every active firm this identity works with as a
+  // lawyer/client (CLAUDE.md's Identity vs. membership), each individually
+  // leavable. Separate from the multi-firm switcher in the header (which is
+  // for moving between firms you're staying in, not leaving one).
+  const [firms, setFirms] = useState(null)
+  const [firmsError, setFirmsError] = useState(null)
+  const [leavingSubdomain, setLeavingSubdomain] = useState(null)
   const [leaveError, setLeaveError] = useState(null)
+  const currentSubdomain = window.location.hostname.split('.')[0]
+
+  function loadFirms() {
+    myTenants()
+      .then(setFirms)
+      .catch((err) => setFirmsError(err.message))
+  }
 
   useEffect(() => {
     me()
@@ -43,6 +56,7 @@ export default function ProfilePage() {
       })
       .catch(() => {})
       .finally(() => setProfileLoading(false))
+    loadFirms()
   }, [])
 
   async function handleProfileSubmit(event) {
@@ -86,18 +100,27 @@ export default function ProfilePage() {
     }
   }
 
-  async function handleLeaveFirm() {
-    if (!window.confirm('לעזוב את המשרד הזה? הגישה לתיקים ולמסמכים כאן תיחסם מיידית.')) {
+  async function handleLeaveFirm(firm) {
+    const isCurrent = firm.subdomain === currentSubdomain
+    if (!window.confirm(`לעזוב את ${firm.firm_name}? הגישה לתיקים ולמסמכים שם תיחסם מיידית.`)) {
       return
     }
     setLeaveError(null)
-    setLeaving(true)
+    setLeavingSubdomain(firm.subdomain)
     try {
-      await leaveFirm()
-      window.location.assign(lobbyLoginUrl())
+      if (isCurrent) {
+        await leaveFirm()
+        // Leaving the firm this session is actually on — nothing left to
+        // show here, back to the lobby (same as logging out).
+        window.location.assign(lobbyLoginUrl())
+        return
+      }
+      await leaveOtherFirm(firm.subdomain)
+      setFirms((prev) => prev.filter((t) => t.subdomain !== firm.subdomain))
     } catch (err) {
       setLeaveError(err.message)
-      setLeaving(false)
+    } finally {
+      setLeavingSubdomain(null)
     }
   }
 
@@ -164,6 +187,33 @@ export default function ProfilePage() {
             {saving ? 'מעדכן…' : 'עדכון סיסמה'}
           </button>
         </form>
+      </div>
+
+      <div className="card profile-card">
+        <div className="detail-card-title">משרדים שאני חבר/ה בהם</div>
+        <FormError message={leaveError} />
+        {firmsError && <div className="cases-state cases-state-error">{firmsError}</div>}
+        {!firmsError && firms && (
+          <ul className="profile-firms-list">
+            {firms.map((firm) => (
+              <li key={firm.tenant_id} className="profile-firms-row">
+                <span>
+                  {firm.firm_name}
+                  {firm.subdomain === currentSubdomain && <span className="profile-firms-current"> (המשרד הנוכחי)</span>}
+                </span>
+                <button
+                  type="button"
+                  className="secondary-button profile-firms-leave"
+                  onClick={() => handleLeaveFirm(firm)}
+                  disabled={leavingSubdomain === firm.subdomain}
+                >
+                  {leavingSubdomain === firm.subdomain ? 'עוזב/ת…' : 'עזיבה'}
+                </button>
+              </li>
+            ))}
+            {firms.length === 0 && <li className="profile-firms-empty">אין משרדים להצגה.</li>}
+          </ul>
+        )}
       </div>
     </AppShell>
   )
