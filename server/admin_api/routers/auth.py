@@ -24,7 +24,8 @@ from admin_api.schemas.auth import (
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity, record_login
-from shared.models import Identity, Membership, Subscription, Tenant
+from shared.membership import require_role
+from shared.models import AuditLog, Identity, Membership, Subscription, Tenant
 from shared.models.enums import Plan, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
 from shared.security import (
@@ -52,6 +53,28 @@ def _to_identity_response(identity: Identity) -> IdentityResponse:
     )
 
 PLATFORM_HOST = f"platform.{BASE_DOMAIN}"
+
+
+def _office_manager_tenants(identity: Identity, db: Session):
+    """Every active office_manager Membership this identity holds, at active
+    tenants — the one lookup that answers "which firm(s) does this person
+    manage". Shared by /auth/lobby-login (an unauthenticated identity
+    resolving where to log in) and /auth/my-tenants below (an already
+    -authenticated identity resolving where to land after hitting a
+    subdomain it has no access at) — CLAUDE.md is explicit that the latter
+    should "reuse that lookup, don't reinvent it".
+    """
+    return (
+        db.query(Membership, Tenant)
+        .join(Tenant, Membership.tenant_id == Tenant.id)
+        .filter(
+            Membership.identity_id == identity.id,
+            Membership.role == UserRole.OFFICE_MANAGER,
+            Membership.active.is_(True),
+            Tenant.active.is_(True),
+        )
+        .all()
+    )
 
 
 @router.post("/signup", response_model=SessionResponse, status_code=status.HTTP_201_CREATED)
@@ -174,17 +197,7 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     if identity is None or not verify_password(payload.password, identity.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
-    memberships = (
-        db.query(Membership, Tenant)
-        .join(Tenant, Membership.tenant_id == Tenant.id)
-        .filter(
-            Membership.identity_id == identity.id,
-            Membership.role == UserRole.OFFICE_MANAGER,
-            Membership.active.is_(True),
-            Tenant.active.is_(True),
-        )
-        .all()
-    )
+    memberships = _office_manager_tenants(identity, db)
     if not memberships:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -267,6 +280,54 @@ def logout(
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
     return _to_identity_response(identity)
+
+
+@router.get("/my-tenants", response_model=list[LobbyTenantOption])
+def my_tenants(identity: Identity = Depends(get_current_identity), db: Session = Depends(get_db)):
+    """Tenant-agnostic (no get_current_tenant dependency) on purpose — this
+    is what the frontend calls when it lands on a subdomain the identity has
+    no office_manager membership at, to resolve where to actually send them
+    (CLAUDE.md's "Landing somewhere you have no access" redirect rule).
+    Reuses the exact same lookup /auth/lobby-login uses to resolve "which
+    firm" for an unauthenticated login — same answer, just for an identity
+    that's already holding a valid session.
+    """
+    memberships = _office_manager_tenants(identity, db)
+    return [
+        LobbyTenantOption(tenant_id=tenant.id, subdomain=tenant.subdomain, firm_name=tenant.name)
+        for _membership, tenant in memberships
+    ]
+
+
+@router.post("/leave-firm", status_code=status.HTTP_204_NO_CONTENT)
+def leave_firm(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    membership: Membership = Depends(require_role(UserRole.OFFICE_MANAGER)),
+):
+    """Self-service "leave this firm" for the office_manager whose session
+    this is — deactivates their own membership at the current tenant subdomain
+    (same soft-delete semantics as an office_manager deactivating someone
+    else via POST /members/{id}/deactivate, just self-initiated and with no
+    "not your own membership" block, since that block existed specifically
+    to stop *that* route from being used this way).
+
+    No "last office_manager standing" guard, on purpose — CLAUDE.md's
+    Memberships note is explicit that this isn't a dangerous edge case worth
+    blocking: any office_manager (including this one, a moment earlier) can
+    promote a colleague first, so a firm is never actually strandable;
+    super_admin remains the last-resort fallback regardless.
+    """
+    membership.active = False
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=membership.id,
+            action="member_left_firm",
+            target=f"membership:{membership.id}",
+        )
+    )
+    db.commit()
 
 
 @router.patch("/profile", response_model=IdentityResponse)

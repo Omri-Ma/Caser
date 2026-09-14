@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { me, logout } from '../api/auth'
+import { me, myTenants, logout } from '../api/auth'
 import { getTenant } from '../api/tenant'
-import { lobbyLoginUrl } from '../utils/host'
+import { lobbyLoginUrl, redirectToTenant } from '../utils/host'
 import './AppShell.css'
 
 const NAV_ITEMS = [
@@ -113,19 +113,64 @@ export default function AppShell({ activeKey, children }) {
   // nicety, not worth blocking the rest of the shell over.
   const [tenant, setTenant] = useState(null)
   const [logoFailed, setLogoFailed] = useState(false)
+  // Populated only in the "no access at this subdomain, but more than one
+  // other firm to choose from" case (see below) — everything else is a
+  // straight redirect, no UI of its own needed.
+  const [otherTenants, setOtherTenants] = useState(null)
 
   useEffect(() => {
+    let cancelled = false
+
     me()
-      .then(setIdentity)
+      .then(async (id) => {
+        if (cancelled) return
+        // A logged-in identity with no office_manager membership at *this*
+        // subdomain (a stale bookmark, a link shared across firms, etc.) —
+        // the backend already 403s every real route for this case, but
+        // CLAUDE.md wants a real redirect, not a shell that quietly fails
+        // to load. Resolve "which firm(s) does this person actually
+        // manage" the same way the lobby already does, and act on it
+        // before the shell ever renders — awaited here, not fire-and
+        // -forget, so there's no flash of a broken CMS in between.
+        try {
+          const t = await getTenant()
+          if (!cancelled) {
+            setTenant(t)
+            setIdentity(id)
+          }
+          return
+        } catch (err) {
+          if (cancelled || err.status !== 403) return
+        }
+        try {
+          const tenants = await myTenants()
+          if (cancelled) return
+          if (tenants.length === 1) {
+            redirectToTenant(tenants[0].subdomain, '/cases')
+          } else if (tenants.length > 1) {
+            setIdentity(id)
+            setOtherTenants(tenants)
+          } else {
+            // No office_manager membership anywhere active — nothing to
+            // redirect to but the lobby login.
+            window.location.assign(lobbyLoginUrl())
+          }
+        } catch {
+          window.location.assign(lobbyLoginUrl())
+        }
+      })
       // A hard, cross-origin redirect, not react-router navigation — this
       // tenant subdomain has no /login of its own anymore, office_manager
       // only ever logs in via the lobby (CLAUDE.md's Multi-tenancy
       // architecture).
       .catch(() => window.location.assign(lobbyLoginUrl()))
-      .finally(() => setChecking(false))
-    getTenant()
-      .then(setTenant)
-      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setChecking(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [navigate])
 
   async function handleLogout() {
@@ -139,6 +184,24 @@ export default function AppShell({ activeKey, children }) {
 
   if (!identity) {
     return null
+  }
+
+  if (otherTenants) {
+    return (
+      <div className="no-access-picker">
+        <h1>אין לך גישה למשרד הזה</h1>
+        <p>בחרו את המשרד שאליו תרצו לעבור:</p>
+        <ul className="no-access-picker-list">
+          {otherTenants.map((t) => (
+            <li key={t.tenant_id}>
+              <button type="button" onClick={() => redirectToTenant(t.subdomain, '/cases')}>
+                {t.firm_name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
   }
 
   return (

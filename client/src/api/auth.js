@@ -1,6 +1,20 @@
 import { apiFetch } from './client'
 import { clearStoredRole, setStoredRole } from './session'
 
+// A cheap "do I actually have access at this subdomain" check — 204 if so,
+// 403 (E.NO_ACCESS_TO_FIRM) otherwise. Used by AppShell to send a
+// lawyer/client with no access here to the general homepage instead of
+// rendering a shell whose every real data call would 403 individually.
+export function checkMyMembership() {
+  return apiFetch('/auth/my-membership')
+}
+
+// Self-service "leave this firm" — deactivates the caller's own membership
+// at the current tenant subdomain (CLAUDE.md's Memberships note).
+export function leaveFirm() {
+  return apiFetch('/auth/leave-firm', { method: 'POST' })
+}
+
 export function register({ name, email, password }) {
   return apiFetch('/auth/register', { method: 'POST', body: { name, email, password }, redirectOn401: false })
 }

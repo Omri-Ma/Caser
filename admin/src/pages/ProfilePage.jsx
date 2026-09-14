@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
-import { changePassword, me, updateProfile } from '../api/auth'
+import { changePassword, leaveFirm, me, updateProfile } from '../api/auth'
+import { lobbyLoginUrl } from '../utils/host'
 import './SettingsPage.css'
 
 // Self-service "change my password" — the only lever anyone (including
@@ -29,6 +30,9 @@ export default function ProfilePage() {
   const [profileError, setProfileError] = useState(null)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+
+  const [leaving, setLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState(null)
 
   useEffect(() => {
     me()
@@ -75,6 +79,25 @@ export default function ProfilePage() {
       setError(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleLeaveFirm() {
+    if (
+      !window.confirm(
+        'לעזוב את המשרד הזה? הגישה תיחסם מיידית. אם אתם מנהל/ת המשרד היחיד/ה, קדמו מישהו אחר לפני כן.',
+      )
+    ) {
+      return
+    }
+    setLeaveError(null)
+    setLeaving(true)
+    try {
+      await leaveFirm()
+      window.location.assign(lobbyLoginUrl())
+    } catch (err) {
+      setLeaveError(err.message)
+      setLeaving(false)
     }
   }
 
@@ -141,6 +164,18 @@ export default function ProfilePage() {
             {saving ? 'מעדכן…' : 'עדכון סיסמה'}
           </button>
         </form>
+      </div>
+
+      <div className="card settings-card">
+        <div className="detail-card-title">עזיבת המשרד</div>
+        <p className="profile-public-hint">
+          עזיבה תסיר את החברות שלכם במשרד הנוכחי מיידית. חשבון ה-Caser שלכם עצמו לא נמחק — תוכלו
+          עדיין להיכנס למשרדים אחרים שבהם אתם חברים.
+        </p>
+        <FormError message={leaveError} />
+        <button type="button" className="member-action member-action-danger" onClick={handleLeaveFirm} disabled={leaving}>
+          {leaving ? 'עוזב/ת…' : 'עזיבת המשרד'}
+        </button>
       </div>
     </AppShell>
   )

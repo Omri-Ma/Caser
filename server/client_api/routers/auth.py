@@ -22,7 +22,8 @@ from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
 from shared.identity import get_current_identity, record_login
 from shared.invites import resolve_invites_on_register
-from shared.models import Identity, Membership, MembershipInvite, Tenant
+from shared.membership import get_current_membership
+from shared.models import AuditLog, Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
 from shared.password_reset import WrongPasswordError, change_password, create_reset_token, redeem_reset_token
 from shared.security import (
@@ -217,6 +218,45 @@ def logout(
 @router.get("/me", response_model=IdentityResponse)
 def me(identity: Identity = Depends(get_current_identity)):
     return _to_identity_response(identity)
+
+
+@router.get("/my-membership", status_code=status.HTTP_204_NO_CONTENT)
+def my_membership(_membership: Membership = Depends(get_current_membership)):
+    """A cheap "do I actually have access at this subdomain" check — reuses
+    the exact same get_current_membership dependency every tenant-scoped
+    client_api route already depends on, just with no role restriction.
+    204 means yes; the dependency itself raises 403 (E.NO_ACCESS_TO_FIRM)
+    otherwise. AppShell calls this once on mount to send a lawyer/client
+    with no access at this subdomain to the general homepage instead of
+    rendering a shell whose every real data call would 403 individually
+    (CLAUDE.md's "Landing somewhere you have no access" redirect rule).
+    """
+    return None
+
+
+@router.post("/leave-firm", status_code=status.HTTP_204_NO_CONTENT)
+def leave_firm(
+    tenant: Tenant = Depends(get_current_tenant),
+    db: Session = Depends(get_db),
+    membership: Membership = Depends(get_current_membership),
+):
+    """Self-service "leave this firm" for the lawyer/client whose session
+    this is — deactivates their own membership at the current tenant
+    subdomain (CLAUDE.md's Memberships note). Unlike the office_manager role
+    (see admin_api's own /auth/leave-firm), there's no "last one standing"
+    concern here at all: a lawyer/client leaving never strands a firm's own
+    administrative capacity the way removing its last office_manager could.
+    """
+    membership.active = False
+    db.add(
+        AuditLog(
+            tenant_id=tenant.id,
+            user_id=membership.id,
+            action="member_left_firm",
+            target=f"membership:{membership.id}",
+        )
+    )
+    db.commit()
 
 
 @router.patch("/profile", response_model=IdentityResponse)

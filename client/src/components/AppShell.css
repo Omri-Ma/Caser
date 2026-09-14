@@ -103,6 +103,23 @@
   font-weight: 700;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.topbar-home-link {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.topbar-home-link:hover {
+  color: var(--color-primary);
+}
+
 .topbar-logout {
   background: none;
   border: none;

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { me, logout } from '../api/auth'
+import { me, logout, checkMyMembership } from '../api/auth'
 import { getStoredRole } from '../api/session'
-import { lobbyLoginUrl } from '../utils/host'
+import { lobbyHomeUrl, lobbyLoginUrl } from '../utils/host'
 import './AppShell.css'
 
 function navItems(role) {
@@ -65,14 +65,42 @@ export default function AppShell({ activeKey, children }) {
   const items = useMemo(() => navItems(getStoredRole()), [identity])
 
   useEffect(() => {
+    let cancelled = false
+
     me()
-      .then(setIdentity)
+      .then(async (id) => {
+        if (cancelled) return
+        // A logged-in lawyer/client with no membership at *this*
+        // subdomain (stale bookmark, a link shared across firms, etc.)
+        // lands on the general homepage instead of a shell whose every
+        // real data call would 403 individually — CLAUDE.md's "Landing
+        // somewhere you have no access" rule: "a client isn't necessarily
+        // trying to reach a specific firm", unlike office_manager/lawyer,
+        // so the homepage (not the lobby) is the useful landing spot.
+        // Awaited before the shell ever renders, so there's no flash of a
+        // broken CMS in between.
+        try {
+          await checkMyMembership()
+        } catch (err) {
+          if (!cancelled && err.status === 403) {
+            window.location.assign(lobbyHomeUrl())
+          }
+          return
+        }
+        if (!cancelled) setIdentity(id)
+      })
       // A hard, cross-origin redirect, not react-router navigation — this
       // tenant subdomain has no /login of its own anymore, lawyer/client
       // only ever log in via the lobby (CLAUDE.md's Multi-tenancy
       // architecture).
       .catch(() => window.location.assign(lobbyLoginUrl()))
-      .finally(() => setChecking(false))
+      .finally(() => {
+        if (!cancelled) setChecking(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [navigate])
 
   async function handleLogout() {
@@ -129,9 +157,14 @@ export default function AppShell({ activeKey, children }) {
             <div className="user-avatar">{identity.name.trim().slice(0, 2)}</div>
             <div className="user-name">{identity.name}</div>
           </div>
-          <button type="button" className="topbar-logout" onClick={handleLogout}>
-            התנתקות
-          </button>
+          <div className="topbar-actions">
+            <a href={lobbyHomeUrl()} className="topbar-home-link">
+              לדף הבית של Caser
+            </a>
+            <button type="button" className="topbar-logout" onClick={handleLogout}>
+              התנתקות
+            </button>
+          </div>
         </header>
         <main className="content-body">{children}</main>
       </div>

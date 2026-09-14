@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
-import { changePassword, me, updateProfile } from '../api/auth'
+import { changePassword, leaveFirm, me, updateProfile } from '../api/auth'
+import { lobbyLoginUrl } from '../utils/host'
 import './ProfilePage.css'
 
 // Self-service "change my password" — lawyer and client alike. Nothing in
@@ -29,6 +30,9 @@ export default function ProfilePage() {
   const [profileError, setProfileError] = useState(null)
   const [profileSaving, setProfileSaving] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+
+  const [leaving, setLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState(null)
 
   useEffect(() => {
     me()
@@ -75,6 +79,21 @@ export default function ProfilePage() {
       setError(err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleLeaveFirm() {
+    if (!window.confirm('לעזוב את המשרד הזה? הגישה לתיקים ולמסמכים כאן תיחסם מיידית.')) {
+      return
+    }
+    setLeaveError(null)
+    setLeaving(true)
+    try {
+      await leaveFirm()
+      window.location.assign(lobbyLoginUrl())
+    } catch (err) {
+      setLeaveError(err.message)
+      setLeaving(false)
     }
   }
 
