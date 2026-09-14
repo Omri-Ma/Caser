@@ -17,16 +17,6 @@ function navItems(role) {
       ),
     },
     {
-      key: 'documents',
-      label: 'מסמכים',
-      icon: (
-        <>
-          <path d="M6 3h9l5 5v13H6z" />
-          <path d="M15 3v5h5" />
-        </>
-      ),
-    },
-    {
       key: 'hours',
       label: 'ייבוא שעות מאקסל',
       // WorkLogs are never client-visible (CLAUDE.md) — only a lawyer gets a
