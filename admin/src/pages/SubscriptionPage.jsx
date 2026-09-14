@@ -93,6 +93,7 @@ export default function SubscriptionPage() {
               used={usage.storage_used_bytes}
               limit={usage.storage_limit_bytes}
               formatValue={formatFileSize}
+              unlimited={usage.plan === 'enterprise'}
             />
           </div>
 

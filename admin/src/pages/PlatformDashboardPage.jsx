@@ -194,19 +194,28 @@ export default function PlatformDashboardPage() {
             ) : (
               <ul className="platform-storage-list">
                 {storageEntries.map((entry) => {
-                  const pct = entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
-                  const over = pct >= 90
+                  const unlimited = entry.plan === 'enterprise'
+                  const pct = !unlimited && entry.storage_limit_bytes > 0 ? (entry.storage_used_bytes / entry.storage_limit_bytes) * 100 : 0
+                  const over = !unlimited && pct >= 90
                   return (
                     <li key={entry.tenant_id} className="platform-storage-row">
                       <div className="platform-storage-row-header">
                         <span className="platform-storage-name">{entry.name}</span>
-                        <span dir="ltr" className={`platform-storage-pct${over ? ' over' : ''}`}>
-                          {formatFileSize(entry.storage_used_bytes)} / {formatFileSize(entry.storage_limit_bytes)}
-                        </span>
+                        {unlimited ? (
+                          <span dir="ltr" className="platform-storage-pct">
+                            {formatFileSize(entry.storage_used_bytes)} · ללא הגבלה
+                          </span>
+                        ) : (
+                          <span dir="ltr" className={`platform-storage-pct${over ? ' over' : ''}`}>
+                            {formatFileSize(entry.storage_used_bytes)} / {formatFileSize(entry.storage_limit_bytes)}
+                          </span>
+                        )}
                       </div>
-                      <div className="usage-bar-track">
-                        <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${Math.min(100, pct)}%` }} />
-                      </div>
+                      {!unlimited && (
+                        <div className="usage-bar-track">
+                          <div className={`usage-bar-fill${over ? ' over' : ''}`} style={{ width: `${Math.min(100, pct)}%` }} />
+                        </div>
+                      )}
                     </li>
                   )
                 })}
