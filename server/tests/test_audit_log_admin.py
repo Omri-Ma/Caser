@@ -44,14 +44,14 @@ def test_list_audit_log_filters_by_action(admin_client, db):
     headers, cookies = auth_for(manager, "acme")
 
     _write_audit_log(db, tenant.id, manager_membership.id, "member_deactivated", "membership:1")
-    _write_audit_log(db, tenant.id, manager_membership.id, "member_password_reset", "membership:2")
+    _write_audit_log(db, tenant.id, manager_membership.id, "narrative_pdf_exported", "narrative-2.pdf")
 
-    resp = admin_client.get("/audit-log?action=member_password_reset", headers=headers, cookies=cookies)
+    resp = admin_client.get("/audit-log?action=narrative_pdf_exported", headers=headers, cookies=cookies)
 
     assert resp.status_code == 200
     body = resp.json()
     assert body["total"] == 1
-    assert body["items"][0]["action"] == "member_password_reset"
+    assert body["items"][0]["action"] == "narrative_pdf_exported"
 
 
 def test_list_audit_log_newest_first(admin_client, db):
@@ -61,13 +61,13 @@ def test_list_audit_log_newest_first(admin_client, db):
     headers, cookies = auth_for(manager, "acme")
 
     _write_audit_log(db, tenant.id, manager_membership.id, "member_deactivated", "membership:1")
-    _write_audit_log(db, tenant.id, manager_membership.id, "member_password_reset", "membership:2")
+    _write_audit_log(db, tenant.id, manager_membership.id, "narrative_pdf_exported", "narrative-2.pdf")
 
     resp = admin_client.get("/audit-log", headers=headers, cookies=cookies)
 
     assert resp.status_code == 200
     items = resp.json()["items"]
-    assert [item["action"] for item in items] == ["member_password_reset", "member_deactivated"]
+    assert [item["action"] for item in items] == ["narrative_pdf_exported", "member_deactivated"]
 
 
 def test_lawyer_cannot_view_audit_log(admin_client, db):

@@ -14,6 +14,7 @@ from shared.models import Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
 from shared.plan_limits import check_plan_limit
 from shared.tenant import BASE_DOMAIN, get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/invites", tags=["invites"])
 
@@ -81,7 +82,7 @@ def invite_member(
     already have an Identity elsewhere in the system.
     """
     if payload.role not in (UserRole.LAWYER, UserRole.CLIENT):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only lawyer or client invites are supported")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ONLY_LAWYER_CLIENT_INVITES_SUPPORTED)
 
     if payload.role == UserRole.LAWYER:
         # Pending invites count toward the limit too (CLAUDE.md) — see
@@ -91,6 +92,7 @@ def invite_member(
     try:
         invite = create_invite(tenant.id, payload.email, payload.role, office_manager.id, db)
     except DuplicateInviteError as err:
+        # DuplicateInviteError already carries a Hebrew message (shared/invites.py).
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
 
     # An email with no Identity yet has nowhere to log in and see the

@@ -10,6 +10,7 @@ from shared.models import AuditLog, Case, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole
 from shared.scoped import get_tenant_scoped
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 # Lawyer-only, never client — CLAUDE.md: "WorkLogs are never client-visible,"
 # so require_role only ever lists LAWYER here, unlike documents.py which also
@@ -18,9 +19,9 @@ router = APIRouter(prefix="/cases/{case_id}/work-logs", tags=["work-logs"])
 
 
 def _get_case_work_log(case: Case, work_log_id: int, tenant: Tenant, db: Session) -> WorkLog:
-    work_log = get_tenant_scoped(WorkLog, work_log_id, tenant.id, db, "Work log entry not found")
+    work_log = get_tenant_scoped(WorkLog, work_log_id, tenant.id, db, E.WORK_LOG_NOT_FOUND)
     if work_log.case_id != case.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Work log entry not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.WORK_LOG_NOT_FOUND)
     return work_log
 
 
@@ -58,7 +59,7 @@ def create_work_log(
     case = get_assigned_case(case_id, tenant, membership, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — new work log entries can't be added")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_ADD_WORK_LOGS)
 
     work_log = WorkLog(
         tenant_id=tenant.id,
@@ -127,7 +128,7 @@ def update_work_log(
     work_log = _get_case_work_log(case, work_log_id, tenant, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — work log entries can't be edited")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_EDIT_WORK_LOGS)
 
     work_log.date = payload.date
     work_log.hours = payload.hours
@@ -157,7 +158,7 @@ def delete_work_log(
     work_log = _get_case_work_log(case, work_log_id, tenant, db)
 
     if case.status == CaseStatus.CLOSED:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This case is closed — work log entries can't be deleted")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CASE_CLOSED_CANNOT_DELETE_WORK_LOGS)
 
     db.add(
         AuditLog(

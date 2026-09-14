@@ -9,6 +9,7 @@ from shared.membership import require_role
 from shared.models import Case, CaseAssignment, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 from shared.worklog_import import build_template_workbook, parse_and_validate_import
 
 # Deliberately not nested under /cases/{case_id} like the manual work-logs
@@ -63,16 +64,16 @@ async def import_work_logs(
     """
     content = await file.read()
     if len(content) > MAX_IMPORT_FILE_SIZE_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is too large")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.FILE_TOO_LARGE)
     if not is_xlsx_file(content):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type — upload the .xlsx template")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.UNSUPPORTED_FILE_TYPE_XLSX)
 
     results, errors = parse_and_validate_import(
         content, tenant.id, db, include_lawyer_email=False, self_membership=membership
     )
     if errors:
         body = WorkLogImportErrorResponse(
-            error=f"Import failed — {len(errors)} row(s) had errors, nothing was imported",
+            error=E.import_failed_summary(len(errors)),
             row_errors=[{"row": e.row, "message": e.message} for e in errors],
         )
         return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=body.model_dump())

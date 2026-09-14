@@ -29,16 +29,3 @@ export function formatFileSize(bytes) {
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`
 }
-
-// Decorative-only: initials + a rotating tonal color, purely to make lists
-// scannable. Not derived from any real per-row data.
-const AVATAR_TONES = ['avatar1', 'avatar2', 'avatar3']
-
-export function avatarInitials(title) {
-  return title.trim().slice(0, 2)
-}
-
-export function avatarTone(index) {
-  const tone = AVATAR_TONES[index % AVATAR_TONES.length]
-  return { color: `var(--color-${tone})`, background: `var(--color-${tone}-bg)` }
-}

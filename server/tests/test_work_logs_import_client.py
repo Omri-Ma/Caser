@@ -6,7 +6,7 @@ from conftest import auth_for, make_assignment, make_case, make_identity, make_m
 from shared.models import WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 
-HEADER = ["תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
+HEADER = ["תיק", "תאריך (DD/MM/YYYY)", "שעות", "תיאור"]
 
 
 def _lawyer_on_case(db, tenant, case, email="lawyer@acme.com", name="Lior Lawyer"):
@@ -66,8 +66,8 @@ def test_self_import_creates_work_logs_with_excel_source(client_client, db):
 
     content = _build_xlsx(
         [
-            [f"{case.id} - Case A", "2026-09-01", "3.5", "Drafted motion"],
-            [f"{case.id} - Case A", "2026-09-02", "2", None],
+            [f"{case.id} - Case A", "01/09/2026", "3.5", "Drafted motion"],
+            [f"{case.id} - Case A", "02/09/2026", "2", None],
         ]
     )
 
@@ -89,7 +89,7 @@ def test_import_rejects_whole_file_on_one_bad_row(client_client, db):
 
     content = _build_xlsx(
         [
-            [f"{case.id} - Case A", "2026-09-01", "3.5", "Good row"],
+            [f"{case.id} - Case A", "01/09/2026", "3.5", "Good row"],
             [f"{case.id} - Case A", "not-a-date", "2", "Bad row"],
         ]
     )
@@ -112,12 +112,12 @@ def test_import_rejects_unassigned_case(client_client, db):
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    content = _build_xlsx([[f"{other_case.id} - Not Mine", "2026-09-01", "2", None]])
+    content = _build_xlsx([[f"{other_case.id} - Not Mine", "01/09/2026", "2", None]])
 
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "not assigned" in resp.json()["row_errors"][0]["message"]
+    assert "אינו/ה משויך/ת" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_closed_case(client_client, db):
@@ -126,12 +126,60 @@ def test_import_rejects_closed_case(client_client, db):
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    content = _build_xlsx([[f"{case.id} - Case A", "2026-09-01", "2", None]])
+    content = _build_xlsx([[f"{case.id} - Case A", "01/09/2026", "2", None]])
 
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "closed" in resp.json()["row_errors"][0]["message"]
+    assert "סגור" in resp.json()["row_errors"][0]["message"]
+
+
+def test_import_rejects_exact_duplicate_row_within_file(client_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id, title="Case A")
+    lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    content = _build_xlsx(
+        [
+            [f"{case.id} - Case A", "01/09/2026", "3.5", "Same entry"],
+            [f"{case.id} - Case A", "01/09/2026", "3.5", "Same entry"],
+        ]
+    )
+
+    resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
+
+    assert resp.status_code == 422
+    assert "שורה כפולה" in resp.json()["row_errors"][0]["message"]
+    assert db.query(WorkLog).filter(WorkLog.tenant_id == tenant.id).count() == 0
+
+
+def test_import_rejects_row_duplicating_existing_work_log(client_client, db):
+    tenant = make_tenant(db, "acme")
+    case = make_case(db, tenant.id, title="Case A")
+    lawyer_identity, lawyer_membership = _lawyer_on_case(db, tenant, case)
+    from datetime import date
+
+    db.add(
+        WorkLog(
+            tenant_id=tenant.id,
+            case_id=case.id,
+            lawyer_id=lawyer_membership.id,
+            date=date(2026, 9, 1),
+            hours="3.5",
+            description=None,
+            source=WorkLogSource.MANUAL,
+        )
+    )
+    db.commit()
+    headers, cookies = auth_for(lawyer_identity, "acme")
+
+    content = _build_xlsx([[f"{case.id} - Case A", "01/09/2026", "3.5", None]])
+
+    resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
+
+    assert resp.status_code == 422
+    assert "כבר קיים" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_non_positive_hours(client_client, db):
@@ -140,12 +188,12 @@ def test_import_rejects_non_positive_hours(client_client, db):
     lawyer_identity, _ = _lawyer_on_case(db, tenant, case)
     headers, cookies = auth_for(lawyer_identity, "acme")
 
-    content = _build_xlsx([[f"{case.id} - Case A", "2026-09-01", "0", None]])
+    content = _build_xlsx([[f"{case.id} - Case A", "01/09/2026", "0", None]])
 
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 422
-    assert "positive" in resp.json()["row_errors"][0]["message"]
+    assert "חיובי" in resp.json()["row_errors"][0]["message"]
 
 
 def test_import_rejects_non_xlsx_file(client_client, db):
@@ -172,7 +220,7 @@ def test_client_cannot_import_work_logs(client_client, db):
     make_assignment(db, tenant.id, case.id, membership.id)
     headers, cookies = auth_for(identity, "acme")
 
-    content = _build_xlsx([[f"{case.id} - Case", "2026-09-01", "2", None]])
+    content = _build_xlsx([[f"{case.id} - Case", "01/09/2026", "2", None]])
     resp = _upload(client_client, "/work-logs/import", content, headers, cookies)
 
     assert resp.status_code == 403

@@ -5,8 +5,17 @@ import AssignMemberModal from '../components/AssignMemberModal'
 import DocumentsPanel from '../components/DocumentsPanel'
 import WorkHoursPanel from '../components/WorkHoursPanel'
 import { FormError } from '../components/Form'
-import { deleteCase, getCase, listCaseAssignments, unassignFromCase, updateCaseStatus, updateCaseTitle } from '../api/cases'
+import {
+  deleteCase,
+  getCase,
+  listCaseAssignments,
+  setCaseTags,
+  unassignFromCase,
+  updateCaseStatus,
+  updateCaseTitle,
+} from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
+import { PRACTICE_AREAS, practiceAreaLabel } from '../utils/practiceArea'
 import { formatDate } from '../utils/format'
 import './CaseDetailPage.css'
 
@@ -20,7 +29,7 @@ export default function CaseDetailPage() {
   const [assignments, setAssignments] = useState(null)
   const [assignmentsLoading, setAssignmentsLoading] = useState(true)
   const [assignmentsError, setAssignmentsError] = useState(null)
-  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [assignModalRole, setAssignModalRole] = useState(null)
   const [removingId, setRemovingId] = useState(null)
   const [assignmentsActionError, setAssignmentsActionError] = useState(null)
 
@@ -34,6 +43,9 @@ export default function CaseDetailPage() {
 
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
+
+  const [tagsSaving, setTagsSaving] = useState(false)
+  const [tagsError, setTagsError] = useState(null)
 
   const loadCase = useCallback(() => {
     setLoading(true)
@@ -97,7 +109,7 @@ export default function CaseDetailPage() {
 
   function handleAssigned(assignment) {
     setAssignments((prev) => [...(prev ?? []), assignment])
-    setAssignModalOpen(false)
+    setAssignModalRole(null)
   }
 
   async function handleUnassign(assignment) {
@@ -133,6 +145,21 @@ export default function CaseDetailPage() {
       setDeleteError(err.message)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function toggleTag(area) {
+    const current = caseData.practice_areas ?? []
+    const next = current.includes(area) ? current.filter((a) => a !== area) : [...current, area]
+    setTagsSaving(true)
+    setTagsError(null)
+    try {
+      const updated = await setCaseTags(caseId, next)
+      setCaseData(updated)
+    } catch (err) {
+      setTagsError(err.message)
+    } finally {
+      setTagsSaving(false)
     }
   }
 
@@ -207,6 +234,25 @@ export default function CaseDetailPage() {
           {titleError && <FormError message={titleError} />}
           {statusError && <FormError message={statusError} />}
 
+          <div className="detail-tags-row">
+            <span className="detail-tags-label">תחומי עיסוק:</span>
+            {PRACTICE_AREAS.map((area) => {
+              const active = (caseData.practice_areas ?? []).includes(area)
+              return (
+                <button
+                  key={area}
+                  type="button"
+                  className={`detail-tag-toggle${active ? ' active' : ''}`}
+                  onClick={() => toggleTag(area)}
+                  disabled={tagsSaving}
+                >
+                  {practiceAreaLabel(area)}
+                </button>
+              )
+            })}
+          </div>
+          {tagsError && <FormError message={tagsError} />}
+
           <div className="detail-actions">
             <button type="button" className="detail-delete-button" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'מוחק תיק…' : 'מחיקת תיק'}
@@ -215,12 +261,7 @@ export default function CaseDetailPage() {
           {deleteError && <FormError message={deleteError} />}
 
           <div className="card detail-card">
-            <div className="detail-assign-header">
-              <div className="detail-card-title">שיוכים לתיק</div>
-              <button type="button" className="secondary-button detail-assign-button" onClick={() => setAssignModalOpen(true)}>
-                + שיוך
-              </button>
-            </div>
+            <div className="detail-card-title">שיוכים לתיק</div>
 
             {assignmentsLoading && <div className="detail-state">טוען שיוכים…</div>}
             {!assignmentsLoading && assignmentsError && (
@@ -236,6 +277,8 @@ export default function CaseDetailPage() {
                   emptyMessage="אין עורכי דין משויכים לתיק זה."
                   onRemove={handleUnassign}
                   removingId={removingId}
+                  onAdd={() => setAssignModalRole('lawyer')}
+                  addLabel="+ שיוך עורך דין"
                 />
                 <AssignmentGroup
                   title="לקוחות"
@@ -243,16 +286,19 @@ export default function CaseDetailPage() {
                   emptyMessage="אין לקוחות משויכים לתיק זה."
                   onRemove={handleUnassign}
                   removingId={removingId}
+                  onAdd={() => setAssignModalRole('client')}
+                  addLabel="+ שיוך לקוח"
                 />
               </div>
             )}
           </div>
 
           <AssignMemberModal
-            open={assignModalOpen}
+            open={assignModalRole !== null}
+            role={assignModalRole}
             caseId={caseId}
             excludeMembershipIds={assignedMembershipIds}
-            onClose={() => setAssignModalOpen(false)}
+            onClose={() => setAssignModalRole(null)}
             onAssigned={handleAssigned}
           />
 
@@ -264,11 +310,16 @@ export default function CaseDetailPage() {
   )
 }
 
-function AssignmentGroup({ title, items, emptyMessage, onRemove, removingId }) {
+function AssignmentGroup({ title, items, emptyMessage, onRemove, removingId, onAdd, addLabel }) {
   return (
     <div className="assign-group">
-      <div className="assign-group-title">
-        {title} <span className="assign-group-count">({items.length})</span>
+      <div className="assign-group-header">
+        <div className="assign-group-title">
+          {title} <span className="assign-group-count">({items.length})</span>
+        </div>
+        <button type="button" className="secondary-button assign-group-add" onClick={onAdd}>
+          {addLabel}
+        </button>
       </div>
       {items.length === 0 && <div className="assign-group-empty">{emptyMessage}</div>}
       {items.length > 0 && (

@@ -6,9 +6,10 @@ from admin_api.core.file_validation import MAX_IMPORT_FILE_SIZE_BYTES, is_xlsx_f
 from admin_api.schemas.work_log_import import WorkLogImportErrorResponse, WorkLogImportResponse
 from shared.database import get_db
 from shared.membership import require_role
-from shared.models import AuditLog, Case, Membership, Tenant, WorkLog
+from shared.models import AuditLog, Case, Identity, Membership, Tenant, WorkLog
 from shared.models.enums import CaseStatus, UserRole, WorkLogSource
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 from shared.worklog_import import build_template_workbook, parse_and_validate_import
 
 router = APIRouter(prefix="/work-logs/import", tags=["work-logs"])
@@ -35,7 +36,19 @@ def download_import_template(
         .order_by(Case.title)
         .all()
     )
-    content = build_template_workbook(cases, include_lawyer_email=True)
+    lawyer_emails = [
+        email
+        for (email,) in db.query(Identity.email)
+        .join(Membership, Membership.identity_id == Identity.id)
+        .filter(
+            Membership.tenant_id == tenant.id,
+            Membership.role == UserRole.LAWYER,
+            Membership.active.is_(True),
+        )
+        .order_by(Identity.email)
+        .all()
+    ]
+    content = build_template_workbook(cases, include_lawyer_email=True, lawyer_emails=lawyer_emails)
     return Response(
         content=content,
         media_type=XLSX_MEDIA_TYPE,
@@ -59,14 +72,14 @@ async def import_work_logs(
     """
     content = await file.read()
     if len(content) > MAX_IMPORT_FILE_SIZE_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File is too large")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.FILE_TOO_LARGE)
     if not is_xlsx_file(content):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported file type — upload the .xlsx template")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.UNSUPPORTED_FILE_TYPE_XLSX)
 
     results, errors = parse_and_validate_import(content, tenant.id, db, include_lawyer_email=True)
     if errors:
         body = WorkLogImportErrorResponse(
-            error=f"Import failed — {len(errors)} row(s) had errors, nothing was imported",
+            error=E.import_failed_summary(len(errors)),
             row_errors=[{"row": e.row, "message": e.message} for e in errors],
         )
         return JSONResponse(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, content=body.model_dump())

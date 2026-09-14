@@ -436,7 +436,7 @@
           "cases"
         ],
         "summary": "List My Cases",
-        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unlike office_manager, a lawyer/client has no automatic\ntenant-wide visibility. Optional server-side title search + status\nfilter, same as the admin case list.",
+        "description": "Only cases this membership is explicitly assigned to via\nCaseAssignment — unlike office_manager, a lawyer/client has no automatic\ntenant-wide visibility. Optional server-side title search + status +\npractice-area tag filter, same as the admin case list.",
         "operationId": "list_my_cases_cases_get",
         "parameters": [
           {
@@ -472,6 +472,24 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "practice_area",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PracticeArea"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter to cases carrying this tag",
+              "title": "Practice Area"
+            },
+            "description": "Filter to cases carrying this tag"
           },
           {
             "name": "page",
@@ -1048,7 +1066,7 @@
           "narratives"
         ],
         "summary": "Generate Narrative",
-        "description": "Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always\ninserts a new row — never edits an existing one; the newest row for a\ncase is the current/authoritative one, older rows stay as history (same\n\"rows accumulate, newest wins\" pattern as Subscriptions).",
+        "description": "Fixed-template generation (CLAUDE.md: no real AI/LLM needed). Always\ninserts a new row — never edits an existing one; the newest row for a\ncase is the current/authoritative one, older rows stay as history (same\n\"rows accumulate, newest wins\" pattern as Subscriptions). period/language\nare chosen by the lawyer at generation time and stored as a fixed\nsnapshot on the row, same reasoning as total_hours/total_fee.",
         "operationId": "generate_narrative_cases__case_id__narratives_post",
         "parameters": [
           {
@@ -1061,6 +1079,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateNarrativeRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "description": "Successful Response",
@@ -1587,6 +1615,13 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "practice_areas": {
+            "items": {
+              "$ref": "#/components/schemas/PracticeArea"
+            },
+            "type": "array",
+            "title": "Practice Areas"
           }
         },
         "type": "object",
@@ -1756,6 +1791,31 @@
           "email"
         ],
         "title": "ForgotPasswordRequest"
+      },
+      "GenerateNarrativeRequest": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "language": {
+            "$ref": "#/components/schemas/NarrativeLanguage",
+            "default": "he"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "GenerateNarrativeRequest",
+        "description": "period_start/period_end are chosen by the lawyer at generation time —\nreal legal billing is period-by-period, not every hour ever logged on\nthe case (CLAUDE.md). No overlap-prevention against other narratives on\nthe same case: re-covering a period already billed is a legitimate\ncorrection, not an error."
       },
       "GenericMessageResponse": {
         "properties": {
@@ -1941,6 +2001,14 @@
         ],
         "title": "LoginRequest"
       },
+      "NarrativeLanguage": {
+        "type": "string",
+        "enum": [
+          "he",
+          "en"
+        ],
+        "title": "NarrativeLanguage"
+      },
       "NarrativeResponse": {
         "properties": {
           "id": {
@@ -1965,6 +2033,19 @@
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
             "title": "Total Fee"
           },
+          "language": {
+            "$ref": "#/components/schemas/NarrativeLanguage"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -1978,6 +2059,9 @@
           "generated_text",
           "total_hours",
           "total_fee",
+          "language",
+          "period_start",
+          "period_end",
           "created_at"
         ],
         "title": "NarrativeResponse"
@@ -2138,6 +2222,20 @@
         ],
         "title": "PendingInviteOption",
         "description": "A lawyer/client invite still awaiting this identity's response —\nsurfaced at lobby-login the same way active memberships are (CLAUDE.md's\nMembershipInvites note: \"the invite shows up as a pending action for\nthem the next time they log in\")."
+      },
+      "PracticeArea": {
+        "type": "string",
+        "enum": [
+          "traffic",
+          "criminal",
+          "family",
+          "civil",
+          "labor",
+          "real_estate",
+          "corporate",
+          "immigration"
+        ],
+        "title": "PracticeArea"
       },
       "PublicTeamMember": {
         "properties": {

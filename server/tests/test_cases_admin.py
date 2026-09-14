@@ -288,7 +288,7 @@ def test_cannot_delete_case_with_work_logs(admin_client, db):
     resp = admin_client.delete(f"/cases/{case.id}", headers=headers, cookies=cookies)
 
     assert resp.status_code == 400
-    assert "close it instead" in resp.json()["error"]
+    assert "לסגור את התיק" in resp.json()["error"]
 
     get_resp = admin_client.get(f"/cases/{case.id}", headers=headers, cookies=cookies)
     assert get_resp.status_code == 200

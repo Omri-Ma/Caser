@@ -11,6 +11,7 @@ from shared.models.enums import UserRole
 from shared.settings import ABOUT_KEY, get_setting, set_setting
 from shared.storage import get_file_url, save_tenant_logo
 from shared.tenant import get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/tenant", tags=["tenant"])
 
@@ -70,12 +71,12 @@ async def upload_logo(
     if len(content) > MAX_LOGO_FILE_SIZE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"File exceeds the {MAX_LOGO_FILE_SIZE_BYTES // (1024 * 1024)}MB limit",
+            detail=E.logo_file_exceeds_limit(MAX_LOGO_FILE_SIZE_BYTES // (1024 * 1024)),
         )
 
     detected = detect_image_type(content)
     if detected is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only JPEG or PNG images are allowed for a logo")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.ONLY_JPEG_PNG_LOGOS_ALLOWED)
 
     tenant.logo_url = save_tenant_logo(content, tenant.id, file.filename or "logo")
     db.commit()
@@ -93,5 +94,5 @@ def get_logo(
     (a public visitor never has an admin_api session).
     """
     if not tenant.logo_url:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo uploaded")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=E.NO_LOGO_UPLOADED)
     return FileResponse(get_file_url(tenant.logo_url))

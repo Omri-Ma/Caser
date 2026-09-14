@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from shared.models import Document, Membership, MembershipInvite, Subscription
 from shared.models.enums import InviteStatus, Plan, UserRole
+from shared import error_messages as E
 
 GB = 1024**3
 
@@ -17,10 +18,24 @@ PLAN_STORAGE_LIMIT_BYTES = {
     Plan.ENTERPRISE: 100 * GB,
 }
 
+# Hardcoded per-plan monthly price (CLAUDE.md's super_admin platform-earnings
+# note: "same lightweight pattern already used for per-plan resource
+# limits"). No real billing integration anywhere — this is only ever used
+# to multiply into a display figure for super_admin's earnings chart.
+PLAN_PRICES_ILS = {
+    Plan.FREE: 0,
+    Plan.PRO: 99,
+    Plan.ENTERPRISE: 499,
+}
+
 PLAN_LAWYER_LIMITS = {
     Plan.FREE: 3,
     Plan.PRO: 15,
-    Plan.ENTERPRISE: 50,
+    # Effectively unlimited (still a real, enforced number — check_plan_limit
+    # never special-cases Enterprise, per CLAUDE.md's "keep enforcement
+    # simple" rule) — the UI displays this plan's lawyer count as "unlimited"
+    # rather than "X / 10000", but the mechanism underneath is unchanged.
+    Plan.ENTERPRISE: 10_000,
 }
 
 # In server/shared on purpose, not duplicated per app (unlike pagination.py/
@@ -68,7 +83,7 @@ def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional
         if used + additional > limit:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Storage quota exceeded for your plan ({limit // GB}GB) — free up space or upgrade your plan",
+                detail=E.storage_quota_exceeded(limit // GB),
             )
     elif resource_type == "lawyer_count":
         limit = PLAN_LAWYER_LIMITS[plan]
@@ -82,7 +97,7 @@ def check_plan_limit(tenant_id: int, resource_type: str, db: Session, additional
         if used + additional > limit:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Lawyer limit reached for your plan ({limit}) — remove a lawyer or upgrade your plan",
+                detail=E.lawyer_limit_reached(limit),
             )
     else:
         raise ValueError(f"Unknown resource_type: {resource_type}")

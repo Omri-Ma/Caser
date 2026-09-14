@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from shared.models import Case, CaseAssignment, Membership, Tenant
 from shared.scoped import get_tenant_scoped
+from shared import error_messages as E
 
 
 def get_assigned_case(case_id: int, tenant: Tenant, membership: Membership, db: Session) -> Case:
@@ -12,7 +13,7 @@ def get_assigned_case(case_id: int, tenant: Tenant, membership: Membership, db: 
     automatic case access. Shared by documents.py and work_logs.py, both of
     which gate every route behind "is this membership actually on this case."
     """
-    case = get_tenant_scoped(Case, case_id, tenant.id, db, "Case not found")
+    case = get_tenant_scoped(Case, case_id, tenant.id, db, E.CASE_NOT_FOUND)
     assigned = (
         db.query(CaseAssignment)
         .filter(
@@ -23,5 +24,5 @@ def get_assigned_case(case_id: int, tenant: Tenant, membership: Membership, db: 
         .first()
     )
     if assigned is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not assigned to this case")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NOT_ASSIGNED_TO_CASE)
     return case

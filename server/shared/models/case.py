@@ -20,3 +20,8 @@ class Case(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     assignments = relationship("CaseAssignment", back_populates="case")
+    tags = relationship("CaseTag", back_populates="case")
+
+    @property
+    def practice_areas(self):
+        return [tag.practice_area for tag in self.tags]

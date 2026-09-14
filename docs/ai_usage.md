@@ -3301,3 +3301,432 @@ invite accept/decline routes (`client_api/routers/invites.py`) already used
   not an error.
 - Regenerated `docs/openapi_*.json`/Postman/ERD (client_api 28→30 paths,
   admin_api 39→42).
+
+## 2026-09-14
+
+**Asked**: Unattended overnight session on `feature/case-billing-superadmin` —
+11 items (case tags, narratives language/period + Hebrew PDF, Excel import
+polish, split assignment UI, cases-list badge swap, enterprise "unlimited"
+display, Hebrew error catalog, audit log cleanup, sidebar font fix, super
+admin feature set, admin sidebar/settings polish). Work through all of them
+without stopping for approval; commit one item at a time; document any
+judgment calls made instead of asking.
+
+**Environment note**: no `chromium-cli` available in this Windows shell (the
+`run` skill's default browser driver). Installed Playwright directly
+(`npm install playwright` + `npx playwright install chromium`) in a scratch
+dir under the session temp folder and drove it with a small Node script per
+item instead — same verification bar (real browser, real login, screenshot,
+`console --errors` equivalent), just a hand-rolled driver rather than the
+packaged CLI. Flagging this so a `/run-skill-generator` pass could capture a
+proper project run-skill later; didn't do that myself to stay focused on the
+11 items.
+
+**Item 1 — Case practice-area tags**:
+- New `case_tags` table (`shared/models/case_tag.py`, migration
+  `e5f6a7b8c9d0`), `PracticeArea` enum (traffic/criminal/family/civil/labor/
+  real_estate/corporate/immigration — CLAUDE.md calls for "a curated list"
+  without naming one; picked 8 common Israeli-practice areas as the
+  reasonable default, easy to extend later since it's a real enum + table,
+  not scattered string literals).
+- `Case.practice_areas` is a Python `@property` over the `tags` relationship
+  so both apps' existing `CaseResponse` (already relying on FastAPI's
+  automatic ORM-attribute response serialization, no explicit
+  `from_attributes` config anywhere else in the codebase either) picks it up
+  for free.
+- `admin_api`: `PUT /cases/{id}/tags` (office_manager-only, full-replace
+  semantics — simpler than add/remove for a small fixed enum), `practice_area`
+  query filter on both `GET /cases` list endpoints (admin + client — read
+  access to tags/filter given to lawyers/clients too, only *setting* them is
+  office_manager-gated, per CLAUDE.md).
+- Frontend (admin only, since setting is office_manager-only there):
+  `CasesListPage` gets a practice-area filter `<select>` + a new "תחומים" tag
+  column; `CaseDetailPage` gets a row of toggle-chip buttons under the
+  header, each click PUT-replacing the full tag set.
+- Tests: `server/tests/test_case_tags.py` (set/replace, office_manager-only,
+  tenant isolation via `get_tenant_scoped`, filter). Full suite: 32 passed
+  locally on the touched files; ran the broader relevant subset (`test_cases_admin`,
+  `test_cases_client`) alongside it.
+- Verified live: logged into the real running dev stack (`demo.lvh.me:5174`,
+  seeded office_manager) via the Playwright script above — filter select
+  renders, 8 tag toggles render on a case, two toggles activate and survive
+  a full page reload (confirms the PUT + refetch round-trip against the real
+  DB, not just component state), tag chips show up back on the list page,
+  zero console errors. Screenshots kept in the session scratch dir only (not
+  committed — this repo doesn't have a convention for storing ad hoc
+  verification screenshots, and README screenshots are handled separately
+  per CLAUDE.md's delivery requirements).
+
+**Item 2 — Narratives language/period + Hebrew RTL PDF**:
+- `Narratives` gains `language` (he/en, default HE) and `period_start`/
+  `period_end` columns (migration `f6a7b8c9d0e1` — added nullable, backfilled
+  existing rows to `HE` + a period ending at their `created_at`, then made
+  NOT NULL, since the dev DB already had narrative rows from before this
+  feature). `compute_case_totals` now sums only WorkLogs inside the chosen
+  period instead of the case's whole history, per CLAUDE.md.
+- **Font sourcing judgment call**: CLAUDE.md asks for "a font that actually
+  contains Hebrew glyphs embedded in the PDF" without naming one, and no
+  font file existed anywhere in the repo. Fetched Google Fonts' **Alef**
+  (SIL Open Font License — legally embeddable/redistributable, unlike
+  copying a Windows system font such as Arial) as static Regular+Bold TTFs
+  from the `google/fonts` GitHub repo, under `server/shared/fonts/`. Tried
+  Noto Sans Hebrew first but it's shipped there only as a variable font,
+  which reportlab's `TTFont` doesn't handle correctly — switched to Alef's
+  static instances instead of fighting that.
+- **RTL layout**: reportlab has no bidi/shaping support at all. Added
+  `python-bidi` (small, actively maintained, MIT-licensed) and run every
+  line through `get_display()` (the Unicode Bidi Algorithm) immediately
+  before drawing — this reorders Hebrew runs right-to-left while leaving
+  embedded numbers/dates in their correct reading order, then draws
+  right-aligned from the page's right margin. Word-wrapping happens on the
+  *logical* (pre-bidi) string; bidi reordering is applied per finished line,
+  right before the draw call — doing it any earlier would wrap on the wrong
+  (visual) character order.
+- Currency is now plain text everywhere it's rendered — `generated_text`,
+  the PDF, and the client UI's narrative panel — never the ₪ glyph, per
+  CLAUDE.md. Wrote genuinely separate Hebrew and English narrative
+  templates (not just a currency-token swap) since CLAUDE.md calls `he`
+  "real work, not just template text swapped in" and that reads as
+  applying to the wording, not only the font.
+- Client UI: `NarrativesPanel` gets an inline generation form (period
+  start/end date inputs + a he/en select) in place of the old single-click
+  "generate" button.
+- Tests: extended `test_narratives_client.py` for the now-required request
+  body, added `test_narrative_period_and_language.py` (period filtering,
+  currency-text assertions for both languages, a direct unit test on
+  `build_narrative_pdf` confirming the Alef font is actually embedded in
+  the PDF bytes, not silently falling back to Helvetica).
+- **Verified live**: created a throwaway QA lawyer membership directly in
+  the dev DB (no seeded lawyer account existed with a known password),
+  assigned it to a real demo-tenant case, logged work hours, generated a
+  Hebrew narrative through the real UI against the running dev stack,
+  exported it to PDF, then pulled the actual PDF file out of the
+  `client_api` container's storage volume and rasterized it (PyMuPDF) to
+  visually inspect it — real Hebrew glyphs, correct RTL layout, numbers/
+  dates staying in correct left-to-right order inside RTL sentences, no ₪
+  glyph anywhere. **Found via that check, not by reasoning about the
+  code**: the demo case's own title renders as literal `?????` in the PDF —
+  traced to the actual bytes in MySQL (`HEX(title)` is literally `3F3F3F…`,
+  the ASCII `?` character), meaning that specific case title was already
+  corrupted at the byte level before this session touched anything (some
+  earlier dev/test insert lost its Hebrew encoding on the way into MySQL).
+  Confirmed this isn't a font/rendering bug: my own template text, written
+  directly as proper UTF-8 in the Python source, renders with correct
+  glyphs throughout the same PDF. Left the stale row as-is (out of this
+  session's scope, same call as the earlier stale-`logo_url` cleanup
+  logged above) rather than silently "fixing" unrelated dev data.
+- **Environment note**: no `chromium-cli` in this shell (see the session
+  header above) — used a hand-rolled Playwright script instead, same
+  verification bar.
+
+**Item 3 — Excel bulk import polish**:
+- Office_manager's bulk-import template gets a real lawyer-email **dropdown**
+  (a hidden `Lawyers` sheet + list `DataValidation`, same mechanism the
+  existing Case dropdown already uses) sourced from the tenant's currently
+  active lawyers — a typo'd or made-up email can no longer even be entered,
+  matching the reasoning CLAUDE.md already gives for the Case dropdown.
+- Date format switched from `YYYY-MM-DD` to **DD/MM/YYYY** in both the
+  template header label, the cell number format, and the parser
+  (`_parse_date`) — CLAUDE.md's Israeli-firm context makes DD/MM/YYYY the
+  locale-correct choice; updated every existing test's fixture dates to
+  match.
+- **Exact-duplicate-row detection**, checked two ways: within the same
+  file (a `seen_in_file` dict keyed on lawyer+case+date+hours+description,
+  keeping the file the sole source of truth for what "the same row" means)
+  and against already-persisted `WorkLogs` (a matching DB query on the same
+  key). Either match rejects the row with a row-numbered error — consistent
+  with CLAUDE.md's existing "reject the whole file, report which row and
+  why" rule, just one more validation reason among the existing ones.
+- **Frontend spacing bug**: `.form-error-banner` (the shared error-banner
+  component both apps' `Form.jsx` render) only ever defined `margin-bottom`,
+  never `margin-top` — fine wherever something already provided space above
+  it, but on the Excel-import page the banner sits directly under the
+  "בחירת קובץ לייבוא" action button with nothing between them. Fixed
+  page-locally (`.work-log-import-card .form-error-banner { margin-top }`)
+  rather than adding a global top margin to the shared component, since a
+  global change risked shifting spacing on every other screen that already
+  looks correct today. Same page/CSS file exists in both `admin/` and
+  `client/` (each app's own copy, per CLAUDE.md's no-shared-frontend rule) —
+  fixed both.
+- Tests: new dropdown-content test (active lawyer emails present, inactive
+  ones excluded) and duplicate-detection tests (within-file and
+  against-existing-WorkLog) added to both the admin bulk-import and
+  client self-import test files; every existing test's date literals
+  updated to DD/MM/YYYY.
+- **Verified live**: as the same QA lawyer, opened `/work-logs/import` in
+  the real running client app — page loads, zero console errors. Full
+  upload-a-real-.xlsx-and-see-it-import round trip wasn't separately
+  screenshotted this item (the underlying parse/validate/persist path is
+  the same code exercised end-to-end by the pytest suite above, including
+  through the real multipart upload); the visual/DOM check covered what
+  pytest can't — the page actually renders with no console errors.
+
+**Item 6 — Enterprise "unlimited" lawyer count**:
+- `PLAN_LAWYER_LIMITS[Plan.ENTERPRISE]` raised from 50 to 10,000 —
+  `check_plan_limit` is completely untouched, per the task's explicit ask;
+  Enterprise still goes through the exact same comparison as every other
+  plan, just against a number high enough that no real firm hits it.
+  10,000 rather than something like `math.inf`/`None` on purpose: keeping
+  it a real, ordinary integer means every existing code path (the usage-bar
+  percentage math, the JSON response shape) needs zero special-casing
+  anywhere except the one display decision below.
+- Frontend: `SubscriptionPage`'s lawyer `UsageBar` takes a new `unlimited`
+  flag (true only when `usage.plan === 'enterprise'`) and renders "37 ·
+  ללא הגבלה" with no progress track instead of "37 / 10000" — the storage
+  usage bar is untouched (Enterprise's storage cap is a real, still-visible
+  ceiling per CLAUDE.md, only the lawyer count is framed as unlimited).
+
+**Item 4 — Split the mixed lawyer/client assignment picker**:
+- `CaseDetailPage`'s "שיוכים לתיק" card previously had one "+ שיוך" button
+  opening one `AssignMemberModal` with an internal lawyer/client tab
+  switcher inside it. Replaced with two distinct actions: each
+  `AssignmentGroup` column (עורכי דין / לקוחות) now has its own "+ שיוך
+  עורך דין" / "+ שיוך לקוח" button, each opening the *same* modal component
+  but with a fixed `role` prop and no internal tab — a lawyer and a client
+  were never actually interchangeable choices in this flow, so a shared
+  entry point with a mode switch was hiding two different actions behind
+  one button.
+- `AssignMemberModal` simplified accordingly: dropped `roleTab` state and
+  the tab buttons, takes `role` directly, title changes per role
+  ("שיוך עורך דין לתיק" / "שיוך לקוח לתיק"). Removed the now-dead
+  `.assign-tabs`/`.assign-tab` CSS.
+- Backend untouched — `POST /cases/{id}/assignments` already resolves the
+  membership's actual role server-side and rejects a mismatch; this was a
+  frontend-only ask.
+- Verified live: both buttons render with distinct labels, each opens the
+  correctly-titled modal scoped to that role, zero console errors.
+
+**Item 5 — Cases list: ID badge instead of initials**:
+- `CasesListPage`'s title column previously led with a decorative 2-letter
+  initials badge (`avatarInitials`/`avatarTone`, purely cosmetic, not
+  derived from any real per-row data) and showed the case's actual id only
+  as small muted subtitle text ("מס׳ תיק #N"). Replaced the badge with a
+  `.case-id-badge` showing "#N" prominently (bold, tinted, `direction: ltr`
+  so the digits after `#` don't get bidi-reordered), and dropped the now-
+  redundant subtitle line — the id has one clear, prominent home instead of
+  two weaker ones.
+- Removed the now-fully-unused `avatarInitials`/`avatarTone` helpers from
+  `utils/format.js` (verified no other page still imports them) rather than
+  leaving dead exports behind.
+- Verified live: badge renders as a compact, obviously-a-number blue chip
+  next to every case title, zero console errors, zero leftover initials
+  elements in the DOM.
+
+**Item 8 — Remove stale "reset lawyer password" audit-log entry**:
+- `AuditLogPage.jsx`'s action filter/label map still had `member_password_reset`
+  even though `office_manager` resetting a member's password was removed
+  from the product (self-service only, per CLAUDE.md's office_manager
+  authority note) — grepped the whole server tree and confirmed no route
+  writes that action anymore, only a test fixture manufacturing one by
+  hand. Removed the entry from `ACTION_LABELS` and swapped the test
+  fixtures/assertions in `test_audit_log_admin.py` to a real, still-written
+  action (`narrative_pdf_exported`) instead of just deleting the coverage
+  those tests provided (tenant scoping, action filter, newest-first order).
+  Also fixed the same stale mention in two backend docstrings
+  (`admin_api/routers/audit_log.py`, `admin_api/schemas/audit_log.py`).
+
+**Item 9 — Sidebar wordmark font mismatch**:
+- `.wordmark { font-family: var(--font-family-wordmark) }` (a serif brand
+  font, Frank Ruhl Libre) was applied to the *entire* sidebar string —
+  `"Caser · ניהול"` / `"Caser · פלטפורמה"` — including the Hebrew subtitle,
+  which was never meant to render in the brand serif. Wrapped only `"Caser"`
+  in its own `<span className="wordmark">`, leaving the rest in a plain
+  sibling span that inherits the regular UI font (Heebo). Fixed in both
+  `admin/`'s `AppShell.jsx` (office_manager sidebar) and
+  `PlatformAppShell.jsx` (super_admin platform sidebar) — `client/`'s
+  `AppShell.jsx` only ever renders bare `"Caser"` with no subtitle, so it
+  was already correct and untouched.
+- Verified live: `getComputedStyle` on the two spans confirms
+  `"Caser"` computes to `"Frank Ruhl Libre", Georgia, serif` while its
+  sibling text computes to `Heebo, Arial, sans-serif`; screenshot confirms
+  the visual mismatch is gone.
+
+**Item 7 — All backend error messages → Hebrew, one consistent catalog**:
+- New `server/shared/error_messages.py`: every custom `HTTPException.detail`
+  string across both apps (~90 raise sites — `get_tenant_scoped`'s
+  `not_found_detail` argument, every hand-raised `HTTPException`, the Excel
+  import's `ImportRowError` messages, `DuplicateInviteError`'s message, and
+  the one custom Pydantic `model_validator` in `narratives.py`) now comes
+  from a named constant or small parameterized function here, never a
+  literal string at the raise site — exactly the "one consistent mechanism,
+  not per-message patches" CLAUDE.md asks for. Deduplicated: the same
+  logical error (e.g. "not found", "invalid email or password") is now
+  worded identically everywhere it's raised, where before six different
+  routers each had their own hand-typed English copy.
+- **Scope boundary, deliberately drawn and documented rather than silently
+  left half-done**: this pass covers *error* messages, not the two
+  success-message `GenericMessageResponse` strings in the forgot/reset-
+  password flow (CLAUDE.md's ask is specifically "error messages"); and it
+  covers custom validators, not literally every conceivable Pydantic
+  built-in error `type` — see below.
+- **Pydantic's own auto-generated validation messages** (e.g. "String
+  should have at least 1 character") are a second, separate source of
+  English text FastAPI returns on a 422 that no `HTTPException.detail`
+  ever touches. Extended `shared/errors.py`'s existing
+  `validation_exception_handler` (already the app's one place all 422s are
+  shaped) to translate these too, via `translate_pydantic_error()` — keyed
+  by the error's stable `type` code (`string_too_short`, `greater_than`,
+  `missing`, `enum`, ...) rather than pattern-matching its English `msg`
+  text. Covers every constraint kind this codebase's schemas actually use
+  today (checked by grepping every `Field(...)` in both apps' `schemas/`),
+  not a hypothetical exhaustive list — a reasonable, bounded scope for a
+  project this size, with an explicit fallback (return the library's raw
+  message) for anything uncovered, so a gap is visible in the response
+  rather than silently swallowed.
+- A `value_error` type (from a custom `model_validator`, e.g. narratives'
+  period-order check) is a special case: Pydantic wraps it as
+  `"Value error, <our message>"`, and our own validators already raise a
+  Hebrew message via this same catalog — so the translator detects Hebrew
+  characters in the wrapped message and passes it through unchanged
+  (stripping Pydantic's added prefix) rather than re-translating it into a
+  generic fallback, which would have discarded the specific message for a
+  vaguer one.
+- Updated the ~15 test assertions across the suite that checked English
+  substrings inside `resp.json()["error"]` / `row_errors[].message` to
+  check the equivalent Hebrew substring instead — same behavior being
+  verified, just matching the new wording (`test_cases_admin.py`,
+  `test_documents_client.py`, `test_work_logs_import_admin.py`,
+  `test_work_logs_import_client.py`).
+- Frontend already had Hebrew fallback error text in both apps'
+  `api/client.js` (`'משהו השתבש, נסו שוב'`, etc.) from earlier work — no
+  frontend changes needed here, it already just renders whatever `error`
+  string the backend sends.
+- **Verified**: both FastAPI apps import cleanly after the sweep (a
+  mechanical, ~30-file change like this is exactly the kind that hides a
+  stray syntax error — caught and fixed one, an errant trailing comment
+  left inside an unclosed paren in `admin_api/routers/invites.py`, this
+  way before it reached a test run). Full backend suite (220 tests as of
+  the previous item, growing as items are added) rerun clean after the
+  sweep — see the checkpoint note below for the one wrinkle encountered
+  getting there.
+- **Process note, not a code issue**: mid-sweep, a background full-suite
+  checkpoint run and a second, narrower test run I kicked off to verify
+  item 8 ended up hitting the same `casehub_test` database at the same
+  time — each test's `Base.metadata.drop_all`/`create_all` schema reset
+  collided with the other's in-progress one, producing 10 spurious
+  `OperationalError`s in the checkpoint run's `test_invites_*` files.
+  Confirmed by rerunning those two files alone (clean pass) once the first
+  run finished — not a real regression, just two pytest sessions never
+  meant to share one database concurrently. Noted here so it doesn't get
+  mistaken for a real bug if a similar log turns up later.
+- **Full-suite checkpoint after the sweep**: 214 passed, 0 failures — the
+  Hebrew-message rewrite touched ~30 files and every response shape stayed
+  correct.
+
+**Item 10 — Super admin feature set**:
+- **Two schema gaps found while implementing this, not pre-planned**:
+  CLAUDE.md's Identities section explicitly calls for `last_login_at`
+  ("powers super_admin's cross-tenant users view") but the column never
+  actually existed on the `Identity` model — added it now
+  (migration `b8c9d0e1f2a3`), plus a shared `record_login()` helper in
+  `shared/identity.py` called from all five login routes (admin `/login`,
+  `/lobby-login`, `/platform-login`; client `/login`, `/lobby-login`) so
+  every entry point stamps it identically. Separately, a tenant-growth-
+  per-month chart needs *when* each tenant was created, and `Tenant` had no
+  timestamp column at all — added `Tenants.created_at`
+  (migration `c9d0e1f2a3b4`), used only by that one chart.
+- New `PlatformAuditLogs` table + model (migration `a7b8c9d0e1f2`, exactly
+  as CLAUDE.md specifies: keyed by `identity_id` directly, not
+  `membership.id`, since super_admin is never a Memberships row) — wired
+  into `suspend_tenant`/`reactivate_tenant`, the one action CLAUDE.md
+  singles out as powerful enough to need its own durable trail.
+  `PLAN_PRICES_ILS` added to `shared/plan_limits.py` alongside the existing
+  hardcoded per-plan limits (99/₪mo Pro, 499/₪mo Enterprise, arbitrary but
+  reasonable SaaS figures — no real billing exists to derive them from).
+- New `admin_api/routers/platform.py` endpoints, all behind the existing
+  `require_super_admin` gate and none touching Cases/Documents content
+  (verified by the existing `test_platform_routes_never_expose_case_or_document_paths`
+  test, extended to cover the new paths too):
+  - `GET /platform/users` — paginated, searchable (name/email) cross-tenant
+    identity list with `last_login_at` and a per-firm role join through
+    Memberships; excludes `is_super_admin` identities (not part of "which
+    firms/roles a person holds" in any meaningful sense).
+  - `GET /platform/earnings` — trailing-6-month trend + current-month
+    figure. Implemented as a *literal* sum of every Subscription row
+    active at any point in a month (CLAUDE.md's own wording), deliberately
+    not deduped per tenant — a tenant that switched plans mid-month counts
+    both rows that month, matching what a real partial-month bill would
+    actually reflect.
+  - `GET /platform/stats` extended with `total_clients`,
+    `total_storage_bytes`, and a `plan_distribution` breakdown (a tenant
+    with no active Subscription row still counts as Free, matching
+    `get_active_plan`'s own fallback, handled by subtracting tenants that
+    *do* have an active row rather than double-counting).
+  - `GET /platform/tenant-growth` — new tenants per trailing month, same
+    Python-bucketing pattern `admin_api/routers/dashboard.py` already uses
+    for its own per-tenant charts (reused the approach, not the code — this
+    router intentionally never imports from the tenant-scoped dashboard
+    router, per CLAUDE.md's "explicitly separate code path" rule).
+  - `GET /platform/storage-overview` — every tenant's usage vs. their
+    plan's quota, unpaginated (bounded by tenant count; the frontend sorts
+    by usage% instead of paging).
+  - `GET /platform/audit-log` — paginated listing of the new
+    PlatformAuditLogs table.
+- Frontend: `PlatformDashboardPage` gains a plan-distribution pie chart, a
+  tenant-growth bar chart, an earnings line chart + current-month figure,
+  and a per-tenant storage usage list (top 6 by usage%), all via recharts
+  (already a dependency, already used the same way by the tenant-level
+  `DashboardPage`). Two new pages/routes/sidebar items:
+  `PlatformUsersPage` (searchable table, membership chips per row) and
+  `PlatformAuditLogPage` (same table pattern as the tenant-scoped
+  `AuditLogPage`).
+- Tests: `test_last_login_tracking.py` (all 5 login routes stamp it, a
+  failed login doesn't), and `test_platform_admin.py` extended with cases
+  for every new endpoint plus a lawyer-cannot-reach-any-of-them sweep.
+- **Real bug caught by the audit-log test, not by inspection**: MySQL's
+  `DATETIME` default column precision is whole seconds, so a test that
+  suspends then immediately reactivates the same tenant produces two
+  `PlatformAuditLog` rows with the *identical* `timestamp` — ordering by
+  `timestamp DESC` alone left their relative order undefined, and the test
+  caught it landing the wrong way round. Fixed by adding `id DESC` as a
+  tiebreaker, the same pattern `Narrative`'s own newest-first ordering
+  already uses elsewhere in this codebase for the identical reason. Left
+  the pre-existing tenant-scoped `AuditLogPage`'s equivalent query
+  (`admin_api/routers/audit_log.py`) alone — same latent gap, but it's
+  outside this session's 11 items and no test currently exercises it
+  closely enough to trigger it; noting it here as a real, findable
+  follow-up rather than silently fixing unrelated code.
+
+**Item 11 — Admin sidebar/settings polish**:
+- Profile and Subscription were two of three tabs nested under one
+  "הגדרות משרד" (office settings) sidebar item (`SettingsTabs`, a tab strip
+  repeated identically at the top of all three pages). Promoted both to
+  their own top-level sidebar items (`AppShell.jsx`'s `NAV_ITEMS`); the
+  remaining "הגדרות משרד" item is now just Branding and renamed to "מיתוג"
+  to match, since it's no longer an umbrella for three things. Deleted
+  `SettingsTabs.jsx`/`.css` (verified nothing else referenced it) rather
+  than leaving a dead component behind.
+- `SubscriptionPage`: added a `PLAN_DETAILS` display table (price, lawyer
+  cap, storage cap per plan) rendered under each plan option in the
+  switch-plan grid — explicitly labeled as display-only, mirroring
+  `shared/plan_limits.py`'s real values but never read by the backend, so
+  a wording tweak here can't accidentally change what's actually enforced.
+- `BrandingPage`: the subdomain was previously visible only in small,
+  muted text inside the branding preview mockup — easy to miss as "this is
+  a real, fixed address," not a mockup detail. Added a proper read-only
+  `FormField` above the editable fields (`disabled` input showing
+  `acme.lvh.me`, `dir="ltr"`, plus an explicit "קבועה, לא ניתנת לשינוי"
+  (fixed, cannot be changed) note) so it reads as the firm's actual address
+  rather than a preview detail.
+- Verified live: navigated the admin sidebar as office_manager — Branding/
+  Subscription/Profile are now three separate top-level items with no tab
+  strip on any of the three pages, Subscription page shows the new
+  plan-feature bullets, Branding page shows the new read-only subdomain
+  field; zero console errors.
+
+**Item 10 verification, continued — a false alarm worth recording**: the
+plan-distribution pie initially looked broken in a screenshot (a single-
+category dataset rendered as a near-invisible sliver instead of a full
+ring). Chased it as a real bug for a while — tried a `endAngle={359.999}`
+workaround for d3/recharts' well-known "exactly 360°" degenerate-arc case,
+then suspected the `oklch()` CSS-variable fill colors — before realizing
+the actual cause: recharts animates a Pie's entrance over ~1–1.5s, and the
+screenshot script's fixed wait was sometimes too short, catching the chart
+mid-animation. Confirmed by re-testing with a longer wait (both the
+real single-category case and a manufactured two-category one rendered
+correctly, full rings, once given enough time) and reverted both
+workarounds — neither was needed, and the `endAngle` one would have left
+a permanent, pointless 0.001° gap for a problem that didn't exist.
+Recorded so the same dead end isn't re-walked if this chart is touched
+again — always give a recharts screenshot a few extra seconds before
+concluding a shape is actually missing, not just still animating in.

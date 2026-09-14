@@ -7,11 +7,16 @@ const PAGE_SIZE = 50
 // lawyer/client's assigned-case list.
 const ASSIGNMENTS_PAGE_SIZE = 200
 
-export function listCases({ page = 1, status, search } = {}) {
+export function listCases({ page = 1, status, search, practiceArea } = {}) {
   const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
   if (status) params.set('status', status)
   if (search) params.set('search', search)
+  if (practiceArea) params.set('practice_area', practiceArea)
   return apiFetch(`/cases?${params}`)
+}
+
+export function setCaseTags(caseId, practiceAreas) {
+  return apiFetch(`/cases/${caseId}/tags`, { method: 'PUT', body: { practice_areas: practiceAreas } })
 }
 
 export function getCase(caseId) {

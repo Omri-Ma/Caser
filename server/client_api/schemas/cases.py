@@ -1,8 +1,9 @@
 from datetime import datetime
+from typing import List
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from shared.models.enums import CaseStatus
+from shared.models.enums import CaseStatus, PracticeArea
 
 
 class CaseResponse(BaseModel):
@@ -11,3 +12,4 @@ class CaseResponse(BaseModel):
     title: str
     status: CaseStatus
     created_at: datetime
+    practice_areas: List[PracticeArea] = Field(default_factory=list)

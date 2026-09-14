@@ -25,7 +25,7 @@ def list_audit_log(
     """Read-only browsing of this tenant's AuditLog — no write path here,
     entries are produced by the actions that already write them (document
     archive/restore/permanent-delete, work log edit/delete, member
-    deactivate/password-reset, narrative PDF export). Newest first, same
+    deactivate, narrative PDF export, Excel import). Newest first, same
     tenant-scoped + paginated shape as every other list endpoint.
     """
     query = (

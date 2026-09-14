@@ -5,7 +5,8 @@ import DataTable from '../components/DataTable'
 import NewCaseModal from '../components/NewCaseModal'
 import { listCases } from '../api/cases'
 import { CASE_STATUSES, caseStatusLabel, caseStatusStyle } from '../utils/caseStatus'
-import { avatarInitials, avatarTone, formatDate } from '../utils/format'
+import { PRACTICE_AREAS, practiceAreaLabel } from '../utils/practiceArea'
+import { formatDate } from '../utils/format'
 import './CasesListPage.css'
 
 const STATUS_TABS = [{ key: 'all', label: 'כל התיקים' }, ...CASE_STATUSES.map((s) => ({ key: s, label: caseStatusLabel(s) }))]
@@ -14,6 +15,7 @@ export default function CasesListPage() {
   const navigate = useNavigate()
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [practiceAreaFilter, setPracticeAreaFilter] = useState('all')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [result, setResult] = useState(null)
@@ -34,14 +36,24 @@ export default function CasesListPage() {
   useEffect(() => {
     setLoading(true)
     setError(null)
-    listCases({ page, status: statusFilter === 'all' ? undefined : statusFilter, search: search || undefined })
+    listCases({
+      page,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      search: search || undefined,
+      practiceArea: practiceAreaFilter === 'all' ? undefined : practiceAreaFilter,
+    })
       .then(setResult)
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [page, statusFilter, search])
+  }, [page, statusFilter, practiceAreaFilter, search])
 
   function selectStatus(status) {
     setStatusFilter(status)
+    setPage(1)
+  }
+
+  function selectPracticeArea(area) {
+    setPracticeAreaFilter(area)
     setPage(1)
   }
 
@@ -56,15 +68,12 @@ export default function CasesListPage() {
     {
       key: 'title',
       label: 'תיק',
-      render: (row, index) => (
+      render: (row) => (
         <div className="case-title-cell">
-          <div className="case-avatar" style={avatarTone(index)}>
-            {avatarInitials(row.title)}
+          <div className="case-id-badge" aria-hidden="true">
+            #{row.id}
           </div>
-          <div>
-            <div className="case-title-text">{row.title}</div>
-            <div className="case-title-sub">מס׳ תיק #{row.id}</div>
-          </div>
+          <div className="case-title-text">{row.title}</div>
         </div>
       ),
     },
@@ -72,6 +81,23 @@ export default function CasesListPage() {
       key: 'created_at',
       label: 'נפתח בתאריך',
       render: (row) => <span className="case-muted">{formatDate(row.created_at)}</span>,
+    },
+    {
+      key: 'tags',
+      label: 'תחומים',
+      render: (row) => (
+        <div className="case-tags-cell">
+          {(row.practice_areas ?? []).length === 0 ? (
+            <span className="case-muted">—</span>
+          ) : (
+            row.practice_areas.map((area) => (
+              <span key={area} className="chip case-tag-chip">
+                {practiceAreaLabel(area)}
+              </span>
+            ))
+          )}
+        </div>
+      ),
     },
     {
       key: 'status',
@@ -110,6 +136,18 @@ export default function CasesListPage() {
                 </button>
               ))}
             </div>
+            <select
+              className="cases-practice-area-select"
+              value={practiceAreaFilter}
+              onChange={(event) => selectPracticeArea(event.target.value)}
+            >
+              <option value="all">כל התחומים</option>
+              {PRACTICE_AREAS.map((area) => (
+                <option key={area} value={area}>
+                  {practiceAreaLabel(area)}
+                </option>
+              ))}
+            </select>
             <input
               type="text"
               className="cases-search-input"
@@ -124,7 +162,7 @@ export default function CasesListPage() {
             rows={result?.items}
             loading={loading}
             emptyMessage={
-              search || statusFilter !== 'all'
+              search || statusFilter !== 'all' || practiceAreaFilter !== 'all'
                 ? 'לא נמצאו תיקים התואמים את החיפוש או הסינון.'
                 : 'עדיין אין תיקים במשרד. צרו תיק חדש כדי להתחיל.'
             }

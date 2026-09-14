@@ -20,7 +20,7 @@ from client_api.schemas.auth import (
 )
 from shared.database import get_db
 from shared.dev_outbox import read_dev_outbox, write_dev_outbox
-from shared.identity import get_current_identity
+from shared.identity import get_current_identity, record_login
 from shared.invites import resolve_invites_on_register
 from shared.models import Identity, Membership, MembershipInvite, Tenant
 from shared.models.enums import InviteStatus, UserRole
@@ -34,6 +34,7 @@ from shared.security import (
     verify_password,
 )
 from shared.tenant import BASE_DOMAIN, get_current_tenant
+from shared import error_messages as E
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,7 +62,7 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
     accepted immediately below.
     """
     if db.query(Identity).filter(Identity.email == payload.email).first():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
 
     identity = Identity(name=payload.name, email=payload.email, password_hash=hash_password(payload.password))
     db.add(identity)
@@ -69,7 +70,7 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.EMAIL_ALREADY_REGISTERED)
     db.refresh(identity)
 
     resolve_invites_on_register(identity, db)
@@ -92,7 +93,7 @@ def login(
     """
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
     if identity is None or not verify_password(payload.password, identity.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
     membership = (
         db.query(Membership)
@@ -104,13 +105,14 @@ def login(
         .first()
     )
     if membership is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You don't have access to this firm")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=E.NO_ACCESS_TO_FIRM)
     if membership.role not in (UserRole.LAWYER, UserRole.CLIENT):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account logs in through the admin portal, not the client portal",
+            detail=E.account_logs_in_through_other_portal("פורטל הניהול"),
         )
 
+    record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
     return SessionResponse(name=identity.name, email=identity.email, role=membership.role)
 
@@ -127,7 +129,7 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     """
     identity = db.query(Identity).filter(Identity.email == payload.email).first()
     if identity is None or not verify_password(payload.password, identity.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_EMAIL_OR_PASSWORD)
 
     memberships = (
         db.query(Membership, Tenant)
@@ -150,9 +152,10 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
     if not memberships and not pending_invites:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No lawyer or client account found for this email at any firm",
+            detail=E.NO_LAWYER_OR_CLIENT_ACCOUNT_FOUND,
         )
 
+    record_login(identity, db)
     set_session_cookies(response, identity.id, identity.token_version)
     return LobbyLoginResponse(
         name=identity.name,
@@ -176,22 +179,22 @@ def lobby_login(payload: LobbyLoginRequest, response: Response, db: Session = De
 def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if token is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not logged in")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.NOT_LOGGED_IN)
 
     try:
         decoded = decode_token(token)
     except jwt.PyJWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_OR_EXPIRED_SESSION)
 
     if decoded.get("type") != "refresh":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.INVALID_TOKEN_TYPE)
 
     identity = db.query(Identity).filter(Identity.id == decoded["identity_id"]).first()
     if identity is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Account no longer exists")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.ACCOUNT_NO_LONGER_EXISTS)
 
     if decoded.get("token_version") != identity.token_version:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session has been invalidated, please log in again")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=E.SESSION_INVALIDATED)
 
     set_session_cookies(response, identity.id, identity.token_version)
 
@@ -252,7 +255,7 @@ def change_my_password(
         # 400, not 401 — see admin_api's identical route for the full
         # reasoning (a 401 here collided with apiFetch's generic
         # "401 == expired session" handling and bounced the user to /login).
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.CURRENT_PASSWORD_INCORRECT)
 
     set_session_cookies(response, identity.id, identity.token_version)
 
@@ -277,7 +280,7 @@ def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Sessio
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
     identity = redeem_reset_token(payload.token, payload.new_password, db)
     if identity is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link is invalid or has expired")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=E.RESET_LINK_INVALID_OR_EXPIRED)
 
     return GenericMessageResponse(message="Password updated. You can now log in with your new password.")
 

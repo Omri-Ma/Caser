@@ -21,8 +21,9 @@ from sqlalchemy.orm import Session
 # backend parses its own incoming file with its own `UploadFile`/xlsx
 # magic-byte check before handing the raw bytes to this module).
 
-from shared.models import Case, CaseAssignment, Identity, Membership
+from shared.models import Case, CaseAssignment, Identity, Membership, WorkLog
 from shared.models.enums import CaseStatus, UserRole
+from shared import error_messages as E
 
 # Same upper bound as CreateWorkLogRequest/UpdateWorkLogRequest's `le=24` —
 # one hours sanity threshold, not two independently-chosen numbers.
@@ -37,8 +38,8 @@ MAX_IMPORT_ROWS = 500
 # is what parse_and_validate_import actually keys off of below, never the
 # header text itself — these constants only gate "did you use the right
 # template layout" (wrong column count/order) via a whole-row equality check.
-HEADER_SELF = ["תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
-HEADER_WITH_LAWYER_EMAIL = ["אימייל עורך/ת דין", "תיק", "תאריך (YYYY-MM-DD)", "שעות", "תיאור"]
+HEADER_SELF = ["תיק", "תאריך (DD/MM/YYYY)", "שעות", "תיאור"]
+HEADER_WITH_LAWYER_EMAIL = ["אימייל עורך/ת דין", "תיק", "תאריך (DD/MM/YYYY)", "שעות", "תיאור"]
 
 
 @dataclass
@@ -60,13 +61,17 @@ def _case_option_label(case: Case) -> str:
     return f"{case.id} - {case.title}"
 
 
-def build_template_workbook(cases: list[Case], include_lawyer_email: bool) -> bytes:
+def build_template_workbook(cases: list[Case], include_lawyer_email: bool, lawyer_emails: Optional[list[str]] = None) -> bytes:
     """Build a downloadable .xlsx template. `cases` is the exact set of
     options offered in the Case column's dropdown — the caller decides the
     scope (a lawyer's own assigned, non-closed cases for the self-import
     template; every non-closed case at the tenant for the office_manager
     bulk-import variant, since the dropdown can't be scoped per-row to
-    whichever lawyer's email ends up in that row).
+    whichever lawyer's email ends up in that row). `lawyer_emails` (required
+    when `include_lawyer_email` is set) is likewise a real dropdown — sourced
+    from the tenant's currently-active lawyers — so a typo'd or unauthorized
+    email can't even be entered in the first place, same reasoning as the
+    Case dropdown.
     """
     workbook = Workbook()
     sheet = workbook.active
@@ -109,12 +114,30 @@ def build_template_workbook(cases: list[Case], include_lawyer_email: bool) -> by
         sheet.add_data_validation(validation)
         validation.add(f"{case_column_letter}2:{case_column_letter}1000")
 
+    if include_lawyer_email:
+        lawyer_emails = lawyer_emails or []
+        lawyers_sheet = workbook.create_sheet("Lawyers")
+        lawyers_sheet.sheet_state = "hidden"
+        for i, email in enumerate(lawyer_emails, start=1):
+            lawyers_sheet.cell(row=i, column=1, value=email)
+        if lawyer_emails:
+            lawyer_column_letter = get_column_letter(1)
+            lawyer_validation = DataValidation(
+                type="list",
+                formula1=f"Lawyers!$A$1:$A${len(lawyer_emails)}",
+                allow_blank=True,
+            )
+            lawyer_validation.error = "Choose a lawyer's email from the dropdown list"
+            lawyer_validation.errorTitle = "Invalid lawyer"
+            sheet.add_data_validation(lawyer_validation)
+            lawyer_validation.add(f"{lawyer_column_letter}2:{lawyer_column_letter}1000")
+
     # Proper date + hours column layout: real date-formatted cells (so
     # Excel's own date picker/validation kicks in when someone types into
     # them) and a fixed decimal format for hours, instead of both columns
     # looking like plain, unformatted text.
     for row in range(2, 1001):
-        sheet.cell(row=row, column=date_column_index).number_format = "yyyy-mm-dd"
+        sheet.cell(row=row, column=date_column_index).number_format = "dd/mm/yyyy"
         sheet.cell(row=row, column=hours_column_index).number_format = "0.##"
 
     for column_index in range(1, len(headers) + 1):
@@ -150,7 +173,7 @@ def _parse_date(raw_value) -> Optional[date_cls]:
     if not text:
         return None
     try:
-        return datetime.strptime(text, "%Y-%m-%d").date()
+        return datetime.strptime(text, "%d/%m/%Y").date()
     except ValueError:
         return None
 
@@ -188,27 +211,32 @@ def parse_and_validate_import(
     try:
         workbook = load_workbook(BytesIO(content), data_only=True)
     except Exception:
-        return [], [ImportRowError(row=0, message="Could not read this file — is it a valid .xlsx workbook?")]
+        return [], [ImportRowError(row=0, message=E.import_could_not_read_file())]
 
     sheet = workbook["Import"] if "Import" in workbook.sheetnames else workbook.active
     expected_headers = HEADER_WITH_LAWYER_EMAIL if include_lawyer_email else HEADER_SELF
 
     rows = list(sheet.iter_rows(values_only=True))
     if not rows:
-        return [], [ImportRowError(row=0, message="The file is empty")]
+        return [], [ImportRowError(row=0, message=E.import_file_is_empty())]
 
     header_row = [str(cell).strip() if cell is not None else "" for cell in rows[0][: len(expected_headers)]]
     if header_row != expected_headers:
-        return [], [ImportRowError(row=1, message=f"Expected columns: {', '.join(expected_headers)} — use the downloaded template")]
+        return [], [ImportRowError(row=1, message=E.import_expected_columns(", ".join(expected_headers)))]
 
     data_rows = [row for row in rows[1:] if row is not None and any(cell is not None for cell in row)]
     if not data_rows:
-        return [], [ImportRowError(row=0, message="The file has no data rows")]
+        return [], [ImportRowError(row=0, message=E.import_no_data_rows())]
     if len(data_rows) > MAX_IMPORT_ROWS:
-        return [], [ImportRowError(row=0, message=f"Too many rows — max {MAX_IMPORT_ROWS} per import")]
+        return [], [ImportRowError(row=0, message=E.import_too_many_rows(MAX_IMPORT_ROWS))]
 
     results: list[ImportRowResult] = []
     errors: list[ImportRowError] = []
+    # Exact-duplicate-row detection: same lawyer + case + date + hours +
+    # description already seen either earlier in this same file, or already
+    # recorded as a real WorkLog — catches both "pasted the same row twice"
+    # and "re-uploading a file already imported once before".
+    seen_in_file: dict[tuple, int] = {}
 
     for offset, raw_row in enumerate(data_rows, start=2):  # spreadsheet row 2 = first data row
         column = 0
@@ -218,7 +246,7 @@ def parse_and_validate_import(
             email = str(raw_row[column]).strip() if raw_row[column] is not None else ""
             column += 1
             if not email:
-                errors.append(ImportRowError(offset, "Lawyer email is required"))
+                errors.append(ImportRowError(offset, E.import_lawyer_email_required()))
                 continue
             lawyer_membership = (
                 db.query(Membership)
@@ -232,25 +260,25 @@ def parse_and_validate_import(
                 .first()
             )
             if lawyer_membership is None:
-                errors.append(ImportRowError(offset, f"No active lawyer at this firm with email '{email}'"))
+                errors.append(ImportRowError(offset, E.import_no_active_lawyer(email)))
                 continue
 
         case_id = _parse_case_id(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if case_id is None:
-            errors.append(ImportRowError(offset, "Case is required — choose one from the dropdown"))
+            errors.append(ImportRowError(offset, E.import_case_required()))
             continue
 
         row_date = _parse_date(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if row_date is None:
-            errors.append(ImportRowError(offset, "Date is not a valid date (expected YYYY-MM-DD)"))
+            errors.append(ImportRowError(offset, E.import_invalid_date()))
             continue
 
         hours = _parse_hours(raw_row[column]) if column < len(raw_row) else None
         column += 1
         if hours is None or hours <= 0 or hours > MAX_HOURS_PER_ROW:
-            errors.append(ImportRowError(offset, f"Hours must be a positive number up to {MAX_HOURS_PER_ROW}"))
+            errors.append(ImportRowError(offset, E.import_invalid_hours(MAX_HOURS_PER_ROW)))
             continue
 
         description = None
@@ -259,10 +287,10 @@ def parse_and_validate_import(
 
         case = db.query(Case).filter(Case.id == case_id, Case.tenant_id == tenant_id).first()
         if case is None:
-            errors.append(ImportRowError(offset, f"Case {case_id} was not found at this firm"))
+            errors.append(ImportRowError(offset, E.import_case_not_found(case_id)))
             continue
         if case.status == CaseStatus.CLOSED:
-            errors.append(ImportRowError(offset, f"Case {case_id} ('{case.title}') is closed"))
+            errors.append(ImportRowError(offset, E.import_case_closed(case_id, case.title)))
             continue
 
         assigned = (
@@ -275,8 +303,29 @@ def parse_and_validate_import(
             .first()
         )
         if assigned is None:
-            errors.append(ImportRowError(offset, f"That lawyer is not assigned to case {case_id}"))
+            errors.append(ImportRowError(offset, E.import_lawyer_not_assigned(case_id)))
             continue
+
+        duplicate_key = (case_id, lawyer_membership.id, row_date, hours, description or "")
+        if duplicate_key in seen_in_file:
+            errors.append(ImportRowError(offset, E.import_duplicate_within_file(seen_in_file[duplicate_key])))
+            continue
+        existing = (
+            db.query(WorkLog)
+            .filter(
+                WorkLog.tenant_id == tenant_id,
+                WorkLog.case_id == case_id,
+                WorkLog.lawyer_id == lawyer_membership.id,
+                WorkLog.date == row_date,
+                WorkLog.hours == hours,
+                WorkLog.description.is_(None) if not description else WorkLog.description == description,
+            )
+            .first()
+        )
+        if existing is not None:
+            errors.append(ImportRowError(offset, E.import_duplicate_of_existing()))
+            continue
+        seen_in_file[duplicate_key] = offset
 
         results.append(
             ImportRowResult(

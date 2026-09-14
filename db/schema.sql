@@ -17,6 +17,7 @@ CREATE TABLE `tenants` (
   `logo_url` varchar(500) DEFAULT NULL,
   `primary_color` varchar(7) DEFAULT NULL,
   `active` tinyint(1) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `ix_tenants_subdomain` (`subdomain`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -29,6 +30,7 @@ CREATE TABLE `identities` (
   `bio` text,
   `photo_url` varchar(500) DEFAULT NULL,
   `years_of_experience` int DEFAULT NULL,
+  `last_login_at` datetime DEFAULT NULL,
   `is_super_admin` tinyint(1) NOT NULL,
   `token_version` int NOT NULL,
   PRIMARY KEY (`id`),
@@ -93,6 +95,20 @@ CREATE TABLE `case_assignments` (
   CONSTRAINT `case_assignments_ibfk_1` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`),
   CONSTRAINT `case_assignments_ibfk_2` FOREIGN KEY (`membership_id`) REFERENCES `memberships` (`id`),
   CONSTRAINT `case_assignments_ibfk_3` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `case_tags` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tenant_id` int NOT NULL,
+  `case_id` int NOT NULL,
+  `practice_area` enum('TRAFFIC','CRIMINAL','FAMILY','CIVIL','LABOR','REAL_ESTATE','CORPORATE','IMMIGRATION') NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_case_tags_case_practice_area` (`case_id`,`practice_area`),
+  KEY `ix_case_tags_tenant_id` (`tenant_id`),
+  KEY `ix_case_tags_case_id` (`case_id`),
+  KEY `ix_case_tags_practice_area` (`practice_area`),
+  CONSTRAINT `case_tags_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
+  CONSTRAINT `case_tags_ibfk_2` FOREIGN KEY (`case_id`) REFERENCES `cases` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE `documents` (
@@ -167,6 +183,9 @@ CREATE TABLE `narratives` (
   `generated_text` text NOT NULL,
   `total_hours` decimal(8,2) NOT NULL,
   `total_fee` decimal(10,2) NOT NULL,
+  `language` enum('HE','EN') NOT NULL,
+  `period_start` date NOT NULL,
+  `period_end` date NOT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `ix_narratives_case_id` (`case_id`),
@@ -187,4 +206,17 @@ CREATE TABLE `audit_logs` (
   KEY `ix_audit_logs_tenant_id` (`tenant_id`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `tenants` (`id`),
   CONSTRAINT `audit_logs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `memberships` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE `platform_audit_logs` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `identity_id` int NOT NULL,
+  `action` varchar(100) NOT NULL,
+  `target_tenant_id` int NOT NULL,
+  `timestamp` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `ix_platform_audit_logs_identity_id` (`identity_id`),
+  KEY `target_tenant_id` (`target_tenant_id`),
+  CONSTRAINT `platform_audit_logs_ibfk_1` FOREIGN KEY (`identity_id`) REFERENCES `identities` (`id`),
+  CONSTRAINT `platform_audit_logs_ibfk_2` FOREIGN KEY (`target_tenant_id`) REFERENCES `tenants` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
