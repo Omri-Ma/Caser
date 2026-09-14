@@ -57,7 +57,26 @@ def create_reset_token(identity_id: int, db: Session) -> str:
     record" pattern a real redemption uses, not a special-cased row) means
     only the newest link is ever valid, matching how most real password-
     reset flows behave (a fresh request supersedes the last one).
+
+    Two nearly-simultaneous requests (a double-click, two open tabs) used to
+    both read "no unused tokens yet" before either had committed its INSERT,
+    leaving both newly-created tokens simultaneously valid — a read-then-
+    write race with no unique constraint to catch it. `with_for_update()`
+    on the Identity row is a real DB-level lock (works across processes,
+    unlike an in-memory one — see CLAUDE.md's concurrency rules) that makes
+    a second concurrent request wait here for the first to finish. That
+    alone isn't sufficient, though: under MySQL's default REPEATABLE READ,
+    a transaction's snapshot for plain SELECTs is fixed at the moment a
+    statement is *issued*, not when a blocked lock is actually *granted* —
+    so a request that waited on the identity lock still saw the *pre-wait*
+    snapshot on its follow-up SELECT, missing whatever the first request
+    had just committed. The stale-token SELECT below has to be a locking
+    read too (`with_for_update()`), which reads the latest committed data
+    for those specific rows regardless of when the transaction's snapshot
+    was fixed.
     """
+    db.query(Identity).filter(Identity.id == identity_id).with_for_update().first()
+
     # Filtered in Python, not SQL, for the not-yet-expired check — MySQL's
     # DATETIME column has no timezone of its own, so comparing it against a
     # timezone-aware Python value at the SQL layer is unreliable; the same
@@ -67,6 +86,7 @@ def create_reset_token(identity_id: int, db: Session) -> str:
     unused_tokens = (
         db.query(PasswordResetToken)
         .filter(PasswordResetToken.identity_id == identity_id, PasswordResetToken.used_at.is_(None))
+        .with_for_update()
         .all()
     )
     for stale in unused_tokens:

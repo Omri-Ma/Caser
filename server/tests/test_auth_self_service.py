@@ -266,3 +266,53 @@ def test_super_admin_excluded_from_forgot_password_on_client_api_too(client_clie
 
     assert resp.status_code == 200
     assert db.query(PasswordResetToken).count() == 0
+
+
+def test_concurrent_forgot_password_requests_still_leave_only_one_valid_token(db):
+    """Regression test for a real race: two nearly-simultaneous requests
+    (a double-click, two open tabs) each used to read "no unused tokens
+    yet" before either had committed its INSERT, leaving both new tokens
+    simultaneously valid. The two sequential tests above (same behavior,
+    called one after another) don't exercise this — they never overlap in
+    time, so they passed even with the race present. This test drives two
+    real, independent DB sessions from separate threads so their
+    transactions genuinely overlap, the same way two browser tabs would.
+    """
+    import threading
+
+    from tests.conftest import TestingSessionLocal
+    from shared.password_reset import create_reset_token
+
+    identity = make_identity(db, "concurrent@acme.com")
+    identity_id = identity.id
+    db.commit()
+
+    barrier = threading.Barrier(5)
+    errors = []
+
+    def worker():
+        session = TestingSessionLocal()
+        try:
+            barrier.wait(timeout=5)  # maximize actual overlap between threads
+            create_reset_token(identity_id, session)
+        except Exception as exc:  # pragma: no cover - surfaced via `errors`
+            errors.append(exc)
+        finally:
+            session.close()
+
+    threads = [threading.Thread(target=worker) for _ in range(5)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=10)
+
+    assert not errors, errors
+
+    db.expire_all()
+    tokens = db.query(PasswordResetToken).filter(PasswordResetToken.identity_id == identity_id).all()
+    assert len(tokens) == 5
+    unused = [t for t in tokens if t.used_at is None]
+    # Exactly one survivor — every concurrent request must still see (and
+    # invalidate) every token issued before it, even though each one had to
+    # wait on the identity-row lock to get there.
+    assert len(unused) == 1
