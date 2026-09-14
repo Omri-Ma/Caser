@@ -18,6 +18,20 @@ class PublicTeamMember(BaseModel):
     years_of_experience: Optional[int] = None
 
 
+class PublicDirectoryEntry(BaseModel):
+    """One row of the lobby's public firm directory (CLAUDE.md's "general,
+    non-tenant product homepage" requirement) — name/logo/subdomain only,
+    same non-sensitive boundary as a tenant's own public homepage. The
+    logo itself is fetched from that tenant's own GET /public/logo (keyed
+    by subdomain via the Host header, same as everywhere else), not a new
+    logo route here — has_logo just tells the frontend whether to try.
+    """
+
+    name: str
+    subdomain: str
+    has_logo: bool = False
+
+
 class PublicTenantProfile(BaseModel):
     """Deliberately whitelisted to only non-sensitive firm profile info a
     public, unauthenticated visitor may see — never case/document/user data,

@@ -12,6 +12,17 @@ export function apiBaseUrl() {
   return `${API_PROTOCOL}://${window.location.hostname}:${API_PORT}`
 }
 
+// Same as apiBaseUrl(), but for a specific tenant subdomain rather than
+// whichever host the page is currently on — used by the lobby's firm
+// directory, which needs to hit a different tenant's client_api (for its
+// public logo) while the browser itself is still on www.
+export function apiBaseUrlForSubdomain(subdomain) {
+  const hostname = window.location.hostname
+  const dot = hostname.indexOf('.')
+  const baseDomain = dot === -1 ? hostname : hostname.slice(dot + 1)
+  return `${API_PROTOCOL}://${subdomain}.${baseDomain}:${API_PORT}`
+}
+
 export class ApiError extends Error {
   constructor(message, { status, field, rowErrors } = {}) {
     super(message)

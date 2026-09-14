@@ -11,6 +11,7 @@ import CaseDetailPage from './pages/CaseDetailPage'
 import WorkLogImportPage from './pages/WorkLogImportPage'
 import ProfilePage from './pages/ProfilePage'
 import PublicHomePage from './pages/PublicHomePage'
+import HomePage from './pages/HomePage'
 import { apiFetch } from './api/client'
 import { isLobbyHost } from './utils/host'
 import { setStoredRole } from './api/session'
@@ -103,7 +104,14 @@ export default function App() {
                 </Layout>
               }
             />
-            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route
+              path="/"
+              element={
+                <Layout>
+                  <HomePage />
+                </Layout>
+              }
+            />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
