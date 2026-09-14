@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
-import SettingsTabs from '../components/SettingsTabs'
 import { FormField, FormError } from '../components/Form'
 import { getTenant, updateTenant, uploadLogo } from '../api/tenant'
 import { apiBaseUrl } from '../api/client'
@@ -84,9 +83,8 @@ export default function BrandingPage() {
   }
 
   return (
-    <AppShell activeKey="settings">
-      <h1 className="page-title settings-title">הגדרות משרד</h1>
-      <SettingsTabs active="branding" />
+    <AppShell activeKey="branding">
+      <h1 className="page-title settings-title">מיתוג</h1>
 
       {loading && <div className="cases-state">טוען פרטי משרד…</div>}
       {!loading && error && <div className="cases-state cases-state-error">{error}</div>}
@@ -97,6 +95,12 @@ export default function BrandingPage() {
             <FormError message={saveError} />
             {saved && <div className="reset-password-success">הפרטים נשמרו בהצלחה.</div>}
 
+            <FormField label="כתובת המשרד">
+              <div className="branding-subdomain-row">
+                <input value={`${tenant.subdomain}.lvh.me`} readOnly disabled className="branding-subdomain-input" dir="ltr" />
+                <span className="branding-subdomain-note">קבועה, לא ניתנת לשינוי</span>
+              </div>
+            </FormField>
             <FormField label="שם המשרד">
               <input value={name} onChange={(event) => setName(event.target.value)} required maxLength={255} />
             </FormField>

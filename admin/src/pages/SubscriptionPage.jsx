@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
-import SettingsTabs from '../components/SettingsTabs'
 import { FormError } from '../components/Form'
 import { getSubscription, switchPlan } from '../api/subscriptions'
 import { formatFileSize } from '../utils/format'
@@ -8,6 +7,14 @@ import './SettingsPage.css'
 
 const PLAN_LABELS = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
 const PLAN_ORDER = ['free', 'pro', 'enterprise']
+// Mirrors the hardcoded limits actually enforced server-side
+// (shared/plan_limits.py) — display-only, so a mismatch here would only
+// ever affect wording, never enforcement (the backend never reads this).
+const PLAN_DETAILS = {
+  free: { price: 'ללא עלות', lawyers: 'עד 3 עורכי דין', storage: 'עד 1GB אחסון' },
+  pro: { price: '99 ₪ לחודש', lawyers: 'עד 15 עורכי דין', storage: 'עד 20GB אחסון' },
+  enterprise: { price: '499 ₪ לחודש', lawyers: 'עורכי דין ללא הגבלה', storage: 'עד 100GB אחסון' },
+}
 
 // office_manager plan/usage view — plan comes from the active Subscriptions
 // row (never Tenants, which has no plan column), usage numbers come from
@@ -51,9 +58,8 @@ export default function SubscriptionPage() {
   }
 
   return (
-    <AppShell activeKey="settings">
-      <h1 className="page-title settings-title">הגדרות משרד</h1>
-      <SettingsTabs active="subscription" />
+    <AppShell activeKey="subscription">
+      <h1 className="page-title settings-title">מנוי ותוכנית</h1>
 
       {loading && <div className="cases-state">טוען פרטי מנוי…</div>}
       {!loading && error && <div className="cases-state cases-state-error">{error}</div>}
@@ -92,6 +98,11 @@ export default function SubscriptionPage() {
               {PLAN_ORDER.map((plan) => (
                 <div key={plan} className={`subscription-plan-option${plan === usage.plan ? ' current' : ''}`}>
                   <div className="subscription-plan-name">{PLAN_LABELS[plan]}</div>
+                  <div className="subscription-plan-price">{PLAN_DETAILS[plan].price}</div>
+                  <ul className="subscription-plan-features">
+                    <li>{PLAN_DETAILS[plan].lawyers}</li>
+                    <li>{PLAN_DETAILS[plan].storage}</li>
+                  </ul>
                   {plan === usage.plan ? (
                     <span className="chip member-status-active">התוכנית הנוכחית</span>
                   ) : (

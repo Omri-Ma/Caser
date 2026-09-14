@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import AppShell from '../components/AppShell'
-import SettingsTabs from '../components/SettingsTabs'
 import { FormField, FormError } from '../components/Form'
 import PasswordConfirmFields, { passwordsValid } from '../components/PasswordConfirmFields'
 import { changePassword, me, updateProfile } from '../api/auth'
@@ -80,9 +79,8 @@ export default function ProfilePage() {
   }
 
   return (
-    <AppShell activeKey="settings">
-      <h1 className="page-title settings-title">הגדרות משרד</h1>
-      <SettingsTabs active="profile" />
+    <AppShell activeKey="profile">
+      <h1 className="page-title settings-title">פרופיל אישי</h1>
 
       {!profileLoading && (
         <div className="card settings-card">

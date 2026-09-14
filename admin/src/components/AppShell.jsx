@@ -50,13 +50,36 @@ const NAV_ITEMS = [
     ),
   },
   {
-    key: 'settings',
-    label: 'הגדרות משרד',
+    key: 'branding',
+    label: 'מיתוג',
     path: '/settings/branding',
     icon: (
       <>
         <circle cx="12" cy="12" r="3" />
         <path d="M19 12a7 7 0 00-.14-1.4l2-1.56-2-3.46-2.36.95a7 7 0 00-2.42-1.4L13.6 3h-3.2l-.48 2.13a7 7 0 00-2.42 1.4l-2.36-.95-2 3.46 2 1.56a7 7 0 000 2.8l-2 1.56 2 3.46 2.36-.95a7 7 0 002.42 1.4L10.4 21h3.2l.48-2.13a7 7 0 002.42-1.4l2.36.95 2-3.46-2-1.56A7 7 0 0019 12z" />
+      </>
+    ),
+  },
+  {
+    key: 'subscription',
+    label: 'מנוי ותוכנית',
+    path: '/settings/subscription',
+    icon: (
+      <>
+        <rect x="3.5" y="5" width="17" height="14" rx="2" />
+        <path d="M3.5 9.5h17" />
+        <path d="M7 14h4" />
+      </>
+    ),
+  },
+  {
+    key: 'profile',
+    label: 'פרופיל אישי',
+    path: '/settings/profile',
+    icon: (
+      <>
+        <circle cx="12" cy="8.5" r="3.2" />
+        <path d="M5.5 19.5c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2" />
       </>
     ),
   },
@@ -126,7 +149,9 @@ export default function AppShell({ activeKey, children }) {
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          <span className="wordmark">Caser · ניהול</span>
+          <span>
+            <span className="wordmark">Caser</span> · ניהול
+          </span>
         </div>
         <nav className="sidebar-nav">
           {NAV_ITEMS.map((item) =>

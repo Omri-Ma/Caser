@@ -44,7 +44,9 @@ export default function PlatformAppShell({ children }) {
             <rect x="3" y="4" width="18" height="16" rx="4" stroke="#fff" strokeWidth="1.8" />
             <path d="M7 9h10M7 13h6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
-          <span className="wordmark">Caser · פלטפורמה</span>
+          <span>
+            <span className="wordmark">Caser</span> · פלטפורמה
+          </span>
         </div>
         <nav className="sidebar-nav">
           <button
@@ -58,6 +60,30 @@ export default function PlatformAppShell({ children }) {
               <path d="M16 4h4v16h-4z" />
             </svg>
             לוח בקרה
+          </button>
+          <button
+            type="button"
+            className={`sidebar-nav-item${location.pathname === '/users' ? ' active' : ''}`}
+            onClick={() => navigate('/users')}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5" />
+              <circle cx="17" cy="8.5" r="2.4" />
+              <path d="M15.5 13.7c2.4.4 4 2.4 4 5.3" />
+            </svg>
+            אנשי צוות ולקוחות
+          </button>
+          <button
+            type="button"
+            className={`sidebar-nav-item${location.pathname === '/audit-log' ? ' active' : ''}`}
+            onClick={() => navigate('/audit-log')}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M6 3.5h9l3.5 3.5V20.5H6z" />
+              <path d="M8.5 10.5h7M8.5 13.5h7M8.5 16.5h4.5" />
+            </svg>
+            יומן פעולות
           </button>
           <button
             type="button"
