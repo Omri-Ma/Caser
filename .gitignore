@@ -42,3 +42,6 @@ npm-debug.log*
 
 # Docker
 docker-compose.override.yml
+
+# Defense presentation (personal prep artifact, not part of the codebase)
+docs/Caser_Defense_Presentation.pptx
