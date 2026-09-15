@@ -20,6 +20,14 @@
   margin: 0 auto;
 }
 
+.home-hero-cta {
+  font-weight: 600;
+}
+
+.home-hero-cta a {
+  color: var(--color-primary);
+}
+
 .home-directory h2 {
   margin: 0 0 var(--space-1);
 }

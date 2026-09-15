@@ -48,3 +48,16 @@ export function loginRedirectUrl() {
   if (isPlatformHost() || isLobbyHost()) return '/login'
   return lobbyLoginUrl()
 }
+
+const CLIENT_APP_PORT = import.meta.env.VITE_CLIENT_APP_PORT
+
+// Where client/'s lobby login page lives, for a lawyer/client who landed on
+// admin/'s lobby by mistake — a cross-app link, not a cross-tenant one, so
+// it needs client/'s own port (5173 locally) rather than the current page's,
+// same reasoning as redirectToTenant's cross-subdomain hard redirect
+// (CLAUDE.md's Multi-tenancy architecture: locally distinguished by port, a
+// subdomain suffix in production).
+export function clientLoginUrl() {
+  const port = CLIENT_APP_PORT ? `:${CLIENT_APP_PORT}` : ''
+  return `${window.location.protocol}//www.${BASE_DOMAIN}${port}/login`
+}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { lobbyLogin } from '../api/auth'
 import { acceptInvite, declineInvite } from '../api/invites'
 import { FormField, FormError } from '../components/Form'
-import { redirectToTenant } from '../utils/host'
+import { redirectToTenant, adminSignupUrl } from '../utils/host'
 import './LobbyLoginPage.css'
 
 const ROLE_LABELS = {
@@ -173,6 +173,9 @@ export default function LobbyLoginPage() {
       </p>
       <p className="auth-switch">
         עדיין אין לך חשבון? <Link to="/register">הרשמה</Link>
+      </p>
+      <p className="auth-switch">
+        רוצה להקים משרד עורכי דין משלך? <a href={adminSignupUrl()}>הקמת משרד חדש</a>
       </p>
     </div>
   )
