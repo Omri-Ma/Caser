@@ -1,4 +1,5 @@
 from conftest import make_identity, make_membership, make_tenant
+from shared.cache import invalidate_tenant_cache
 from shared.models.enums import UserRole
 
 
@@ -65,7 +66,14 @@ def test_public_profile_has_logo_flag_and_logo_endpoint(client_client, db):
     logo_404 = client_client.get("/public/logo", headers={"Host": "acme.lvh.me"})
     assert logo_404.status_code == 404
 
+    # A raw ORM write straight to the row, bypassing admin_api's real
+    # POST /tenant/logo route entirely — that route is the one that calls
+    # invalidate_tenant_cache (shared/tenant.py's Redis cache in front of
+    # get_current_tenant), so a write that skips it has to invalidate by
+    # hand here too, or the previous GET's cached (no-logo) response would
+    # still be served for up to the cache's TTL.
     tenant.logo_url = "logos/999/doesnotmatterfortest.png"
     db.commit()
+    invalidate_tenant_cache(tenant.subdomain)
     with_logo_resp = client_client.get("/public/profile", headers={"Host": "acme.lvh.me"})
     assert with_logo_resp.json()["has_logo"] is True

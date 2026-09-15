@@ -4894,3 +4894,111 @@ after review (scratchpad only, not committed).
 No backend/API changes, so `docs/openapi_*.json` and
 `docs/postman_collection_*.json` were not regenerated — nothing in
 this branch touches either FastAPI app's routes.
+
+## 2026-09-15 (branch `feature/redis-tenant-cache`) — Redis's first real use: caching get_current_tenant
+
+**Asked**: Redis has been running in `docker-compose.yml` since day one with
+nothing actually using it (CLAUDE.md flagged this explicitly). Give it its
+first real job — cache the subdomain→Tenant lookup inside
+`get_current_tenant`, the one query that runs on nearly every request to
+either backend — with active invalidation, not just a TTL.
+
+**Changed**:
+- `server/requirements.txt`: added `redis==5.2.1` (both `client_api`/
+  `admin_api` share one requirements file already).
+- New `server/shared/cache.py` — narrow wrapper (`get_cached_tenant`/
+  `set_cached_tenant`/`invalidate_tenant_cache`), same pattern as
+  `storage.py`/`plan_limits.py`. Caches the Tenant row's own columns as a
+  JSON dict under `tenant:subdomain:<subdomain>`, 60s TTL.
+- `server/shared/tenant.py`'s `get_current_tenant`: cache-first. On a hit,
+  the cached fields are used to build a Tenant instance and attached to the
+  session via `make_transient_to_detached` + `db.merge(..., load=False)` —
+  needed so a cache hit still returns a normal, session-tracked ORM object
+  (admin_api's `PATCH /tenant` mutates it and calls `db.commit()`
+  afterward) without issuing the SELECT the cache exists to avoid. On a
+  miss, runs the exact same query as before and populates the cache.
+- Active invalidation wired into every route that changes a Tenant row:
+  `admin_api/routers/tenant.py`'s `PATCH /tenant` and `POST /tenant/logo`,
+  and `admin_api/routers/platform.py`'s suspend/reactivate routes.
+- `.env`/`.env.example`: `REDIS_URL_LOCAL` (pytest runs on the host, not in
+  the Docker network, same reasoning as the existing `DATABASE_URL_LOCAL`)
+  and `TEST_REDIS_URL` (dedicated DB index 1, so test cache entries never
+  mix with real dev data in index 0 — same idea as `TEST_DATABASE_URL`'s
+  separate schema).
+- `server/tests/conftest.py`: points `REDIS_URL` at `TEST_REDIS_URL` before
+  any app import (mirroring the existing `DATABASE_URL` override), plus a
+  new autouse fixture that flushes the test Redis DB before/after every
+  test — Redis state isn't reset by the `db` fixture's schema drop/recreate.
+- New `server/tests/test_tenant_cache.py` (6 tests): first request
+  populates the cache; a second request is proven to come from the cache
+  (not MySQL) by mutating the tenant row directly via raw SQL — bypassing
+  the app, and therefore bypassing invalidation — and confirming the stale
+  cached value is still what's returned; branding update, logo upload,
+  suspend, and reactivate all invalidate the cache so the very next request
+  reflects the change immediately.
+- Fixed `server/tests/test_public_team.py::test_public_profile_has_logo_flag_and_logo_endpoint`
+  — it mutated `tenant.logo_url` with a raw ORM write + `db.commit()`,
+  bypassing the real `POST /tenant/logo` route entirely (the only thing
+  that calls `invalidate_tenant_cache`). That's a genuine behavior change
+  from adding the cache, not a bug in it: any Tenant write that skips the
+  app's own routes is no longer guaranteed to be visible before the TTL
+  expires. Fixed by calling `invalidate_tenant_cache` by hand right after
+  the raw mutation, documenting the new invariant in the test itself.
+
+**Verified live** (Docker containers rebuilt — `redis` had to be
+`pip install`ed into both images, not just added to `requirements.txt`):
+- Confirmed via direct Redis inspection (`redis-cli`-equivalent Python
+  script against `localhost:6379/0`) that `GET /tenant` populates
+  `tenant:subdomain:demo` with the tenant's actual column values and a 60s
+  TTL, and that `client_api`'s `GET /public/profile` and `admin_api`'s
+  `GET /tenant` share the exact same cache entry (both apps import the same
+  `shared/cache.py`).
+- Confirmed branding updates land on the very next request: `PATCH /tenant`
+  clears the cache entry immediately (verified via direct Redis read
+  between the PATCH and the next GET), and `GET /public/profile`
+  immediately reflects the new value.
+- Confirmed suspend/reactivate lockout is immediate, using a disposable
+  signed-up tenant (not the real demo firm) so as not to risk locking out
+  the actual demo data: warmed the cache with `GET /tenant`, called
+  `POST /platform/tenants/{id}/suspend`, confirmed the cache entry was gone
+  and the very next `GET /tenant` was already a 404 (not stale-cached
+  `active: true` for up to the TTL window) — then `POST
+  .../reactivate` and confirmed the very next request was back to 200.
+  Cleaned up the disposable tenant (and its `PlatformAuditLog` rows) via
+  direct SQL afterward so no test data was left in the dev database.
+
+**Learned / mistakes made**:
+- `db.merge(instance, load=False)` rejects a plain transient
+  `Tenant(**cached_fields)` outright (`InvalidRequestError`) — `load=False`
+  means "trust this state, don't hit the database," which only makes sense
+  for an object that already claims to represent a real persisted row.
+  `sqlalchemy.orm.make_transient_to_detached` is the documented fix: it
+  stamps the identity key onto the instance without touching the database,
+  after which `merge(..., load=False)` accepts it. This is SQLAlchemy's own
+  canonical pattern for reconstituting an ORM object from an external cache.
+- A full local pytest run (`991s`) came back with 83 unrelated tests
+  erroring on `redis.exceptions.ConnectionError`, cascading from the
+  autouse cache-flush fixture — traced to several `docker` CLI invocations
+  from earlier in the session that never returned (a `docker ps` that hung
+  past its shell timeout, still running in the background) contending with
+  Docker Desktop's backend for the full 16-minute test run. Once those
+  zombie processes were cleaned up, a re-run passed cleanly (barring the
+  one real `test_public_team.py` fix above) in `786s`. Lesson: a hung
+  `docker` CLI call left running in the background is a real confound for
+  anything touching Docker-hosted services afterward — worth ruling out
+  first before assuming a genuine Redis bug.
+- A `curl -d '{"about": "<Hebrew text>"}'` typed inline in Git Bash on
+  Windows silently mangled the UTF-8 into `?` characters before curl ever
+  sent it (a Windows console codepage issue, not a `curl`/API bug) — this
+  briefly corrupted the real demo tenant's Hebrew `about` field during live
+  verification. Fixed immediately by writing the payload to a UTF-8 file in
+  the scratchpad and using `curl --data-binary @file` instead of an inline
+  string, then restoring the original text the same way. Lesson: never pass
+  non-ASCII request bodies to `curl` as an inline Git-Bash argument on
+  Windows — always go through a real UTF-8 file.
+
+**Docs**: re-ran `server/scripts/export_openapi.py` anyway to confirm the
+apps still import cleanly with the new `shared/cache.py` in the chain — no
+route signatures or response shapes changed, so the output was
+byte-identical (`git diff` empty). Postman collection not regenerated,
+same reason.
