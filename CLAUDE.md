@@ -58,7 +58,23 @@ cross-logs into the other app (see Multi-tenancy architecture for how
 - Database: MySQL, single shared database, indexes on all search/filter fields
   (email, subdomain, case status, etc.), not just primary/foreign keys
 - Auth: JWT (access + refresh tokens), bcrypt or argon2 password hashing
-- Cache: Redis — used for caching (tenant lookups, dashboard stats), not locking
+- Cache: Redis — used for caching (tenant lookups, dashboard stats), not locking.
+  First real use (added 2026-09-15, after `docker-compose.yml` ran a Redis
+  container with nothing actually using it): `get_current_tenant` (see
+  Multi-tenancy architecture) caches the subdomain→`Tenant` lookup, since
+  it's the one query that runs on nearly every request to either backend
+  and rarely changes. Correctness relies on two mechanisms together, not
+  one: a short TTL (e.g. 60s) as a safety net, plus active invalidation —
+  deleting the cached entry the moment the app itself changes that tenant
+  (branding update, `super_admin` suspend/reactivate) — so the common case
+  has zero staleness and the TTL only covers whatever invalidation didn't
+  catch. Lives in a new narrow `/server/shared` extension
+  (`shared/cache.py`, get/set/invalidate wrapping the Redis client), same
+  pattern as `storage.py`/`plan_limits.py` — both backends need identical
+  cache-key/invalidation behavior, so it can't be two independently
+  maintained per-app copies. Explicitly *not* used for locking (see
+  Architecture rules' concurrency section — that's handled by the
+  database's own unique-constraint rejection, on purpose, not Redis).
 - Frontend: React (or Next.js), two separate apps: `client/` (portal) and
   `admin/` (CMS) — deliberately different designs, no shared design system
   between them (see Code quality) — different audiences, different purposes.

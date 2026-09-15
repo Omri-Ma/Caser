@@ -20,6 +20,15 @@ if not TEST_DATABASE_URL:
     raise RuntimeError("TEST_DATABASE_URL is not set — see .env.example")
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 
+# Same idea, for Redis: point shared.cache (imported below, transitively via
+# shared.tenant) at a dedicated DB index before it builds its module-level
+# client off REDIS_URL — tests must never share cache entries with real dev
+# data, same reasoning as the database swap above.
+TEST_REDIS_URL = os.environ.get("TEST_REDIS_URL")
+if not TEST_REDIS_URL:
+    raise RuntimeError("TEST_REDIS_URL is not set — see .env.example")
+os.environ["REDIS_URL"] = TEST_REDIS_URL
+
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine  # noqa: E402
@@ -34,6 +43,7 @@ from shared.security import ACCESS_COOKIE_NAME, create_access_token, hash_passwo
 from shared.tenant import BASE_DOMAIN  # noqa: E402
 import shared.storage as storage  # noqa: E402
 import shared.dev_outbox as dev_outbox  # noqa: E402
+from shared.cache import redis_client  # noqa: E402
 
 test_engine = create_engine(TEST_DATABASE_URL, pool_pre_ping=True)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
@@ -49,6 +59,18 @@ def _isolated_storage_root(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(storage, "STORAGE_ROOT", tmp_path)
     monkeypatch.setattr(dev_outbox, "DEV_OUTBOX_PATH", tmp_path / "dev_outbox.jsonl")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_tenant_cache():
+    """Every test gets a clean slate in the (dedicated, TEST_REDIS_URL) cache
+    DB — without this, a tenant cached by one test could leak into the next
+    test's assertions, since Redis state isn't reset by the `db` fixture's
+    schema drop/recreate.
+    """
+    redis_client.flushdb()
+    yield
+    redis_client.flushdb()
 
 
 @pytest.fixture()

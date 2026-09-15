@@ -18,6 +18,7 @@ from admin_api.schemas.platform import (
     TenantStorageOverviewEntry,
     TenantSummaryResponse,
 )
+from shared.cache import invalidate_tenant_cache
 from shared.database import get_db
 from shared.models import Case, Document, Identity, Membership, PlatformAuditLog, Subscription, Tenant
 from shared.models.enums import Plan, UserRole
@@ -132,6 +133,11 @@ def suspend_tenant(
     tenant.active = False
     db.commit()
     db.refresh(tenant)
+    # Active invalidation (CLAUDE.md's Cache section) — get_current_tenant's
+    # active=True filter only runs again on a cache miss, so a suspended
+    # firm's cached-active entry would otherwise keep letting requests
+    # through for up to the TTL window.
+    invalidate_tenant_cache(tenant.subdomain)
     _log_platform_action(super_admin, "tenant_suspended", tenant.id, db)
     return _tenant_summary(tenant, db)
 
@@ -148,6 +154,10 @@ def reactivate_tenant(
     tenant.active = True
     db.commit()
     db.refresh(tenant)
+    # No stale-negative-cache issue here (misses always re-query, never
+    # cached), but invalidating anyway keeps the rule simple and uniform:
+    # any route that changes a tenant invalidates it, full stop.
+    invalidate_tenant_cache(tenant.subdomain)
     _log_platform_action(super_admin, "tenant_reactivated", tenant.id, db)
     return _tenant_summary(tenant, db)
 

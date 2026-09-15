@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from admin_api.core.file_validation import MAX_LOGO_FILE_SIZE_BYTES, detect_image_type
 from admin_api.schemas.tenant import TenantResponse, UpdateTenantRequest
+from shared.cache import invalidate_tenant_cache
 from shared.database import get_db
 from shared.membership import require_role
 from shared.models import Membership, Tenant
@@ -53,6 +54,9 @@ def update_tenant(
     set_setting(db, tenant.id, ABOUT_KEY, payload.about)
     db.commit()
     db.refresh(tenant)
+    # Active invalidation (CLAUDE.md's Cache section) — the whole point is
+    # that the very next request sees this update, not after the TTL expires.
+    invalidate_tenant_cache(tenant.subdomain)
     return _to_response(tenant, db)
 
 
@@ -81,6 +85,7 @@ async def upload_logo(
     tenant.logo_url = save_tenant_logo(content, tenant.id, file.filename or "logo")
     db.commit()
     db.refresh(tenant)
+    invalidate_tenant_cache(tenant.subdomain)
     return _to_response(tenant, db)
 
 
