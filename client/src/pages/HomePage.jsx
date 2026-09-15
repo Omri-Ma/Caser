@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getPublicDirectory } from '../api/public'
 import { apiBaseUrlForSubdomain } from '../api/client'
-import { redirectToTenant } from '../utils/host'
+import { redirectToTenant, adminSignupUrl } from '../utils/host'
 import './HomePage.css'
 
 // The lobby's general, non-tenant product homepage (CLAUDE.md's "general,
@@ -53,6 +53,9 @@ export default function HomePage() {
           Caser מרכזת עבור משרד עורכי דין את ניהול התיקים, המסמכים, שעות העבודה והלקוחות במקום
           אחד — לכל משרד סביבת עבודה נפרדת ומאובטחת משלו, עם ניהול הרשאות מדויק לכל תפקיד: מנהל
           משרד, עורך/ת דין ולקוח.
+        </p>
+        <p className="home-hero-cta">
+          יש לך משרד עורכי דין? <a href={adminSignupUrl()}>הקמת משרד חדש ב-Caser</a>
         </p>
       </section>
 

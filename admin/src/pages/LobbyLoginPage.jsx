@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { lobbyLogin } from '../api/auth'
 import { FormField, FormError } from '../components/Form'
-import { redirectToTenant } from '../utils/host'
+import { redirectToTenant, clientLoginUrl } from '../utils/host'
 
 // office_manager login from the lobby (www.<BASE_DOMAIN>:5174) — the only
 // login entry point for a tenant subdomain now (there's no per-tenant
@@ -82,6 +82,9 @@ export default function LobbyLoginPage() {
       </p>
       <p className="auth-switch">
         עדיין אין לך משרד? <Link to="/signup">הקמת משרד חדש</Link>
+      </p>
+      <p className="auth-switch">
+        עורכ/ת דין או לקוח/ה? <a href={clientLoginUrl()}>מעבר לכניסה של הלקוחות</a>
       </p>
     </div>
   )

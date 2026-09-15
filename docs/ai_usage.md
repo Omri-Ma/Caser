@@ -4848,3 +4848,49 @@ see the prior session's own note above about why that matters):
 #3). `docs/openapi_admin.json`, `docs/openapi_client.json`,
 `docs/postman_collection_admin.json`, `docs/postman_collection_client.json`
 regenerated via `server/scripts/export_docs.sh`.
+
+## 2026-09-15 (branch `feature/cross-lobby-links`) — cross-links between client/'s and admin/'s lobbies
+
+**Asked**: someone landing on the wrong lobby (a lawyer/client on
+admin/'s, or someone wanting to found a firm on client/'s) had no way
+to reach the right one except knowing the URL directly. Add cross-links,
+reusing whatever helper already builds cross-app/cross-subdomain URLs
+rather than hardcoding new URL logic.
+
+**Changed**: no existing helper covered a *cross-app* link (both
+`redirectToTenant`/`lobbyLoginUrl` in `client/src/utils/host.js` and
+`admin/src/utils/host.js` only ever point within the calling app's own
+origin) — added one narrow function per app instead, following the
+exact same pattern: `adminSignupUrl()` in `client/src/utils/host.js`,
+`clientLoginUrl()` in `admin/src/utils/host.js`. Each needs the *other*
+app's port locally (5174/5173) since it's a different origin, unlike
+same-app redirects that reuse `window.location.port` — added
+`VITE_ADMIN_APP_PORT`/`VITE_CLIENT_APP_PORT` to each app's `.env`/
+`.env.example`, mirroring the naming of the existing backend-side
+`CLIENT_APP_PORT` (root `.env.example`, used by `admin_api` for invite
+links) rather than inventing a new convention.
+
+Added three links:
+- `client/src/pages/HomePage.jsx` (the lobby's general homepage) — a
+  hero-section CTA to found a firm, pointing at `adminSignupUrl()`.
+  This one first, since the homepage is the more likely first-touch
+  point than the login page.
+- `client/src/pages/LobbyLoginPage.jsx` — same CTA, below the existing
+  register link.
+- `admin/src/pages/LobbyLoginPage.jsx` — a link for a lawyer/client who
+  landed there by mistake, pointing at `clientLoginUrl()`.
+
+**Learned/confirmed**: no browser-automation tool was preinstalled in
+this environment — `chromium-cli` wasn't available, so verification
+used a one-off `npx`-installed Playwright (isolated to the scratchpad,
+never added to either app's `package.json`) driving real headless
+Chromium against the actual dev servers (`www.lvh.me:5173`/`:5174`).
+Confirmed all three links render with the correct `href`, land on the
+right page when clicked (admin/'s signup form from both client/ entry
+points; client/'s login page from admin/'s lobby), and produce zero
+console errors across all four pages touched. Screenshots discarded
+after review (scratchpad only, not committed).
+
+No backend/API changes, so `docs/openapi_*.json` and
+`docs/postman_collection_*.json` were not regenerated — nothing in
+this branch touches either FastAPI app's routes.

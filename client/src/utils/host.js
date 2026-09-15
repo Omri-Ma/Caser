@@ -43,3 +43,17 @@ export function loginRedirectUrl() {
   if (isLobbyHost()) return '/login'
   return lobbyLoginUrl()
 }
+
+const ADMIN_APP_PORT = import.meta.env.VITE_ADMIN_APP_PORT
+
+// Where admin/'s lobby signup page lives, for someone reading client/'s
+// (own) lobby who actually wants to found a firm rather than log into one
+// — a cross-app link, not a cross-tenant one, so it needs admin/'s own port
+// (5174 locally) rather than the current page's, same reasoning as
+// redirectToTenant's cross-subdomain hard redirect (CLAUDE.md's Multi-
+// tenancy architecture: locally distinguished by port, a subdomain suffix
+// in production).
+export function adminSignupUrl() {
+  const port = ADMIN_APP_PORT ? `:${ADMIN_APP_PORT}` : ''
+  return `${window.location.protocol}//www.${BASE_DOMAIN}${port}/signup`
+}
